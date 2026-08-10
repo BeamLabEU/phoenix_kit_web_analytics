@@ -107,7 +107,11 @@ defmodule PhoenixKitWebAnalytics.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib priv .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
+      # No `priv` — this package has no priv/ directory, and listing a missing
+      # path makes `mix hex.build` refuse ("Missing files: priv"), which is why
+      # no release of this package ever reached Hex. Add it back if priv/ ever
+      # gains content.
+      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 

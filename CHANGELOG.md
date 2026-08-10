@@ -22,6 +22,11 @@ All notable changes to this project are documented here. This project follows
 
 ### Fixed
 
+- **This is the first release of this package to actually reach Hex.** Its
+  package `files:` list named a `priv` directory that does not exist, and
+  `mix hex.build` refuses to build a package whose declared files are missing
+  ("Missing files: priv") — so every publish attempt had failed before reaching
+  the registry. The entry is dropped; add it back if `priv/` ever gains content.
 - **The dashboard no longer fails to compile against core 2.0.** Core 2.0 added
   `PhoenixKitWeb.Components.Core.Chart.bar_chart/1`, which every LiveView imports
   via `use PhoenixKitWeb, :live_view`. That collided with this package's own
