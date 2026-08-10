@@ -122,7 +122,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
           <h2 class="text-sm font-semibold">Page views</h2>
           <span class="text-xs text-base-content/50">{bucket_label(@bucket)}</span>
         </div>
-        <.bar_chart series={@series} metric={:pageviews} bucket={@bucket} />
+        <.traffic_chart series={@series} metric={:pageviews} bucket={@bucket} />
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">

@@ -1,7 +1,7 @@
 defmodule PhoenixKitWebAnalytics.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_web_analytics"
 
   def project do
@@ -84,7 +84,7 @@ defmodule PhoenixKitWebAnalytics.MixProject do
       # admin shell, and `PhoenixKit.Migrations.Postgres.Helpers` (used by the
       # migration coordinator). 1.7.189 adds the runtime schema-prefix support
       # `PhoenixKit.SchemaPrefix` relies on.
-      pk_dep(:phoenix_kit, "~> 1.7.189"),
+      pk_dep(:phoenix_kit, "~> 2.0"),
 
       # Admin LiveViews.
       {:phoenix_live_view, "~> 1.1"},

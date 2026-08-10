@@ -48,7 +48,7 @@ defmodule PhoenixKitWebAnalytics do
   ## Installation
 
       # host mix.exs
-      {:phoenix_kit_web_analytics, "~> 0.1"}
+      {:phoenix_kit_web_analytics, "~> 0.2"}
 
   Then `mix deps.get` and `mix phoenix_kit.update` (creates
   `phoenix_kit_web_analytics_events` and
@@ -71,7 +71,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
 
-  @version "0.1.0"
+  @version "0.2.0"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 

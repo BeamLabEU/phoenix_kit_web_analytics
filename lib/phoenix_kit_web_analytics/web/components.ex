@@ -88,12 +88,19 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   The trend chart — one column per bucket, height proportional to the metric.
 
   Renders nothing but `div`s: no canvas, no chart library, no resize handler.
+
+  Named `traffic_chart` rather than `bar_chart` because core 2.0 introduced
+  `PhoenixKitWeb.Components.Core.Chart.bar_chart/1`, which every LiveView
+  imports via `use PhoenixKitWeb, :live_view` — two same-arity imports of that
+  name make an unqualified call ambiguous and fail to compile. Core's is a
+  generic SVG chart keyed on `id`/`data`; this one is bucket-aware and takes
+  `series`/`metric`/`bucket`, so they are not interchangeable.
   """
   attr :series, :list, required: true
   attr :metric, :atom, default: :pageviews, values: [:pageviews, :visitors]
   attr :bucket, :atom, default: :day
 
-  def bar_chart(assigns) do
+  def traffic_chart(assigns) do
     assigns = assign(assigns, :max, max_value(assigns.series, assigns.metric))
 
     ~H"""

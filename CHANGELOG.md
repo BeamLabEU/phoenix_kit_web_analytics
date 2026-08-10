@@ -3,6 +3,36 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-08-10
+
+### Changed
+
+- **⚠️ Requires `phoenix_kit ~> 2.0`.** The core pin moved to `~> 2.0`, so this
+  release no longer resolves against core 1.7.
+
+  Core 2.0.0 squashes the migration chain into a single `V135` baseline and makes
+  V135 the chain's floor: `mix ecto.migrate` now *refuses* on a database below it
+  rather than migrating. Check `mix phoenix_kit.status` **before** upgrading. A
+  host below V135 must install `phoenix_kit 1.7.236` — the migration bridge, the
+  last release carrying the full pre-squash chain — migrate until the reported
+  version is at least V135, and only then move to 2.0.
+
+  This package does not call migration internals, so the change is the pin
+  itself.
+
+### Fixed
+
+- **The dashboard no longer fails to compile against core 2.0.** Core 2.0 added
+  `PhoenixKitWeb.Components.Core.Chart.bar_chart/1`, which every LiveView imports
+  via `use PhoenixKitWeb, :live_view`. That collided with this package's own
+  same-arity `bar_chart/1`, making the unqualified call in the dashboard
+  ambiguous and failing the build. The local component is renamed
+  **`traffic_chart/1`**; core's is a generic SVG chart keyed on `id`/`data`,
+  while this one is bucket-aware and takes `series`/`metric`/`bucket`, so they
+  are not interchangeable and the local one is kept. Rendered output is
+  unchanged. Callers using `PhoenixKitWebAnalytics.Web.Components.bar_chart/1`
+  directly must rename the call.
+
 ## [0.1.0] - 2026-07-26
 
 Initial release.

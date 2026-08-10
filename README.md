@@ -47,7 +47,7 @@ anywhere in this package.
 
 ```elixir
 # mix.exs
-{:phoenix_kit_web_analytics, "~> 0.1"}
+{:phoenix_kit_web_analytics, "~> 0.2"}
 ```
 
 ```bash
