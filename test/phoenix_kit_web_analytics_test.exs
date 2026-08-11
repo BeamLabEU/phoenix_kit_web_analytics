@@ -40,7 +40,7 @@ defmodule PhoenixKitWebAnalyticsTest do
 
   describe "version" do
     test "version/0 matches mix.exs" do
-      assert PhoenixKitWebAnalytics.version() == "0.2.0"
+      assert PhoenixKitWebAnalytics.version() == "0.2.1"
 
       assert PhoenixKitWebAnalytics.version() ==
                to_string(Application.spec(:phoenix_kit_web_analytics, :vsn))
