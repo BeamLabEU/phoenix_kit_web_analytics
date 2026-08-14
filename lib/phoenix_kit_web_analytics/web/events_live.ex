@@ -101,7 +101,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
               </p>
             </div>
             <form phx-change="feed_type">
-              <select name="feed_type" class="select select-bordered select-xs" aria-label="Hit type">
+              <select name="feed_type" class="select select-xs" aria-label="Hit type">
                 <option value="all" selected={@feed_type == "all"}>All hits</option>
                 <option value="pageview" selected={@feed_type == "pageview"}>Page views</option>
                 <option value="event" selected={@feed_type == "event"}>Custom events</option>

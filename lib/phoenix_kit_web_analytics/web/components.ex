@@ -32,7 +32,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   def filter_bar(assigns) do
     ~H"""
     <form phx-change="filter" class="flex flex-wrap items-center gap-3">
-      <select name="period" class="select select-bordered select-sm" aria-label="Period">
+      <select name="period" class="select select-sm" aria-label="Period">
         <option :for={{value, label} <- Reports.periods()} value={value} selected={value == @period}>
           {label}
         </option>
@@ -41,7 +41,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       <select
         :if={@sites != []}
         name="site"
-        class="select select-bordered select-sm"
+        class="select select-sm"
         aria-label="Site"
       >
         <option value="" selected={is_nil(@site)}>All sites</option>

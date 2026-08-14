@@ -187,7 +187,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             id="exclude_paths"
             name="exclude_paths"
             rows="4"
-            class="textarea textarea-bordered w-full font-mono text-xs"
+            class="textarea w-full font-mono text-xs"
           >{@exclude_paths}</textarea>
         </div>
 
@@ -204,7 +204,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               min="1"
               max="1440"
               value={@config.session_timeout_minutes}
-              class="input input-bordered input-sm w-full"
+              class="input input-sm w-full"
             />
           </div>
 
@@ -220,7 +220,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               min="0"
               max="3650"
               value={@retention_days}
-              class="input input-bordered input-sm w-full"
+              class="input input-sm w-full"
             />
           </div>
         </div>
