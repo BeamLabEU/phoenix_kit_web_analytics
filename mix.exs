@@ -1,7 +1,7 @@
 defmodule PhoenixKitWebAnalytics.MixProject do
   use Mix.Project
 
-  @version "0.2.1"
+  @version "0.2.2"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_web_analytics"
 
   def project do

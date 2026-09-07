@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.2 - 2026-09-07
+
+### Fixed
+
+- Removed duplicate page headings across Web Analytics admin pages (Dashboard, Events, Pages, Acquisition, Technology, Settings) — each repeated the page title already shown in the top breadcrumb bar.
+
 ## 0.2.1 - 2026-08-11
 
 ### Changed
