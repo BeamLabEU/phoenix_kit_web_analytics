@@ -71,7 +71,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
 
-  @version "0.2.1"
+  @version "0.2.2"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 
