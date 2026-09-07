@@ -48,7 +48,6 @@ defmodule PhoenixKitWebAnalytics.Web.SourcesLive do
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold">Acquisition</h1>
           <p class="text-sm text-base-content/60">Referrers, channels, and campaigns.</p>
         </div>
         <.filter_bar period={@period} site={@site} sites={@sites} />

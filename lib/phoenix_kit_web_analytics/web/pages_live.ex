@@ -48,7 +48,6 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold">Pages</h1>
           <p class="text-sm text-base-content/60">
             {format_number(@overview.pageviews)} page views across {format_number(length(@paths))} paths.
           </p>

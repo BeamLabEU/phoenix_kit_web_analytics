@@ -73,7 +73,6 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold">Events</h1>
           <p class="text-sm text-base-content/60">
             {format_number(@overview.events)} custom events in this period.
           </p>

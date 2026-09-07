@@ -119,7 +119,6 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     ~H"""
     <div class="mx-auto max-w-3xl space-y-6 px-4 py-6">
       <div>
-        <h1 class="text-2xl font-semibold">Web Analytics settings</h1>
         <p class="text-sm text-base-content/60">
           Collection rules and retention. Changes apply to the next request.
         </p>
