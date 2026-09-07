@@ -37,29 +37,36 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   # Ordered: the first match wins, so more specific families come first.
   # Edge/Opera/Samsung all claim "Chrome", and Chrome claims "Safari".
-  @browsers [
-    {"Edge", ~r{Edge?[/ ](\d+[\d.]*)}},
-    {"Opera", ~r{(?:OPR|Opera)[/ ](\d+[\d.]*)}},
-    {"Vivaldi", ~r{Vivaldi/(\d+[\d.]*)}},
-    {"Brave", ~r{Brave/(\d+[\d.]*)}},
-    {"Samsung Internet", ~r{SamsungBrowser/(\d+[\d.]*)}},
-    {"Yandex Browser", ~r{YaBrowser/(\d+[\d.]*)}},
-    {"Firefox", ~r{(?:Firefox|FxiOS)/(\d+[\d.]*)}},
-    {"Chrome", ~r{(?:Chrome|CriOS|Chromium)/(\d+[\d.]*)}},
-    {"Safari", ~r{Version/(\d+[\d.]*).*Safari}},
-    {"Internet Explorer", ~r{(?:MSIE |rv:)(\d+[\d.]*).*Trident}}
-  ]
+  # Functions, not module attributes: on OTP 28 a compiled regex carries a
+  # reference, and a regex nested inside a list attribute cannot be escaped
+  # into a function body ("cannot inject attribute @browsers ... cannot escape
+  # #Reference"). A bare regex attribute is rewritten by the compiler, a list of
+  # them is not, so the lists live in functions and compile at runtime.
+  defp browsers,
+    do: [
+      {"Edge", ~r{Edge?[/ ](\d+[\d.]*)}},
+      {"Opera", ~r{(?:OPR|Opera)[/ ](\d+[\d.]*)}},
+      {"Vivaldi", ~r{Vivaldi/(\d+[\d.]*)}},
+      {"Brave", ~r{Brave/(\d+[\d.]*)}},
+      {"Samsung Internet", ~r{SamsungBrowser/(\d+[\d.]*)}},
+      {"Yandex Browser", ~r{YaBrowser/(\d+[\d.]*)}},
+      {"Firefox", ~r{(?:Firefox|FxiOS)/(\d+[\d.]*)}},
+      {"Chrome", ~r{(?:Chrome|CriOS|Chromium)/(\d+[\d.]*)}},
+      {"Safari", ~r{Version/(\d+[\d.]*).*Safari}},
+      {"Internet Explorer", ~r{(?:MSIE |rv:)(\d+[\d.]*).*Trident}}
+    ]
 
-  @operating_systems [
-    {"Windows", ~r{Windows NT (\d+[\d.]*)}},
-    {"Android", ~r{Android (\d+[\d.]*)}},
-    {"iOS", ~r{(?:iPhone|iPad|iPod).*OS (\d+[\d_]*)}},
-    {"macOS", ~r{Mac OS X (\d+[\d_.]*)}},
-    {"Chrome OS", ~r{CrOS \S+ (\d+[\d.]*)}},
-    {"Ubuntu", ~r{Ubuntu}},
-    {"Linux", ~r{Linux}},
-    {"FreeBSD", ~r{FreeBSD}}
-  ]
+  defp operating_systems,
+    do: [
+      {"Windows", ~r{Windows NT (\d+[\d.]*)}},
+      {"Android", ~r{Android (\d+[\d.]*)}},
+      {"iOS", ~r{(?:iPhone|iPad|iPod).*OS (\d+[\d_]*)}},
+      {"macOS", ~r{Mac OS X (\d+[\d_.]*)}},
+      {"Chrome OS", ~r{CrOS \S+ (\d+[\d.]*)}},
+      {"Ubuntu", ~r{Ubuntu}},
+      {"Linux", ~r{Linux}},
+      {"FreeBSD", ~r{FreeBSD}}
+    ]
 
   # Substring markers (already downcased) rather than one giant regex: cheaper,
   # and easier to extend without re-reasoning about alternation order.
@@ -98,8 +105,8 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
     if bot?(downcased) do
       %{@unknown | browser: "Bot", os: "Bot", device_type: "bot", bot?: true}
     else
-      {browser, browser_version} = match_first(@browsers, user_agent)
-      {os, os_version} = match_first(@operating_systems, user_agent)
+      {browser, browser_version} = match_first(browsers(), user_agent)
+      {os, os_version} = match_first(operating_systems(), user_agent)
 
       %{
         browser: browser,
