@@ -17,7 +17,7 @@ defmodule PhoenixKitWebAnalytics.Test.Layouts do
       <head>
         <meta charset="utf-8" />
         <meta name="csrf-token" content={Phoenix.Controller.get_csrf_token()} />
-        <title>Test</title>
+        <.live_title>{assigns[:page_title] || "Test"}</.live_title>
       </head>
       <body>
         {@inner_content}

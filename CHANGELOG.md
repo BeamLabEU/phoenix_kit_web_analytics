@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.2.3 - 2026-09-07
+
+### Fixed
+
+- **0.2.0–0.2.2 fail to compile on Elixir 1.18.4 / OTP 28** with `cannot escape #Reference<...>` in `UserAgent`: a compiled regex nested inside a `{name, ~r//}` list module attribute can't be injected into `parse/1`'s body on that combination. `@browsers` / `@operating_systems` are now private functions instead of attributes; behaviour is unchanged. (#1, thanks @timujinne)
+- Pages report crashed once a period had 100+ ranked paths: the "showing the top N paths" note referenced `@page_limit` inside the template, where `@name` is always an assign, never the module attribute of the same name — now assigned in `mount/3`.
+
 ## 0.2.2 - 2026-09-07
 
 ### Fixed

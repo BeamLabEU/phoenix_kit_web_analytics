@@ -16,7 +16,7 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
     {"acquisition", "#{@base}/sources", "Acquisition"},
     {"technology", "#{@base}/technology", "Technology"},
     {"events", "#{@base}/events", "Events"},
-    {"settings", "#{@base}/settings", "Web Analytics settings"}
+    {"settings", "#{@base}/settings", "Settings"}
   ]
 
   describe "every report page" do

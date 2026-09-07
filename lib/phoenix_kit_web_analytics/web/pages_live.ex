@@ -20,7 +20,10 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, "Pages · Web Analytics")}
+    {:ok,
+     socket
+     |> assign(:page_title, "Pages · Web Analytics")
+     |> assign(:page_limit, @page_limit)}
   end
 
   @impl true
