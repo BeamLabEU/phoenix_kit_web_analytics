@@ -151,7 +151,7 @@ defmodule PhoenixKitWebAnalytics do
       ),
       subtab(
         :admin_web_analytics_sessions,
-        gettext_noop("Sessions"),
+        gettext_noop("Visits"),
         "hero-users",
         "web-analytics/sessions",
         653

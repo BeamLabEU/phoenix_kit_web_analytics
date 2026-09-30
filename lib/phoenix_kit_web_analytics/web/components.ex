@@ -19,6 +19,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   import PhoenixKitWeb.Components.Core.Chart, only: [bar_chart: 1]
   import PhoenixKitWeb.Components.Core.EmptyState
   import PhoenixKitWeb.Components.Core.Icon
+  import PhoenixKitWeb.Components.Core.PopoverPanel
   import PhoenixKitWeb.Components.Core.Select
   import PhoenixKitWeb.Components.Core.StatusDot
   import PhoenixKitWeb.Components.Core.TableDefault
@@ -26,16 +27,16 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   alias PhoenixKitWebAnalytics.Reports
 
   @doc """
-  Period + site selector shared by every report page.
+  The period selector shared by every report page — plus the site selector,
+  only when the app actually served more than one host (an app on one domain
+  has nothing to choose), and the page-filter chip when one is active.
 
-  Emits `phx-change="filter"` with `period` and `site` params.
+  Emits `phx-change="filter"` with `period`, `site` and `path` params.
   """
   attr :id, :string, default: "web-analytics-filter"
   attr :period, :string, required: true
   attr :site, :string, default: nil
   attr :sites, :list, default: []
-  attr :active_visitors, :integer, default: nil
-  attr :live_path, :string, default: nil
   attr :path, :string, default: nil, doc: "the active path filter, if any"
   attr :base_path, :string, default: nil, doc: "this report's URL, to clear the path filter"
 
@@ -43,6 +44,21 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     ~H"""
     <form id={@id} phx-change="filter" class="flex flex-wrap items-center gap-2">
       <input :if={@path} type="hidden" name="path" value={@path} />
+      <.select
+        name="period"
+        value={@period}
+        options={Enum.map(Reports.periods(), fn {value, _} -> {period_label(value), value} end)}
+        class="select-sm w-auto"
+        aria-label={gettext("Period")}
+      />
+      <.select
+        :if={length(@sites) > 1}
+        name="site"
+        value={@site || ""}
+        options={[{gettext("All sites"), ""} | Enum.map(@sites, &{&1, &1})]}
+        class="select-sm w-auto"
+        aria-label={gettext("Site")}
+      />
       <.link
         :if={@path && @base_path}
         patch={
@@ -56,61 +72,101 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       >
         {@path} <.icon name="hero-x-mark" class="h-3 w-3" />
       </.link>
-      <.select
-        name="period"
-        value={@period}
-        options={Enum.map(Reports.periods(), fn {value, _} -> {period_label(value), value} end)}
-        class="select-sm w-auto"
-        aria-label={gettext("Period")}
-      />
-      <.select
-        :if={@sites != []}
-        name="site"
-        value={@site || ""}
-        options={[{gettext("All sites"), ""} | Enum.map(@sites, &{&1, &1})]}
-        class="select-sm w-auto"
-        aria-label={gettext("Site")}
-      />
-      <.link :if={is_integer(@active_visitors)} navigate={@live_path} class="badge badge-ghost gap-2">
-        <.status_dot
-          variant={if @active_visitors > 0, do: :success, else: :neutral}
-          pulse={@active_visitors > 0}
-          size={:xs}
-        />
-        {ngettext("%{count} online", "%{count} online", @active_visitors)}
-      </.link>
     </form>
     """
   end
 
   @doc """
-  A headline number, optionally with its change against the previous period.
+  "N online" — people on the site now — linking to the Right now page.
   """
+  attr :count, :integer, required: true
+  attr :path, :string, required: true
+
+  def online_badge(assigns) do
+    ~H"""
+    <.link
+      navigate={@path}
+      class="badge badge-ghost h-8 gap-2 px-3"
+      title={gettext("People on the site now — open Right now")}
+    >
+      <.status_dot
+        variant={if @count > 0, do: :success, else: :neutral}
+        pulse={@count > 0}
+        size={:xs}
+      />
+      {ngettext("%{count} online", "%{count} online", @count)}
+    </.link>
+    """
+  end
+
+  @doc """
+  A small (i) that opens an explanation — a card under the icon on wide
+  screens, a full-width card on a phone. Opens and closes on the client, with
+  no server round trip.
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :align, :string, default: "start", values: ["start", "end"]
+  slot :inner_block, required: true
+
+  def info_tip(assigns) do
+    ~H"""
+    <span class="relative inline-flex align-middle">
+      <button
+        type="button"
+        phx-click={toggle_popover(@id)}
+        class="inline-flex h-5 w-5 items-center justify-center rounded-full text-base-content/40 hover:text-base-content/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={gettext("What does “%{title}” mean?", title: @title)}
+      >
+        <.icon name="hero-information-circle" class="h-4 w-4" />
+      </button>
+      <.popover_panel id={@id} align={@align} width_class="sm:w-80">
+        <div class="space-y-2 p-4 text-left text-sm font-normal normal-case tracking-normal text-base-content">
+          <p class="font-semibold">{@title}</p>
+          <div class="space-y-2 text-base-content/80">{render_slot(@inner_block)}</div>
+        </div>
+      </.popover_panel>
+    </span>
+    """
+  end
+
+  @doc """
+  A headline number, optionally with its change against the previous period
+  and an (i) explanation (the `:info` slot).
+  """
+  attr :id, :string, required: true
   attr :label, :string, required: true
   attr :value, :string, required: true
-  attr :hint, :string, default: nil
   attr :delta, :float, default: nil
   attr :delta_good, :atom, default: :up, values: [:up, :down]
+  attr :info_align, :string, default: "start", values: ["start", "end"]
+  slot :info
 
   def stat_tile(assigns) do
     ~H"""
-    <div class="rounded-xl border border-base-300 bg-base-100 p-4">
-      <div class="text-xs uppercase tracking-wide text-base-content/50">{@label}</div>
+    <div id={@id} class="rounded-xl border border-base-300 bg-base-100 p-4">
+      <div class="flex items-center gap-1 text-xs uppercase tracking-wide text-base-content/50">
+        <span>{@label}</span>
+        <.info_tip :if={@info != []} id={"#{@id}-info"} title={@label} align={@info_align}>
+          {render_slot(@info)}
+        </.info_tip>
+      </div>
       <div class="mt-1 flex items-baseline gap-2">
         <span class="text-2xl font-semibold tabular-nums">{@value}</span>
         <span :if={@delta} class={["text-xs font-medium", delta_class(@delta, @delta_good)]}>
           {format_delta(@delta)}
         </span>
       </div>
-      <div :if={@hint} class="mt-1 text-xs text-base-content/50">{@hint}</div>
     </div>
     """
   end
 
   @doc """
   The trend chart — core's server-rendered SVG `bar_chart`, one bar per
-  bucket, with the first and last bucket named beneath it (as HTML, never as
-  SVG text, which the chart's stretched aspect ratio would distort).
+  bucket, with dates in a row beneath it that uses the chart's own slot
+  widths, so every date sits under its bar. Only every few buckets are
+  labelled (at most about seven), which keeps a month of days readable on a
+  phone. Hovering a bar shows its exact date and count.
   """
   attr :id, :string, default: "web-analytics-trend"
   attr :series, :list, required: true
@@ -118,9 +174,12 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   attr :bucket, :atom, default: :day
 
   def traffic_chart(assigns) do
+    n = length(assigns.series)
+    every = max(ceil(n / 7), 1)
+
     assigns =
-      assign(
-        assigns,
+      assigns
+      |> assign(
         :data,
         Enum.map(assigns.series, fn point ->
           %{
@@ -129,6 +188,16 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
           }
         end)
       )
+      |> assign(
+        :ticks,
+        assigns.series
+        |> Enum.with_index()
+        |> Enum.map(fn {point, i} ->
+          # Count from the end, so the latest bucket (today) is always named.
+          if rem(n - 1 - i, every) == 0, do: tick_label(point.bucket, assigns.bucket)
+        end)
+      )
+      |> assign(:slot, if(n > 0, do: 100 / n, else: 100))
 
     ~H"""
     <.empty_state
@@ -138,38 +207,52 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       class="py-10"
     />
 
-    <div :if={@series != [] and Enum.any?(@data, &(&1.value not in [0, nil]))} class="space-y-2">
-      <.bar_chart
-        id={@id}
-        data={@data}
-        height={160}
-        class="text-primary"
-        aria_label={gettext("Page views over time")}
-      />
-      <div class="flex justify-between text-xs text-base-content/50">
-        <span>{@series |> List.first() |> axis_label(@bucket)}</span>
-        <span>{@series |> List.last() |> axis_label(@bucket)}</span>
+    <div :if={@series != [] and Enum.any?(@data, &(&1.value not in [0, nil]))}>
+      <div class="h-40">
+        <.bar_chart
+          id={@id}
+          data={@data}
+          height={160}
+          class="text-primary"
+          aria_label={gettext("Page views over time")}
+          value_format={&format_number/1}
+        />
+      </div>
+      <div class="mt-1 flex text-[11px] text-base-content/50 tabular-nums">
+        <span
+          :for={tick <- @ticks}
+          class="overflow-visible whitespace-nowrap text-center"
+          style={"width: #{@slot}%"}
+        >
+          {tick}
+        </span>
       </div>
     </div>
     """
   end
 
   @doc """
-  A ranked "label + counts" card, with each row's share drawn as a bar behind
-  the label.
+  A ranked list: a label and one or two counts per row, with each row's
+  share drawn as a bar behind it. Column headers sit on top, in the same
+  fixed-width columns as the numbers, and the title's (i) explains where the
+  data comes from and what the columns count.
 
   `labels` names a vocabulary the row labels come from (`:channel`, `:device`)
   so raw stored values ("organic", "desktop") are shown translated.
   """
+  attr :id, :string, default: nil, doc: "needed for the (i) explanation"
   attr :title, :string, required: true
   attr :rows, :list, required: true
   attr :icon, :string, default: nil
   attr :empty_message, :string, default: nil
+  attr :label_header, :string, default: nil
   attr :metric_header, :string, default: nil
   attr :link, :string, default: nil
   attr :link_label, :string, default: nil
   attr :labels, :atom, default: nil, values: [nil, :channel, :device]
   attr :show_visitors, :boolean, default: true
+  attr :info_align, :string, default: "start", values: ["start", "end"]
+  slot :info
 
   def breakdown_card(assigns) do
     assigns = assign(assigns, :max, max_value(assigns.rows, :pageviews))
@@ -178,12 +261,20 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     <%!-- min-w-0: as a grid item the card would otherwise size to its longest
          label and push the page wider than a phone screen. --%>
     <div class="min-w-0 rounded-xl border border-base-300 bg-base-100">
-      <div class="flex items-center justify-between border-b border-base-300 px-4 py-3">
+      <div class="flex items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
         <h2 class="flex items-center gap-2 text-sm font-semibold">
           <.icon :if={@icon} name={@icon} class="h-4 w-4 text-base-content/50" />
           {@title}
+          <.info_tip
+            :if={@info != [] and @id}
+            id={"#{@id}-info"}
+            title={@title}
+            align={@info_align}
+          >
+            {render_slot(@info)}
+          </.info_tip>
         </h2>
-        <.link :if={@link} navigate={@link} class="text-xs text-primary hover:underline">
+        <.link :if={@link} navigate={@link} class="shrink-0 text-xs text-primary hover:underline">
           {@link_label || gettext("View all")}
         </.link>
       </div>
@@ -194,11 +285,17 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
         class="py-8"
       />
 
-      <div :if={@rows != []} class="divide-y divide-base-200">
-        <div
-          :for={row <- @rows}
-          class="relative flex items-center justify-between gap-4 px-4 py-2 text-sm"
-        >
+      <div
+        :if={@rows != []}
+        class="flex items-center gap-2 px-4 pt-2 pb-1 text-[11px] uppercase tracking-wide text-base-content/40"
+      >
+        <span class="min-w-0 flex-1 truncate">{@label_header}</span>
+        <span :if={@show_visitors} class="w-16 shrink-0 text-right">{gettext("Visitors")}</span>
+        <span class="w-16 shrink-0 text-right">{@metric_header || gettext("Views")}</span>
+      </div>
+
+      <div :if={@rows != []} class="divide-y divide-base-200 pb-1">
+        <div :for={row <- @rows} class="relative flex items-center gap-2 px-4 py-2 text-sm">
           <div
             class="absolute inset-y-0 left-0 bg-primary/10"
             style={"width: #{share(row, @max)}%"}
@@ -206,28 +303,30 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
           >
           </div>
           <% label = row_label(row.label, @labels) %>
-          <span class="relative min-w-0 truncate" title={label}>{label}</span>
-          <span class="relative flex shrink-0 items-center gap-3 tabular-nums">
-            <span
-              :if={@show_visitors}
-              class="text-base-content/50"
-              title={gettext("Distinct visitors")}
-            >
-              {format_number(row[:visitors])}
-            </span>
-            <span class="font-medium">{format_number(row.pageviews)}</span>
+          <span class="relative min-w-0 flex-1 truncate" title={label}>{label}</span>
+          <span
+            :if={@show_visitors}
+            class="relative w-16 shrink-0 text-right tabular-nums text-base-content/60"
+          >
+            {format_number(row[:visitors])}
+          </span>
+          <span class="relative w-16 shrink-0 text-right font-medium tabular-nums">
+            {format_number(row.pageviews)}
           </span>
         </div>
       </div>
-
-      <div
-        :if={@rows != []}
-        class="flex justify-end gap-3 border-t border-base-200 px-4 py-2 text-[11px] uppercase tracking-wide text-base-content/40"
-      >
-        <span :if={@show_visitors}>{gettext("Visitors")}</span>
-        <span>{@metric_header || gettext("Views")}</span>
-      </div>
     </div>
+    """
+  end
+
+  @doc "The standard explanation of a breakdown card's Visitors / Views columns."
+  def columns_explained(assigns) do
+    ~H"""
+    <p>
+      {gettext(
+        "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
+      )}
+    </p>
     """
   end
 
@@ -609,8 +708,11 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   defp bucket_label(%DateTime{} = bucket, _), do: Calendar.strftime(bucket, "%Y-%m-%d")
   defp bucket_label(other, _bucket), do: to_string(other)
 
-  defp axis_label(nil, _bucket), do: ""
-  defp axis_label(point, bucket), do: bucket_label(point.bucket, bucket)
+  # Short dates for the tick row under the chart: 24.09, 14:00, 09.2026.
+  defp tick_label(%DateTime{} = bucket, :hour), do: Calendar.strftime(bucket, "%H:00")
+  defp tick_label(%DateTime{} = bucket, :month), do: Calendar.strftime(bucket, "%m.%Y")
+  defp tick_label(%DateTime{} = bucket, _), do: Calendar.strftime(bucket, "%d.%m")
+  defp tick_label(other, _bucket), do: to_string(other)
 
   defp format_delta(delta) when delta > 0, do: "+#{Float.round(delta, 1)}%"
   defp format_delta(delta), do: "#{Float.round(delta / 1, 1)}%"

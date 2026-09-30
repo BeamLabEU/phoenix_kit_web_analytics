@@ -67,7 +67,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
     ~H"""
     <div class="mx-auto max-w-4xl space-y-6 px-4 py-6">
       <.link navigate={Paths.sessions()} class="btn btn-ghost btn-sm">
-        <.icon name="hero-arrow-left" class="h-4 w-4" /> {gettext("Sessions")}
+        <.icon name="hero-arrow-left" class="h-4 w-4" /> {gettext("Visits")}
       </.link>
 
       <.empty_state

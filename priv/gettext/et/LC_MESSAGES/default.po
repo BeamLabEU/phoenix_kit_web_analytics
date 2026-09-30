@@ -12,7 +12,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:80
+#: lib/phoenix_kit_web_analytics/web/components.ex:97
 #, elixir-autogen, elixir-format
 msgid "%{count} online"
 msgid_plural "%{count} online"
@@ -59,7 +59,7 @@ msgstr "Luba kliendiskript"
 msgid "Acquisition"
 msgstr "Hankimine"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:375
+#: lib/phoenix_kit_web_analytics/web/components.ex:474
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "Actions"
@@ -90,17 +90,17 @@ msgstr "Teavitusi tunnis"
 msgid "All hits"
 msgstr "Kõik päringud"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:70
+#: lib/phoenix_kit_web_analytics/web/components.ex:58
 #, elixir-autogen, elixir-format
 msgid "All sites"
 msgstr "Kõik saidid"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:469
+#: lib/phoenix_kit_web_analytics/web/components.ex:568
 #, elixir-autogen, elixir-format
 msgid "All time"
 msgstr "Kogu aeg"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:161
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:236
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:81
 #, elixir-autogen, elixir-format
 msgid "All traffic in this period was direct."
@@ -126,7 +126,7 @@ msgstr "Toimus veebianalüütika seadetes loetletud sündmus"
 msgid "And let the LiveView socket see the visitor's address and browser — on both transports, websocket and longpoll:"
 msgstr "Ja luba LiveView soklil näha külastaja aadressi ja brauserit — mõlemal transpordil, websocket ja longpoll:"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:434
+#: lib/phoenix_kit_web_analytics/web/components.ex:533
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Anonymous"
@@ -152,27 +152,17 @@ msgstr "Serveri keskmine vastamisaeg teedel, millel oli sel perioodil vähemalt 
 msgid "Average time on the page, from exits"
 msgstr "Keskmine aeg lehel, lahkumiste põhjal"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:136
-#, elixir-autogen, elixir-format
-msgid "Average, from page exits"
-msgstr "Keskmine, lehelt lahkumiste põhjal"
-
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:129
-#, elixir-autogen, elixir-format
-msgid "Avg. session"
-msgstr "Keskm. seanss"
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:484
 #, elixir-autogen, elixir-format
 msgid "Behind a proxy or CDN, put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug — otherwise every visitor hashes to the same address."
 msgstr "Proksi või CDN-i taga pane jälgimis-plugi ette plug, mis kirjutab remote_ip ümber (näiteks remote_ip) — muidu räsitakse kõik külastajad samale aadressile."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:488
+#: lib/phoenix_kit_web_analytics/web/components.ex:587
 #, elixir-autogen, elixir-format
 msgid "Bot"
 msgstr "Robot"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:122
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "Bounce rate"
 msgstr "Põrkemäär"
@@ -182,6 +172,7 @@ msgstr "Põrkemäär"
 msgid "Browsers"
 msgstr "Brauserid"
 
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:234
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Came from"
@@ -207,18 +198,18 @@ msgstr "Kampaaniaallikad"
 msgid "Campaigns"
 msgstr "Kampaaniad"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:164
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:255
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:71
 #, elixir-autogen, elixir-format
 msgid "Channels"
 msgstr "Kanalid"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:496
+#: lib/phoenix_kit_web_analytics/web/components.ex:595
 #, elixir-autogen, elixir-format
 msgid "Click"
 msgstr "Klõps"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:381
+#: lib/phoenix_kit_web_analytics/web/components.ex:480
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:173
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:133
 #, elixir-autogen, elixir-format
@@ -235,7 +226,7 @@ msgstr "Kogumine"
 msgid "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
 msgstr "Komadega eraldatud. Loetletud parameetrite väärtused (ainult lühikesed) säilitatakse koos interaktsiooniga, nt milline vahekaart avati."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:495
+#: lib/phoenix_kit_web_analytics/web/components.ex:594
 #, elixir-autogen, elixir-format
 msgid "Contact link"
 msgstr "Kontaktlink"
@@ -286,55 +277,51 @@ msgstr "Kohandatud sündmused"
 msgid "Derived from request headers — nothing is measured in the browser."
 msgstr "Tuletatud päringu päistest — brauseris ei mõõdeta midagi."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:485
+#: lib/phoenix_kit_web_analytics/web/components.ex:584
 #, elixir-autogen, elixir-format
 msgid "Desktop"
 msgstr "Lauaarvuti"
 
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:281
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Device"
 msgstr "Seade"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:171
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:277
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "Devices"
 msgstr "Seadmed"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:297
+#: lib/phoenix_kit_web_analytics/web/components.ex:396
 #, elixir-autogen, elixir-format
 msgid "Did “%{event}”"
 msgstr "Tegi „%{event}“"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:474
+#: lib/phoenix_kit_web_analytics/web/components.ex:573
 #, elixir-autogen, elixir-format
 msgid "Direct"
 msgstr "Otse"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:214
-#, elixir-autogen, elixir-format
-msgid "Distinct visitors"
-msgstr "Unikaalsed külastajad"
-
-#: lib/phoenix_kit_web_analytics/web/components.ex:494
+#: lib/phoenix_kit_web_analytics/web/components.ex:593
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr "Allalaadimine"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:351
-#: lib/phoenix_kit_web_analytics/web/components.ex:378
+#: lib/phoenix_kit_web_analytics/web/components.ex:450
+#: lib/phoenix_kit_web_analytics/web/components.ex:477
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:103
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr "Kestus"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:479
+#: lib/phoenix_kit_web_analytics/web/components.ex:578
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr "E-post"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:244
+#: lib/phoenix_kit_web_analytics/web/components.ex:343
 #, elixir-autogen, elixir-format
 msgid "Enable Web Analytics on the Modules page, and make sure %{plug} is in your router's browser pipeline."
 msgstr "Lülita veebianalüütika sisse moodulite lehel ja veendu, et %{plug} on ruuteri browser-pipeline'is."
@@ -344,7 +331,7 @@ msgstr "Lülita veebianalüütika sisse moodulite lehel ja veendu, et %{plug} on
 msgid "Event values to keep"
 msgstr "Säilitatavad sündmuse väärtused"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:311
+#: lib/phoenix_kit_web_analytics/web/components.ex:410
 #, elixir-autogen, elixir-format
 msgid "Event “%{event}”"
 msgstr "Sündmus „%{event}“"
@@ -381,22 +368,17 @@ msgstr "Kõik külastused, uusimad eespool. Ava külastus, et näha kõike, mida
 msgid "Excluded paths"
 msgstr "Välistatud teed"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:186
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "Exit pages"
 msgstr "Lahkumislehed"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:189
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:323
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:150
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Exits"
 msgstr "Lahkumised"
-
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:131
-#, elixir-autogen, elixir-format
-msgid "First hit to last, exits included"
-msgstr "Esimesest päringust viimaseni, lahkumised kaasa arvatud"
 
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:131
 #, elixir-autogen, elixir-format
@@ -413,7 +395,7 @@ msgstr "LiveView lehtede jaoks lisa hook oma live_session'isse:"
 msgid "Furthest scroll"
 msgstr "Kaugeim kerimine"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:313
+#: lib/phoenix_kit_web_analytics/web/components.ex:412
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr "Päring"
@@ -433,7 +415,7 @@ msgstr "Paigaldus"
 msgid "Interactions"
 msgstr "Interaktsioonid"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:478
+#: lib/phoenix_kit_web_analytics/web/components.ex:577
 #, elixir-autogen, elixir-format
 msgid "Internal"
 msgstr "Sisemine"
@@ -443,13 +425,13 @@ msgstr "Sisemine"
 msgid "It may have been pruned by retention, or the link is wrong."
 msgstr "See võidi säilitusreeglite järgi kustutada või on link vale."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:349
+#: lib/phoenix_kit_web_analytics/web/components.ex:448
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "Landed on"
 msgstr "Saabus lehele"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:370
+#: lib/phoenix_kit_web_analytics/web/components.ex:469
 #, elixir-autogen, elixir-format
 msgid "Landed on → left from"
 msgstr "Saabus → lahkus"
@@ -464,32 +446,32 @@ msgstr "Keel"
 msgid "Languages"
 msgstr "Keeled"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:468
+#: lib/phoenix_kit_web_analytics/web/components.ex:567
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr "Viimased 12 kuud"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:466
+#: lib/phoenix_kit_web_analytics/web/components.ex:565
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr "Viimased 30 päeva"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:465
+#: lib/phoenix_kit_web_analytics/web/components.ex:564
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr "Viimased 7 päeva"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:467
+#: lib/phoenix_kit_web_analytics/web/components.ex:566
 #, elixir-autogen, elixir-format
 msgid "Last 90 days"
 msgstr "Viimased 90 päeva"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:308
+#: lib/phoenix_kit_web_analytics/web/components.ex:407
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}"
 msgstr "Lahkus %{time} pärast"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:302
+#: lib/phoenix_kit_web_analytics/web/components.ex:401
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}, scrolled %{percent}%"
 msgstr "Lahkus %{time} pärast, keris %{percent}%"
@@ -509,7 +491,7 @@ msgstr "Reaalajas kohalolu ei tööta selles sõlmes, seega avatud lehti ei saa 
 msgid "LiveView pages report clicks, form submits and exits over their socket — no script needed. The optional client script adds what the server can't see."
 msgstr "LiveView lehed teatavad klõpsudest, vormide saatmisest ja lahkumistest oma sokli kaudu — skripti pole vaja. Valikuline kliendiskript lisab selle, mida server ei näe."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:486
+#: lib/phoenix_kit_web_analytics/web/components.ex:585
 #, elixir-autogen, elixir-format
 msgid "Mobile"
 msgstr "Mobiil"
@@ -546,7 +528,7 @@ msgstr "Uued külastajad"
 msgid "Newest"
 msgstr "Uusimad"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:183
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "No clicks or form submits recorded in this period."
 msgstr "Sel perioodil ei salvestatud ühtegi klõpsu ega vormi saatmist."
@@ -556,7 +538,7 @@ msgstr "Sel perioodil ei salvestatud ühtegi klõpsu ega vormi saatmist."
 msgid "No custom events recorded. Send them with PhoenixKitWebAnalytics.track_event/2 or phoenixKitAnalytics(name, props) in the browser."
 msgstr "Kohandatud sündmusi pole salvestatud. Saada neid funktsiooniga PhoenixKitWebAnalytics.track_event/2 või brauseris phoenixKitAnalytics(name, props)."
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:192
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "No exits recorded in this period."
 msgstr "Sel perioodil ei salvestatud ühtegi lahkumist."
@@ -576,13 +558,13 @@ msgstr "Asukohaandmed puuduvad. Seadista geolahendaja või kasuta CDN-i, mis lis
 msgid "No open pages."
 msgstr "Avatud lehti pole."
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:154
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:222
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:83
 #, elixir-autogen, elixir-format
 msgid "No page views recorded in this period."
 msgstr "Sel perioodil ei salvestatud ühtegi lehevaatamist."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:136
+#: lib/phoenix_kit_web_analytics/web/components.ex:205
 #, elixir-autogen, elixir-format
 msgid "No traffic in this period yet."
 msgstr "Sel perioodil pole veel liiklust."
@@ -602,7 +584,7 @@ msgstr "Sel perioodil ei esinenud utm_campaign parameetreid."
 msgid "No utm_source parameters seen in this period."
 msgstr "Sel perioodil ei esinenud utm_source parameetreid."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:333
+#: lib/phoenix_kit_web_analytics/web/components.ex:432
 #: lib/phoenix_kit_web_analytics/web/sessions_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "No visits in this period."
@@ -628,7 +610,7 @@ msgstr "Midagi ei salvestata."
 msgid "Nothing recorded in this period yet."
 msgstr "Sel perioodil pole veel midagi salvestatud."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:193
+#: lib/phoenix_kit_web_analytics/web/components.ex:284
 #, elixir-autogen, elixir-format
 msgid "Nothing recorded yet."
 msgstr "Veel pole midagi salvestatud."
@@ -673,7 +655,7 @@ msgstr "Ava"
 msgid "Open pages"
 msgstr "Avatud lehed"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:250
+#: lib/phoenix_kit_web_analytics/web/components.ex:349
 #, elixir-autogen, elixir-format
 msgid "Open settings"
 msgstr "Ava seaded"
@@ -688,7 +670,7 @@ msgstr "Ava see külastus"
 msgid "Operating systems"
 msgstr "Operatsioonisüsteemid"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:493
+#: lib/phoenix_kit_web_analytics/web/components.ex:592
 #, elixir-autogen, elixir-format
 msgid "Outbound link"
 msgstr "Väljaminev link"
@@ -703,20 +685,22 @@ msgstr "Väljaminevad lingid, allalaadimised, tavanupud, kerimissügavus ja lahk
 msgid "Overview"
 msgstr "Ülevaade"
 
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:220
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:322
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:171
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Page"
 msgstr "Leht"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:112
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:142
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:120
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:208
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Page views"
 msgstr "Lehevaatamised"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:147
+#: lib/phoenix_kit_web_analytics/web/components.ex:217
 #, elixir-autogen, elixir-format
 msgid "Page views over time"
 msgstr "Lehevaatamised ajas"
@@ -727,8 +711,8 @@ msgid "Page views reported from the browser, for pages a CDN serves without reac
 msgstr "Brauserist teatatud lehevaatamised lehtede kohta, mida CDN serveerib rakenduseni jõudmata. Lõpp-punktid on avalikud — jäta välja, kui sa neid ei kasuta."
 
 #: lib/phoenix_kit_web_analytics.ex:161
-#: lib/phoenix_kit_web_analytics/web/components.ex:350
-#: lib/phoenix_kit_web_analytics/web/components.ex:372
+#: lib/phoenix_kit_web_analytics/web/components.ex:449
+#: lib/phoenix_kit_web_analytics/web/components.ex:471
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:28
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:111
 #, elixir-autogen, elixir-format
@@ -740,7 +724,7 @@ msgstr "Lehed"
 msgid "Pages open now"
 msgstr "Praegu avatud lehed"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:480
+#: lib/phoenix_kit_web_analytics/web/components.ex:579
 #, elixir-autogen, elixir-format
 msgid "Paid"
 msgstr "Tasuline"
@@ -751,7 +735,7 @@ msgstr "Tasuline"
 msgid "Path"
 msgstr "Tee"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:64
+#: lib/phoenix_kit_web_analytics/web/components.ex:52
 #, elixir-autogen, elixir-format
 msgid "Period"
 msgstr "Periood"
@@ -771,7 +755,7 @@ msgstr "Salvesta LiveView interaktsioonid"
 msgid "Record bot traffic"
 msgstr "Salvesta robotite liiklus"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:477
+#: lib/phoenix_kit_web_analytics/web/components.ex:576
 #, elixir-autogen, elixir-format
 msgid "Referral"
 msgstr "Viide"
@@ -791,7 +775,7 @@ msgstr "Viitajad, kanalid ja kampaaniad."
 msgid "Referring sites"
 msgstr "Viitavad saidid"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:55
+#: lib/phoenix_kit_web_analytics/web/components.ex:71
 #, elixir-autogen, elixir-format
 msgid "Remove the page filter"
 msgstr "Eemalda lehefilter"
@@ -848,17 +832,17 @@ msgstr "Salvesta seaded"
 msgid "Saving…"
 msgstr "Salvestan…"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:497
+#: lib/phoenix_kit_web_analytics/web/components.ex:596
 #, elixir-autogen, elixir-format
 msgid "Scrolled"
 msgstr "Keritud"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:290
+#: lib/phoenix_kit_web_analytics/web/components.ex:389
 #, elixir-autogen, elixir-format
 msgid "Scrolled to %{percent}%"
 msgstr "Keritud %{percent}%-ni"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:475
+#: lib/phoenix_kit_web_analytics/web/components.ex:574
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr "Otsing"
@@ -867,25 +851,6 @@ msgstr "Otsing"
 #, elixir-autogen, elixir-format
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr "Saadetakse kõigile, kes saavad veebianalüütikat avada. Igaüks valib rakendusesisese teavituse, e-kirja või Telegrami ning soovi korral tunni- või päevakokkuvõtte asukohas"
-
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:146
-#, elixir-autogen, elixir-format
-msgid "Session timeout"
-msgstr "Seansi aegumine"
-
-#: lib/phoenix_kit_web_analytics.ex:154
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:117
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:191
-#: lib/phoenix_kit_web_analytics/web/session_live.ex:70
-#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:28
-#, elixir-autogen, elixir-format
-msgid "Sessions"
-msgstr "Seansid"
-
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:124
-#, elixir-autogen, elixir-format
-msgid "Sessions with one page view"
-msgstr "Ühe lehevaatamisega seansid"
 
 #: lib/phoenix_kit_web_analytics.ex:189
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:33
@@ -918,14 +883,14 @@ msgstr "Näita selle lehe liiklust"
 msgid "Showing the top %{count} paths by page views."
 msgstr "Kuvatakse %{count} enim vaadatud teed."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:432
+#: lib/phoenix_kit_web_analytics/web/components.ex:531
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:150
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Signed-in user"
 msgstr "Sisselogitud kasutaja"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:72
+#: lib/phoenix_kit_web_analytics/web/components.ex:60
 #, elixir-autogen, elixir-format
 msgid "Site"
 msgstr "Sait"
@@ -950,7 +915,7 @@ msgstr "Aeglaseimad"
 msgid "Slowest pages"
 msgstr "Aeglaseimad lehed"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:476
+#: lib/phoenix_kit_web_analytics/web/components.ex:575
 #, elixir-autogen, elixir-format
 msgid "Social"
 msgstr "Sotsiaalmeedia"
@@ -960,15 +925,15 @@ msgstr "Sotsiaalmeedia"
 msgid "Someone started a visit (filters in Web Analytics settings)"
 msgstr "Keegi alustas külastust (filtrid veebianalüütika seadetes)"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:352
-#: lib/phoenix_kit_web_analytics/web/components.ex:380
+#: lib/phoenix_kit_web_analytics/web/components.ex:451
+#: lib/phoenix_kit_web_analytics/web/components.ex:479
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr "Allikas"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:348
-#: lib/phoenix_kit_web_analytics/web/components.ex:368
+#: lib/phoenix_kit_web_analytics/web/components.ex:447
+#: lib/phoenix_kit_web_analytics/web/components.ex:467
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr "Algus"
@@ -983,7 +948,7 @@ msgstr "Kas lõpetada külastuste salvestamine? Aruanded säilitavad juba salves
 msgid "Stored data"
 msgstr "Salvestatud andmed"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:487
+#: lib/phoenix_kit_web_analytics/web/components.ex:586
 #, elixir-autogen, elixir-format
 msgid "Tablet"
 msgstr "Tahvelarvuti"
@@ -1009,29 +974,29 @@ msgstr "Seda külastust siin pole."
 msgid "Time"
 msgstr "Aeg"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:134
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:187
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "Time on page"
 msgstr "Aeg lehel"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:181
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:300
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:112
 #, elixir-autogen, elixir-format
 msgid "Times"
 msgstr "Korrad"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:463
+#: lib/phoenix_kit_web_analytics/web/components.ex:562
 #, elixir-autogen, elixir-format
 msgid "Today"
 msgstr "Täna"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:150
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Top pages"
 msgstr "Populaarseimad lehed"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:157
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Top referrers"
 msgstr "Populaarseimad viitajad"
@@ -1046,7 +1011,7 @@ msgstr "Jälgitavad sündmused"
 msgid "Tracking is off"
 msgstr "Jälgimine on väljas"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:242
+#: lib/phoenix_kit_web_analytics/web/components.ex:341
 #, elixir-autogen, elixir-format
 msgid "Tracking is off — no new hits are being recorded."
 msgstr "Jälgimine on väljas — uusi päringuid ei salvestata."
@@ -1055,11 +1020,6 @@ msgstr "Jälgimine on väljas — uusi päringuid ei salvestata."
 #, elixir-autogen, elixir-format
 msgid "Tracking is on"
 msgstr "Jälgimine on sees"
-
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:90
-#, elixir-autogen, elixir-format
-msgid "Traffic for: %{period}"
-msgstr "Liiklus: %{period}"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:179
 #, elixir-autogen, elixir-format
@@ -1071,7 +1031,7 @@ msgstr "Lülita välja"
 msgid "Turn on"
 msgstr "Lülita sisse"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:489
+#: lib/phoenix_kit_web_analytics/web/components.ex:588
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "Teadmata"
@@ -1081,22 +1041,22 @@ msgstr "Teadmata"
 msgid "Updates every few seconds."
 msgstr "Uueneb iga paari sekundi järel."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:187
+#: lib/phoenix_kit_web_analytics/web/components.ex:278
 #, elixir-autogen, elixir-format
 msgid "View all"
 msgstr "Vaata kõiki"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:287
+#: lib/phoenix_kit_web_analytics/web/components.ex:386
 #, elixir-autogen, elixir-format
 msgid "Viewed page"
 msgstr "Vaatas lehte"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:285
+#: lib/phoenix_kit_web_analytics/web/components.ex:384
 #, elixir-autogen, elixir-format
 msgid "Viewed “%{title}”"
 msgstr "Vaatas lehte „%{title}“"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:228
+#: lib/phoenix_kit_web_analytics/web/components.ex:294
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:95
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:178
 #, elixir-autogen, elixir-format
@@ -1109,7 +1069,7 @@ msgstr "Vaatamised"
 msgid "Visit"
 msgstr "Külastus"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:369
+#: lib/phoenix_kit_web_analytics/web/components.ex:468
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Visitor"
@@ -1120,8 +1080,8 @@ msgstr "Külastaja"
 msgid "Visitor salt rotated. Visitors seen before now will count again today."
 msgstr "Külastaja sool vahetatud. Varem nähtud külastajad loetakse täna uuesti."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:227
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:107
+#: lib/phoenix_kit_web_analytics/web/components.ex:293
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:105
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Visitors"
@@ -1185,7 +1145,7 @@ msgstr "Mida kogutakse, kui kaua seda säilitatakse ja kellele millest teatataks
 msgid "What visitors did on the site, and every hit as it arrives."
 msgstr "Mida külastajad saidil tegid, ja iga päring kohe saabumisel."
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:178
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:296
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:109
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:250
 #, elixir-autogen, elixir-format
@@ -1207,7 +1167,7 @@ msgstr "Iga kord, kui luuakse konto."
 msgid "Working…"
 msgstr "Töötan…"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:464
+#: lib/phoenix_kit_web_analytics/web/components.ex:563
 #, elixir-autogen, elixir-format
 msgid "Yesterday"
 msgstr "Eile"
@@ -1232,7 +1192,7 @@ msgstr "sisselogitud kasutaja"
 msgid "an ad"
 msgstr "reklaam"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:201
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "daily"
 msgstr "iga päev"
@@ -1242,12 +1202,12 @@ msgstr "iga päev"
 msgid "email"
 msgstr "e-post"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:199
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "hourly"
 msgstr "iga tund"
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:200
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "monthly"
 msgstr "iga kuu"
@@ -1267,7 +1227,7 @@ msgstr "otsing"
 msgid "social media"
 msgstr "sotsiaalmeedia"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:363
+#: lib/phoenix_kit_web_analytics/web/components.ex:462
 #, elixir-autogen, elixir-format
 msgid "Open visit"
 msgstr "Ava külastus"
@@ -1302,7 +1262,186 @@ msgstr "Maandumislehed"
 msgid "Only visits that start on these pages. Blank means any page."
 msgstr "Ainult külastused, mis algavad nendelt lehtedelt. Tühi tähendab mis tahes lehte."
 
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:112
+#, elixir-autogen, elixir-format
+msgid "A person is recognised by their device and browser, for one day at a time and without cookies — so someone who comes back on another day is counted again."
+msgstr "Inimene tuntakse ära seadme ja brauseri järgi, üheks päevaks korraga ja ilma küpsisteta — nii et see, kes tuleb tagasi mõnel teisel päeval, loetakse uuesti."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:299
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr "Tegevus"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:173
+#, elixir-autogen, elixir-format
+msgid "Avg. visit"
+msgstr "Keskm. külastus"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:306
+#, elixir-autogen, elixir-format
+msgid "Buttons clicked and forms sent on LiveView pages, by the name the page gives them — plus outbound links and downloads when the optional client script is on."
+msgstr "LiveView-lehtedel klõpsatud nupud ja saadetud vormid, nimega, mille leht neile annab — lisaks välislingid ja allalaadimised, kui valikuline kliendiskript on sees."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:259
+#, elixir-autogen, elixir-format
+msgid "Channel"
+msgstr "Kanal"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:287
+#, elixir-autogen, elixir-format
+msgid "Desktop, mobile or tablet — read from the browser's description of itself, which it sends with every page."
+msgstr "Lauaarvuti, mobiil või tahvel — loetud brauseri enda kirjeldusest, mille see iga lehega saadab."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:110
+#, elixir-autogen, elixir-format
+msgid "Different people who opened at least one page."
+msgstr "Erinevad inimesed, kes avasid vähemalt ühe lehe."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:270
+#, elixir-autogen, elixir-format
+msgid "Direct — no link to tell: typed in, a bookmark, an app"
+msgstr "Otse — pole linki, mille järgi öelda: sisse trükitud, järjehoidja, rakendus"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:267
+#, elixir-autogen, elixir-format
+msgid "Email — webmail and newsletter links"
+msgstr "E-post — veebimeil ja uudiskirja lingid"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "High is normal for a blog post or a contact page people came for; high on a home page or a shop means people aren't going any further. Lower is usually better."
+msgstr "Kõrge on tavaline blogipostituse või kontaktilehe puhul, mille pärast tuldi; kõrge avalehel või poes tähendab, et inimesed ei lähe edasi. Madalam on tavaliselt parem."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "How long a page stays open on average, before the visitor moves on or leaves."
+msgstr "Kui kaua leht keskmiselt avatuna püsib, enne kui külastaja edasi liigub või lahkub."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "How long a visit lasts on average."
+msgstr "Kui kaua külastus keskmiselt kestab."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:126
+#, elixir-autogen, elixir-format
+msgid "How many times a page was opened, by all visitors together."
+msgstr "Mitu korda lehti avati, kõigi külastajate peale kokku."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:147
+#, elixir-autogen, elixir-format
+msgid "If they are away for more than %{minutes} minutes and come back, that starts a new visit, so one person can make several visits a day. Signing in has nothing to do with it."
+msgstr "Kui inimene on eemal üle %{minutes} minuti ja tuleb tagasi, algab uus külastus, nii et üks inimene võib teha päevas mitu külastust. Sisselogimisega pole sel mingit pistmist."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:198
+#, elixir-autogen, elixir-format
+msgid "It is measured when a page is left, so it covers LiveView pages (and every page once the optional client script is on)."
+msgstr "Seda mõõdetakse lehelt lahkumisel, seega hõlmab see LiveView-lehti (ja kõiki lehti, kui valikuline kliendiskript on sees)."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:179
+#, elixir-autogen, elixir-format
+msgid "Measured from the moment the first page opens until the visitor leaves the last one. For a visit to a single page, that's how long the page was open."
+msgstr "Mõõdetakse esimese lehe avanemisest kuni viimaselt lehelt lahkumiseni. Ühe lehe külastuse puhul on see aeg, mil leht oli avatud."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:142
+#, elixir-autogen, elixir-format
+msgid "One visit is everything a person does on the site in one go — from the first page they open until they leave."
+msgstr "Üks külastus on kõik, mida inimene saidil ühe korraga teeb — esimesest avatud lehest kuni lahkumiseni."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:128
+#, elixir-autogen, elixir-format
+msgid "Opening a page, moving to another page of the site, and reloading each count once."
+msgstr "Lehe avamine, saidi teisele lehele liikumine ja uuesti laadimine loetakse igaüks üks kord."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:268
+#, elixir-autogen, elixir-format
+msgid "Paid — campaign links marked as ads (utm_medium=cpc)"
+msgstr "Tasuline — reklaamiks märgitud kampaanialingid (utm_medium=cpc)"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:90
+#, elixir-autogen, elixir-format
+msgid "People on the site now — open Right now"
+msgstr "Inimesed praegu saidil — ava „Praegu“"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:269
+#, elixir-autogen, elixir-format
+msgid "Referral — any other website"
+msgstr "Viide — mis tahes muu veebisait"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "Search — Google, Bing, DuckDuckGo, ChatGPT…"
+msgstr "Otsing — Google, Bing, DuckDuckGo, ChatGPT…"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:266
+#, elixir-autogen, elixir-format
+msgid "Social — Facebook, Instagram, X, LinkedIn, Hacker News…"
+msgstr "Sotsiaalmeedia — Facebook, Instagram, X, LinkedIn, Hacker News…"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "The pages opened most often."
+msgstr "Kõige sagedamini avatud lehed."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:330
+#, elixir-autogen, elixir-format
+msgid "The pages visits ended on — where people left the site."
+msgstr "Lehed, millel külastused lõppesid — kust inimesed saidilt lahkusid."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:163
+#, elixir-autogen, elixir-format
+msgid "The share of visits that saw only one page and left."
+msgstr "Nende külastuste osakaal, mis nägid ainult ühte lehte ja lahkusid."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:241
+#, elixir-autogen, elixir-format
+msgid "The site a visitor came from. When someone clicks a link to your site, their browser tells us the page the link was on; a campaign link's utm_source says it too."
+msgstr "Sait, kust külastaja tuli. Kui keegi klõpsab lingil sinu saidile, ütleb tema brauser, millisel lehel link oli; kampaanialingi utm_source ütleb seda samuti."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Visit timeout"
+msgstr "Külastuse aegumine"
+
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:228
 #, elixir-autogen, elixir-format
-msgid "Session timeout, minutes"
-msgstr "Seansi aegumine, minutites"
+msgid "Visit timeout, minutes"
+msgstr "Külastuse aegumine, minutites"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:311
+#, elixir-autogen, elixir-format
+msgid "Visitors: how many different people did it. Times: how often it was done in total."
+msgstr "Külastajad: mitu erinevat inimest seda tegid. Korrad: mitu korda seda kokku tehti."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:332
+#, elixir-autogen, elixir-format
+msgid "Visitors: how many different people left from it. Exits: how many visits ended there."
+msgstr "Külastajad: mitu erinevat inimest sealt lahkus. Lahkumised: mitu külastust seal lõppes."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:326
+#, elixir-autogen, elixir-format
+msgid "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
+msgstr "Külastajad: mitu erinevat inimest. Vaatamised: mitu korda, arvestades iga inimese iga vaatamist — üks inimene, kes avab lehe kolm korda, on 1 külastaja ja 3 vaatamist."
+
+#: lib/phoenix_kit_web_analytics.ex:154
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:136
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:325
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:70
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:28
+#, elixir-autogen, elixir-format
+msgid "Visits"
+msgstr "Külastused"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "Visits with neither — typed in, a bookmark, or an app that hides it — are Direct, and aren't listed here."
+msgstr "Külastused, millel pole kumbagi — sisse trükitud, järjehoidja või rakendus, mis selle peidab — on Otse ega ole siin loetletud."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:119
+#, elixir-autogen, elixir-format
+msgid "What does “%{title}” mean?"
+msgstr "Mida tähendab „%{title}“?"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Where visitors came from, grouped by kind:"
+msgstr "Kust külastajad tulid, liigi järgi rühmitatuna:"

@@ -278,7 +278,7 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
         |> render_submit()
 
       assert html =~ "Nothing was saved"
-      assert html =~ "Session timeout"
+      assert html =~ "Visit timeout"
       refute html =~ "Settings saved."
 
       assert PhoenixKit.Settings.get_setting("web_analytics_ignore_events", nil) !=
@@ -351,7 +351,7 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
   end
 
   defp page_views(html) do
-    case Regex.run(~r{Page views</div>.*?text-2xl[^>]*>\s*([\d,]+)\s*<}s, html) do
+    case Regex.run(~r{id="stat-pageviews".*?text-2xl[^>]*>\s*([\d,]+)\s*<}s, html) do
       [_, value] -> value
       nil -> flunk("no Page views tile")
     end

@@ -143,7 +143,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     _ -> default
   end
 
-  defp field_label(:session_timeout), do: gettext("Session timeout")
+  defp field_label(:session_timeout), do: gettext("Visit timeout")
   defp field_label(:retention_days), do: gettext("Retention")
   defp field_label(:alert_max_per_hour), do: gettext("Alerts per hour")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
@@ -225,7 +225,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               type="number"
               id="session_timeout"
               name="session_timeout"
-              label={gettext("Session timeout, minutes")}
+              label={gettext("Visit timeout, minutes")}
               value={@config.session_timeout_minutes}
               min="1"
               max="1440"
