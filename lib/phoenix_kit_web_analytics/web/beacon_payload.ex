@@ -231,5 +231,4 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
       _ -> nil
     end
   end
-
 end

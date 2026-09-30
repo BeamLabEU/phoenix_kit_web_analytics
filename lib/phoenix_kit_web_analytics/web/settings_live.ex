@@ -47,7 +47,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
            socket,
            :error,
            gettext("Nothing was saved. Check: %{fields}.",
-             fields: fields |> Enum.map(&field_label/1) |> Enum.join(", ")
+             fields: Enum.map_join(fields, ", ", &field_label/1)
            )
          )}
     end
@@ -171,7 +171,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           type="button"
           phx-click="toggle_tracking"
           phx-disable-with={gettext("Saving…")}
-          data-confirm={@enabled? && gettext("Stop recording visits? Reports keep what is already stored.")}
+          data-confirm={
+            @enabled? && gettext("Stop recording visits? Reports keep what is already stored.")
+          }
           class={["btn btn-sm", if(@enabled?, do: "btn-outline", else: "btn-primary")]}
         >
           {if @enabled?, do: gettext("Turn off"), else: gettext("Turn on")}
@@ -184,15 +186,25 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
         <section class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4">
           <h2 class="text-sm font-semibold">{gettext("Collection")}</h2>
 
-          <.checkbox name="respect_dnt" checked={@config.respect_dnt?} label={gettext("Respect Do Not Track")}>
+          <.checkbox
+            name="respect_dnt"
+            checked={@config.respect_dnt?}
+            label={gettext("Respect Do Not Track")}
+          >
             <:description>
               {gettext("Skip visitors whose browser sends DNT or Global Privacy Control.")}
             </:description>
           </.checkbox>
 
-          <.checkbox name="track_bots" checked={@config.track_bots?} label={gettext("Record bot traffic")}>
+          <.checkbox
+            name="track_bots"
+            checked={@config.track_bots?}
+            label={gettext("Record bot traffic")}
+          >
             <:description>
-              {gettext("Off by default — crawlers and monitors would otherwise dominate every report.")}
+              {gettext(
+                "Off by default — crawlers and monitors would otherwise dominate every report."
+              )}
             </:description>
           </.checkbox>
 
@@ -324,7 +336,10 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             <div>
               <p class="mb-1 text-sm font-medium">{gettext("Only from these channels")}</p>
               <div class="flex flex-wrap gap-x-4 gap-y-2">
-                <label :for={channel <- Alerts.channels()} class="flex cursor-pointer items-center gap-2 text-sm">
+                <label
+                  :for={channel <- Alerts.channels()}
+                  class="flex cursor-pointer items-center gap-2 text-sm"
+                >
                   <input
                     type="checkbox"
                     class="checkbox checkbox-sm"
@@ -370,7 +385,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             placeholder="order.placed, contact_submit"
           />
           <p class="-mt-2 text-xs text-base-content/50">
-            {gettext("Custom event or interaction names, comma-separated. A trailing * matches a prefix.")}
+            {gettext(
+              "Custom event or interaction names, comma-separated. A trailing * matches a prefix."
+            )}
           </p>
         </section>
 
@@ -385,17 +402,25 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
         <h2 class="text-sm font-semibold">{gettext("Stored data")}</h2>
         <div class="mt-3 grid grid-cols-3 gap-4 text-sm">
           <div>
-            <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Events")}</div>
+            <div class="text-xs uppercase tracking-wide text-base-content/50">
+              {gettext("Events")}
+            </div>
             <div class="text-lg font-semibold tabular-nums">
               {if @storage.events_estimated?, do: "≈ "}{format_number(@storage.events)}
             </div>
           </div>
           <div>
-            <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Rollup rows")}</div>
-            <div class="text-lg font-semibold tabular-nums">{format_number(@storage.rollup_days)}</div>
+            <div class="text-xs uppercase tracking-wide text-base-content/50">
+              {gettext("Rollup rows")}
+            </div>
+            <div class="text-lg font-semibold tabular-nums">
+              {format_number(@storage.rollup_days)}
+            </div>
           </div>
           <div>
-            <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Oldest event")}</div>
+            <div class="text-xs uppercase tracking-wide text-base-content/50">
+              {gettext("Oldest event")}
+            </div>
             <div class="text-lg font-semibold">
               {if @storage.oldest, do: Calendar.strftime(@storage.oldest, "%Y-%m-%d"), else: "—"}
             </div>
@@ -418,7 +443,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             phx-click="rotate_salt"
             phx-disable-with={gettext("Rotating…")}
             data-confirm={
-              gettext("Visitors seen before now will be counted again today, and open visits split. Continue?")
+              gettext(
+                "Visitors seen before now will be counted again today, and open visits split. Continue?"
+              )
             }
             class="btn btn-sm btn-ghost"
           >

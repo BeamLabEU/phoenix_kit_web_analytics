@@ -435,8 +435,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> base_query()
     |> select([e], %{
       exits: fragment("COUNT(*) FILTER (WHERE ? = 'leave')", e.event_type),
-      avg_time_ms:
-        fragment("AVG(?) FILTER (WHERE ? = 'leave')", e.engaged_ms, e.event_type),
+      avg_time_ms: fragment("AVG(?) FILTER (WHERE ? = 'leave')", e.engaged_ms, e.event_type),
       avg_scroll: avg(e.scroll_depth)
     })
     |> one(%{exits: 0, avg_time_ms: nil, avg_scroll: nil})
@@ -468,14 +467,17 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> select([e], %{
       path: e.path,
       exits: fragment("COUNT(*) FILTER (WHERE ? = 'leave')", e.event_type),
-      avg_time_ms:
-        fragment("AVG(?) FILTER (WHERE ? = 'leave')", e.engaged_ms, e.event_type),
+      avg_time_ms: fragment("AVG(?) FILTER (WHERE ? = 'leave')", e.engaged_ms, e.event_type),
       avg_scroll: avg(e.scroll_depth)
     })
     |> all([])
     |> Map.new(fn row ->
       {row.path,
-       %{exits: row.exits, avg_time_ms: to_float(row.avg_time_ms), avg_scroll: to_float(row.avg_scroll)}}
+       %{
+         exits: row.exits,
+         avg_time_ms: to_float(row.avg_time_ms),
+         avg_scroll: to_float(row.avg_scroll)
+       }}
     end)
   end
 
@@ -593,7 +595,11 @@ defmodule PhoenixKitWebAnalytics.Reports do
   def session_timeline(session_id) do
     case Ecto.UUID.cast(session_id) do
       {:ok, uuid} ->
-        from(e in Event, where: e.session_id == ^uuid, order_by: [asc: e.inserted_at], limit: 1000)
+        from(e in Event,
+          where: e.session_id == ^uuid,
+          order_by: [asc: e.inserted_at],
+          limit: 1000
+        )
         |> all([])
 
       :error ->
@@ -691,7 +697,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
         prefix -> "#{prefix}.phoenix_kit_web_analytics_events"
       end
 
-    case repo().query("SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass($1)", [table],
+    case repo().query(
+           "SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass($1)",
+           [table],
            log: false
          ) do
       {:ok, %{rows: [[count]]}} when is_integer(count) and count > 0 -> count

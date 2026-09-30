@@ -97,10 +97,16 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
               <.table_default_header_cell class="text-right">
                 {gettext("Share")}
               </.table_default_header_cell>
-              <.table_default_header_cell class="text-right" title={gettext("Average time on the page, from exits")}>
+              <.table_default_header_cell
+                class="text-right"
+                title={gettext("Average time on the page, from exits")}
+              >
                 {gettext("Time on page")}
               </.table_default_header_cell>
-              <.table_default_header_cell class="text-right" title={gettext("Visits that ended on this page")}>
+              <.table_default_header_cell
+                class="text-right"
+                title={gettext("Visits that ended on this page")}
+              >
                 {gettext("Exits")}
               </.table_default_header_cell>
             </.table_default_row>
@@ -110,7 +116,13 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
               <% engagement = Map.get(@engagement, row.label, %{}) %>
               <.table_default_cell class="max-w-md truncate font-mono text-xs">
                 <.link
-                  navigate={Filters.patch_to(Paths.dashboard(), %{"period" => @period, "site" => @site, "path" => row.label})}
+                  navigate={
+                    Filters.patch_to(Paths.dashboard(), %{
+                      "period" => @period,
+                      "site" => @site,
+                      "path" => row.label
+                    })
+                  }
                   class="hover:underline"
                   title={gettext("Show this page's traffic")}
                 >

@@ -351,5 +351,4 @@ defmodule PhoenixKitWebAnalytics.Config do
       path == pattern
     end
   end
-
 end

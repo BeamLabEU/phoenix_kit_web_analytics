@@ -57,7 +57,11 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
   import Ecto.Query
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Permissions
+  alias PhoenixKit.Users.Roles
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Paths
@@ -412,10 +416,9 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   end
 
   defp display_name(user) do
-    if Code.ensure_loaded?(PhoenixKit.Users.Auth.User) and
-         function_exported?(PhoenixKit.Users.Auth.User, :display_name, 1) and
-         is_struct(user, PhoenixKit.Users.Auth.User) do
-      PhoenixKit.Users.Auth.User.display_name(user)
+    if Code.ensure_loaded?(User) and function_exported?(User, :display_name, 1) and
+         is_struct(user, User) do
+      User.display_name(user)
     else
       gettext("a new user")
     end
@@ -449,16 +452,15 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
     owners =
       "Owner"
-      |> PhoenixKit.Users.Roles.users_with_role()
+      |> Roles.users_with_role()
       |> Enum.map(& &1.uuid)
 
     granted =
-      PhoenixKit.Users.Permissions.users_with_permission(@module_key) ++
-        PhoenixKit.Users.Permissions.users_with_permission("*")
+      Permissions.users_with_permission(@module_key) ++ Permissions.users_with_permission("*")
 
     candidates = Enum.uniq(owners ++ granted)
 
-    from(u in PhoenixKit.Users.Auth.User,
+    from(u in User,
       where: u.uuid in ^candidates and u.is_active == true,
       select: u.uuid
     )
@@ -470,9 +472,8 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   end
 
   defp subscribe_to_users do
-    if Code.ensure_loaded?(PhoenixKit.Admin.Events) and
-         function_exported?(PhoenixKit.Admin.Events, :subscribe_to_users, 0) do
-      PhoenixKit.Admin.Events.subscribe_to_users()
+    if Code.ensure_loaded?(Events) and function_exported?(Events, :subscribe_to_users, 0) do
+      Events.subscribe_to_users()
     end
   rescue
     error -> Logger.warning("[WebAnalytics] could not subscribe to new users: #{inspect(error)}")

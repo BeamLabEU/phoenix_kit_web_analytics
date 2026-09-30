@@ -45,7 +45,12 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       <input :if={@path} type="hidden" name="path" value={@path} />
       <.link
         :if={@path && @base_path}
-        patch={PhoenixKitWebAnalytics.Web.Filters.patch_to(@base_path, %{"period" => @period, "site" => @site})}
+        patch={
+          PhoenixKitWebAnalytics.Web.Filters.patch_to(@base_path, %{
+            "period" => @period,
+            "site" => @site
+          })
+        }
         class="badge badge-primary gap-1 font-mono"
         title={gettext("Remove the page filter")}
       >
@@ -118,7 +123,10 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
         assigns,
         :data,
         Enum.map(assigns.series, fn point ->
-          %{label: bucket_label(point.bucket, assigns.bucket), value: Map.get(point, assigns.metric)}
+          %{
+            label: bucket_label(point.bucket, assigns.bucket),
+            value: Map.get(point, assigns.metric)
+          }
         end)
       )
 
@@ -297,7 +305,9 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   defp hit_text(%{event_type: "leave", engaged_ms: ms}),
     do: gettext("Left after %{time}", time: format_duration(ms && ms / 1000))
 
-  defp hit_text(%{event_type: "event", event_name: name}), do: gettext("Event “%{event}”", event: name)
+  defp hit_text(%{event_type: "event", event_name: name}),
+    do: gettext("Event “%{event}”", event: name)
+
   defp hit_text(_hit), do: gettext("Hit")
 
   defp hit_params(%{metadata: %{"params" => params}}) when is_map(params), do: Enum.sort(params)
@@ -348,9 +358,15 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
           <.table_default_header_cell>{gettext("Started")}</.table_default_header_cell>
           <.table_default_header_cell>{gettext("Visitor")}</.table_default_header_cell>
           <.table_default_header_cell>{gettext("Landed on → left from")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right">{gettext("Pages")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right">{gettext("Actions")}</.table_default_header_cell>
-          <.table_default_header_cell class="text-right">{gettext("Duration")}</.table_default_header_cell>
+          <.table_default_header_cell class="text-right">
+            {gettext("Pages")}
+          </.table_default_header_cell>
+          <.table_default_header_cell class="text-right">
+            {gettext("Actions")}
+          </.table_default_header_cell>
+          <.table_default_header_cell class="text-right">
+            {gettext("Duration")}
+          </.table_default_header_cell>
           <.table_default_header_cell>{gettext("Source")}</.table_default_header_cell>
           <.table_default_header_cell>{gettext("Client")}</.table_default_header_cell>
         </.table_default_row>
@@ -389,7 +405,10 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
             {session_source(session)}
           </.table_default_cell>
           <.table_default_cell class="whitespace-nowrap text-base-content/60">
-            {Enum.join(Enum.reject([session.browser, session.os, session.country_code], &is_nil/1), " · ")}
+            {Enum.join(
+              Enum.reject([session.browser, session.os, session.country_code], &is_nil/1),
+              " · "
+            )}
           </.table_default_cell>
         </.table_default_row>
       </.table_default_body>
@@ -397,7 +416,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     """
   end
 
-  @doc "A visit's visitor: the signed-in user's display name, or \"Anonymous\"."
+  @doc ~s(A visit's visitor: the signed-in user's display name, or "Anonymous".)
   @spec visitor_name(map(), map()) :: String.t()
   def visitor_name(%{user_uuid: uuid}, names) when is_binary(uuid),
     do: Map.get(names, uuid, gettext("Signed-in user"))
@@ -429,7 +448,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
 
   # ── vocabulary labels ──────────────────────────────────────────────────────
 
-  @doc "The label for a period value (`\"7d\"` → \"Last 7 days\")."
+  @doc ~s(The label for a period value: "7d" is "Last 7 days".)
   @spec period_label(String.t()) :: String.t()
   def period_label("today"), do: gettext("Today")
   def period_label("yesterday"), do: gettext("Yesterday")

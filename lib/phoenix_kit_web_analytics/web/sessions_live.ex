@@ -73,7 +73,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
       <div class="flex flex-wrap items-center justify-between gap-4">
         <p class="text-sm text-base-content/60">
           <%= if @user_uuid do %>
-            {gettext("Visits by %{name}.", name: Map.get(@names, @user_uuid, gettext("a signed-in user")))}
+            {gettext("Visits by %{name}.",
+              name: Map.get(@names, @user_uuid, gettext("a signed-in user"))
+            )}
             <.link patch={patch_path(%{"period" => @period, "site" => @site})} class="link">
               {gettext("Show everyone")}
             </.link>
@@ -159,5 +161,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
   defp before_param(_value), do: nil
 
   defp to_iso(%DateTime{} = at), do: DateTime.to_iso8601(at)
-  defp to_iso(%NaiveDateTime{} = at), do: at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+
+  defp to_iso(%NaiveDateTime{} = at),
+    do: at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
 end

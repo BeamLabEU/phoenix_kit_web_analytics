@@ -239,26 +239,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       visitor_id ->
         site = Referrer.normalize_host(hit[:site])
 
-        result =
-          repo().transaction(fn ->
-            lock_visitor(visitor_id)
-            stitch = stitch(visitor_id, config.session_timeout_minutes, anchor, site)
-
-            %Event{}
-            |> Event.changeset(
-              hit
-              |> base_attrs(now)
-              |> Map.merge(identity_attrs(visitor_id, stitch.session_id, ua))
-              |> Map.merge(source_attrs(hit))
-              |> Map.merge(location_attrs(hit))
-              |> carry_language(stitch)
-            )
-            |> repo().insert()
-            |> case do
-              {:ok, event} -> {event, stitch.new?}
-              {:error, changeset} -> repo().rollback(changeset)
-            end
-          end)
+        result = insert_stitched(hit, config, ua, visitor_id, site, now, anchor)
 
         case result do
           {:ok, {event, new_session?}} ->
@@ -269,6 +250,26 @@ defmodule PhoenixKitWebAnalytics.Collector do
             error
         end
     end
+  end
+
+  defp insert_stitched(hit, config, ua, visitor_id, site, now, anchor) do
+    repo().transaction(fn ->
+      lock_visitor(visitor_id)
+      stitch = stitch(visitor_id, config.session_timeout_minutes, anchor, site)
+
+      attrs =
+        hit
+        |> base_attrs(now)
+        |> Map.merge(identity_attrs(visitor_id, stitch.session_id, ua))
+        |> Map.merge(source_attrs(hit))
+        |> Map.merge(location_attrs(hit))
+        |> carry_language(stitch)
+
+      case %Event{} |> Event.changeset(attrs) |> repo().insert() do
+        {:ok, event} -> {event, stitch.new?}
+        {:error, changeset} -> repo().rollback(changeset)
+      end
+    end)
   end
 
   # A hit with no client identity at all — a server-side `track_event/2` with

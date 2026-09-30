@@ -210,5 +210,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
   end
 
   defp interaction_row_label(%{name: name, target: nil}), do: interaction_label(name)
-  defp interaction_row_label(%{name: name, target: target}), do: "#{interaction_label(name)} · #{target}"
+
+  defp interaction_row_label(%{name: name, target: target}),
+    do: "#{interaction_label(name)} · #{target}"
 end

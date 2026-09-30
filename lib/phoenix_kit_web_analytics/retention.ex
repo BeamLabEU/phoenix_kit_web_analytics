@@ -169,31 +169,23 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
     rows =
       Enum.map(totals, fn {site, counts} ->
-      session_facts = Map.get(sessions, site, %{sessions: 0, bounces: 0, seconds: 0})
+        session_facts = Map.get(sessions, site, %{sessions: 0, bounces: 0, seconds: 0})
 
-      %{
-        date: date,
-        site: site,
-        pageviews: counts.pageviews,
-        visitors: counts.visitors,
-        events: counts.events,
-        sessions: session_facts.sessions,
-        bounces: session_facts.bounces,
-        total_session_seconds: round(session_facts.seconds)
-      }
-    end)
+        %{
+          date: date,
+          site: site,
+          pageviews: counts.pageviews,
+          visitors: counts.visitors,
+          events: counts.events,
+          sessions: session_facts.sessions,
+          bounces: session_facts.bounces,
+          total_session_seconds: round(session_facts.seconds)
+        }
+      end)
 
     # One transaction per day: a site whose row fails must not leave the day
     # looking rolled up while its raw rows become eligible for pruning.
-    result =
-      repo().transaction(fn ->
-        Enum.each(rows, fn row ->
-          case upsert_daily_stat(row) do
-            {:ok, _} -> :ok
-            {:error, changeset} -> repo().rollback(changeset)
-          end
-        end)
-      end)
+    result = repo().transaction(fn -> Enum.each(rows, &upsert_or_rollback/1) end)
 
     case result do
       {:ok, _} ->
@@ -208,7 +200,6 @@ defmodule PhoenixKitWebAnalytics.Retention do
       Logger.warning("[WebAnalytics] rollup failed for #{date}: #{Exception.message(error)}")
       :error
   end
-
 
   # ── prune ─────────────────────────────────────────────────────────────────
 
@@ -346,6 +337,13 @@ defmodule PhoenixKitWebAnalytics.Retention do
     |> Map.new(fn row ->
       {row.site, %{sessions: row.sessions, bounces: row.bounces, seconds: to_number(row.seconds)}}
     end)
+  end
+
+  defp upsert_or_rollback(row) do
+    case upsert_daily_stat(row) do
+      {:ok, _} -> :ok
+      {:error, changeset} -> repo().rollback(changeset)
+    end
   end
 
   # Upsert rather than insert: a day may be re-rolled after a crash, and two

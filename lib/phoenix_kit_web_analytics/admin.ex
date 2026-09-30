@@ -63,10 +63,6 @@ defmodule PhoenixKitWebAnalytics.Admin do
       {:error, reason} = error ->
         Logger.warning("[WebAnalytics] tracking switch failed: #{inspect(reason)}")
         error
-
-      other ->
-        log(if(enabled?, do: "tracking.enabled", else: "tracking.disabled"), opts, %{})
-        other
     end
   end
 
@@ -125,7 +121,9 @@ defmodule PhoenixKitWebAnalytics.Admin do
   defp field_specs(keys, alert_keys) do
     Enum.map(@booleans, &{&1, Map.fetch!(keys, &1), :boolean}) ++
       Enum.map(@lists, &{&1, Map.fetch!(keys, &1), :text}) ++
-      Enum.map(@integers, fn {field, range} -> {field, Map.fetch!(keys, field), {:integer, range}} end) ++
+      Enum.map(@integers, fn {field, range} ->
+        {field, Map.fetch!(keys, field), {:integer, range}}
+      end) ++
       Enum.map(@alert_booleans, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :boolean}) ++
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
@@ -183,7 +181,9 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   defp write(key, value) do
     case Settings.update_setting_with_module(key, value, @module_key) do
-      {:ok, _} -> true
+      {:ok, _} ->
+        true
+
       other ->
         Logger.warning("[WebAnalytics] could not save #{key}: #{inspect(other)}")
         false
@@ -204,7 +204,10 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :ok
   rescue
     error ->
-      Logger.warning("[WebAnalytics] activity log failed for #{action}: #{Exception.message(error)}")
+      Logger.warning(
+        "[WebAnalytics] activity log failed for #{action}: #{Exception.message(error)}"
+      )
+
       :ok
   end
 

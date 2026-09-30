@@ -31,7 +31,10 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      socket
      |> assign(:session_id, session_id)
      |> assign(:events, events)
-     |> assign(:first, List.first(Enum.filter(events, &(&1.event_type == "pageview"))) || List.first(events))
+     |> assign(
+       :first,
+       List.first(Enum.filter(events, &(&1.event_type == "pageview"))) || List.first(events)
+     )
      |> assign(:user_uuid, user_uuid)
      |> assign(:user_name, user_uuid && Map.get(UserNames.for_uuids([user_uuid]), user_uuid))
      |> assign(:summary, summarize(events))}
@@ -54,7 +57,8 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
       seconds: max(DateTime.diff(ended, started), 0),
       pageviews: Enum.count(events, &(&1.event_type == "pageview")),
       actions: Enum.count(events, &(&1.event_type in ["interaction", "event"])),
-      max_scroll: events |> Enum.map(& &1.scroll_depth) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
+      max_scroll:
+        events |> Enum.map(& &1.scroll_depth) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
     }
   end
 
@@ -78,7 +82,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 class="text-lg font-semibold">
-              {if @user_uuid, do: @user_name || gettext("Signed-in user"), else: gettext("Anonymous visitor")}
+              {if @user_uuid,
+                do: @user_name || gettext("Signed-in user"),
+                else: gettext("Anonymous visitor")}
             </h2>
             <p class="text-sm text-base-content/60">
               {Calendar.strftime(@summary.started, "%Y-%m-%d %H:%M:%S")} UTC
@@ -93,28 +99,44 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
           </div>
           <div class="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Duration")}</div>
-              <div class="text-lg font-semibold tabular-nums">{format_duration(@summary.seconds)}</div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">
+                {gettext("Duration")}
+              </div>
+              <div class="text-lg font-semibold tabular-nums">
+                {format_duration(@summary.seconds)}
+              </div>
             </div>
             <div>
-              <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Pages")}</div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">
+                {gettext("Pages")}
+              </div>
               <div class="text-lg font-semibold tabular-nums">{@summary.pageviews}</div>
             </div>
             <div>
-              <div class="text-xs uppercase tracking-wide text-base-content/50">{gettext("Actions")}</div>
+              <div class="text-xs uppercase tracking-wide text-base-content/50">
+                {gettext("Actions")}
+              </div>
               <div class="text-lg font-semibold tabular-nums">{@summary.actions}</div>
             </div>
           </div>
         </div>
 
         <dl :if={@first} class="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          <.fact label={gettext("Came from")} value={@first.referrer_source || channel_label(@first.referrer_medium)} />
+          <.fact
+            label={gettext("Came from")}
+            value={@first.referrer_source || channel_label(@first.referrer_medium)}
+          />
           <.fact label={gettext("Referrer")} value={@first.referrer} mono />
           <.fact label={gettext("Campaign")} value={@first.utm_campaign} />
           <.fact label={gettext("Landed on")} value={@first.path} mono />
           <.fact
             label={gettext("Device")}
-            value={Enum.join(Enum.reject([@first.browser, @first.os, device_label(@first.device_type)], &is_nil/1), " · ")}
+            value={
+              Enum.join(
+                Enum.reject([@first.browser, @first.os, device_label(@first.device_type)], &is_nil/1),
+                " · "
+              )
+            }
           />
           <.fact label={gettext("Language")} value={@first.language} />
           <.fact label={gettext("Country")} value={@first.country_code} />
@@ -127,8 +149,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
 
       <ol :if={@events != []} class="relative space-y-0 border-l border-base-300 pl-6">
         <li :for={event <- @events} class="relative pb-4">
-          <span class="absolute -left-[1.85rem] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-base-100 ring-2 ring-base-300">
-          </span>
+          <span class="absolute -left-[1.85rem] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-base-100 ring-2 ring-base-300"></span>
           <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span class="w-14 shrink-0 text-xs tabular-nums text-base-content/50">
               +{format_offset(DateTime.diff(event.inserted_at, @summary.started))}
@@ -150,7 +171,10 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
     ~H"""
     <div :if={@value not in [nil, ""]} class="flex gap-2">
       <dt class="w-32 shrink-0 text-base-content/50">{@label}</dt>
-      <dd class={["min-w-0 truncate", @mono && "font-mono text-xs leading-5"]} title={to_string(@value)}>
+      <dd
+        class={["min-w-0 truncate", @mono && "font-mono text-xs leading-5"]}
+        title={to_string(@value)}
+      >
         {@value}
       </dd>
     </div>

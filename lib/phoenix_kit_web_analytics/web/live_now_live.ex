@@ -67,14 +67,18 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
         limit: 50
       )
 
-    names = UserNames.for_uuids(Enum.map(open, & &1.user_uuid) ++ Enum.map(recent, & &1.user_uuid))
+    names =
+      UserNames.for_uuids(Enum.map(open, & &1.user_uuid) ++ Enum.map(recent, & &1.user_uuid))
 
     socket
     |> assign(:now, now)
     |> assign(:open, open)
     |> assign(:recent, recent)
     |> assign(:names, names)
-    |> assign(:open_by_path, open |> Enum.frequencies_by(& &1.path) |> Enum.sort_by(&elem(&1, 1), :desc))
+    |> assign(
+      :open_by_path,
+      open |> Enum.frequencies_by(& &1.path) |> Enum.sort_by(&elem(&1, 1), :desc)
+    )
   end
 
   @impl true
@@ -83,7 +87,11 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <p class="flex items-center gap-2 text-sm text-base-content/60">
-          <.status_dot variant={if @open != [], do: :success, else: :neutral} pulse={@open != []} size={:sm} />
+          <.status_dot
+            variant={if @open != [], do: :success, else: :neutral}
+            pulse={@open != []}
+            size={:sm}
+          />
           {ngettext("%{count} page open right now", "%{count} pages open right now", length(@open))}
         </p>
         <span class="text-xs text-base-content/50">{gettext("Updates every few seconds.")}</span>
@@ -146,7 +154,13 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
                   </span>
                 </.table_default_cell>
                 <.table_default_cell class="whitespace-nowrap text-base-content/60">
-                  {Enum.join(Enum.reject([visit.browser, visit.os, device_label(visit.device_type)], &is_nil/1), " · ")}
+                  {Enum.join(
+                    Enum.reject(
+                      [visit.browser, visit.os, device_label(visit.device_type)],
+                      &is_nil/1
+                    ),
+                    " · "
+                  )}
                 </.table_default_cell>
               </.table_default_row>
             </.table_default_body>
@@ -167,7 +181,8 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
         <div class="border-b border-base-300 px-4 py-3">
           <h2 class="text-sm font-semibold">{gettext("Recent visits")}</h2>
           <p class="text-xs text-base-content/50">
-            {gettext("Visits with activity in the last %{minutes} minutes, including pages without a LiveView.",
+            {gettext(
+              "Visits with activity in the last %{minutes} minutes, including pages without a LiveView.",
               minutes: @recent_minutes
             )}
           </p>

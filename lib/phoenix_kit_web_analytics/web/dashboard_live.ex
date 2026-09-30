@@ -74,7 +74,9 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
   defp series(filter, :day) do
     filter
     |> Reports.daily_timeseries()
-    |> Enum.map(&%{bucket: DateTime.new!(&1.date, ~T[00:00:00], "Etc/UTC"), pageviews: &1.pageviews})
+    |> Enum.map(
+      &%{bucket: DateTime.new!(&1.date, ~T[00:00:00], "Etc/UTC"), pageviews: &1.pageviews}
+    )
   end
 
   defp series(filter, bucket), do: Reports.timeseries(filter, bucket)
