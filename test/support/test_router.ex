@@ -37,6 +37,23 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
       live("/technology", TechnologyLive, :index)
       live("/events", EventsLive, :index)
       live("/settings", SettingsLive, :index)
+      live("/live", LiveNowLive, :index)
+      live("/sessions", SessionsLive, :index)
+      live("/sessions/:session_id", SessionLive, :show)
+    end
+  end
+
+  # A host's public pages, tracked by the LiveView hook.
+  scope "/shop", PhoenixKitWebAnalytics.Test do
+    pipe_through(:browser)
+
+    live_session :tracked_test,
+      on_mount: [
+        {PhoenixKitWebAnalytics.Test.Hooks, :assign_scope},
+        {PhoenixKitWebAnalytics.LiveHook, :track_navigation}
+      ] do
+      live("/", TrackedLive, :index)
+      live("/other", TrackedLive, :index)
     end
   end
 

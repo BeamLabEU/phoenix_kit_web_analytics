@@ -23,6 +23,7 @@ defmodule PhoenixKitWebAnalytics.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import PhoenixKitWebAnalytics.DataCase
+      import PhoenixKitWebAnalytics.ActivityLogAssertions
     end
   end
 
@@ -71,14 +72,9 @@ defmodule PhoenixKitWebAnalytics.DataCase do
 
     clear_settings_cache()
 
-    # Prime the cache with what we just wrote. `Config.collection_config/0`
-    # reads through `Settings.get_settings_cached/2`, whose miss-fill queries
-    # the database — and that query does not see a row written inside this
-    # test's sandbox transaction, so every hot key came back nil and tracking
-    # read as disabled no matter what the setting said. Priming is the
-    # pattern core documents for settings-dependent tests. `Cache.put/3` is a
-    # cast to the same GenServer that serves reads, so it is ordered ahead of
-    # them.
+    # Prime the cache with what we just wrote, so the first read in the test
+    # doesn't depend on the cache's miss-fill timing. `Cache.put/3` is a cast
+    # to the same GenServer that serves reads, so it is ordered ahead of them.
     PhoenixKit.Cache.put(:settings, "web_analytics_enabled", "true")
 
     Enum.each(extra, fn {key, value} ->

@@ -39,6 +39,7 @@ defmodule PhoenixKitWebAnalytics.LiveCase do
           insert_event: 1
         ]
 
+      import PhoenixKitWebAnalytics.ActivityLogAssertions
       import PhoenixKitWebAnalytics.LiveCase
     end
   end
