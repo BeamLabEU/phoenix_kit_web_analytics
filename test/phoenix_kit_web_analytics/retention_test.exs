@@ -130,6 +130,30 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert %{pageviews: 2, source: :rollup} =
                Enum.find(series, &(&1.date == old_date))
     end
+
+    test "skips while another pass (another node, or Run now) holds the lock" do
+      enable_tracking(%{"web_analytics_retention_days" => "10"})
+      insert_event(%{inserted_at: days_ago(20)})
+
+      # The lock is per database session, so hold it from a connection of
+      # its own — as another node would.
+      config = Repo.config()
+
+      {:ok, other} =
+        Postgrex.start_link(
+          Keyword.take(config, [:hostname, :port, :username, :password, :database])
+        )
+
+      Postgrex.query!(other, "SELECT pg_advisory_lock(hashtext($1))", [
+        "phoenix_kit_web_analytics:retention"
+      ])
+
+      assert Retention.run() == %{rolled_up: 0, pruned: 0}
+      assert Repo.aggregate(Event, :count) == 1
+
+      GenServer.stop(other)
+      assert %{rolled_up: 1, pruned: 1} = Retention.run()
+    end
   end
 
   # ── watermark ───────────────────────────────────────────────────────────────
@@ -262,18 +286,34 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
   end
 
   describe "re-rolling recent days" do
+    # Passes in the first hours after midnight, while yesterday settles.
+    defp early_today(hour \\ 0),
+      do: DateTime.new!(Date.utc_today(), Time.new!(hour, 30, 0), "Etc/UTC")
+
     test "a late event in yesterday is picked up by the next pass" do
       insert_event(%{inserted_at: days_ago(2)})
       insert_event(%{inserted_at: days_ago(1)})
 
-      assert Retention.rollup_pending_days() == 2
+      assert Retention.rollup_pending_days(early_today()) == 2
       assert %{pageviews: 1} = Repo.get_by!(DailyStat, date: yesterday())
 
       # A hit written as midnight passed lands in yesterday after its rollup.
       insert_event(%{inserted_at: days_ago(1)})
 
-      assert Retention.rollup_pending_days() == 0
+      assert Retention.rollup_pending_days(early_today(1)) == 0
       assert %{pageviews: 2} = Repo.get_by!(DailyStat, date: yesterday())
+    end
+
+    test "a settled day is not re-rolled" do
+      insert_event(%{inserted_at: days_ago(1)})
+      assert Retention.rollup_pending_days(early_today()) == 1
+
+      insert_event(%{inserted_at: days_ago(1)})
+
+      # Hours after midnight the day is final: re-reading a whole day of raw
+      # events every hour would cost more than a hit this late is worth.
+      assert Retention.rollup_pending_days(early_today(5)) == 0
+      assert %{pageviews: 1} = Repo.get_by!(DailyStat, date: yesterday())
     end
 
     # Regression, fixed in lib/phoenix_kit_web_analytics/retention.ex:280-285:
@@ -285,14 +325,57 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
     test "a late event in a previously empty yesterday is picked up by the next pass" do
       insert_event(%{inserted_at: days_ago(2)})
 
-      assert Retention.rollup_pending_days() == 1
+      assert Retention.rollup_pending_days(early_today()) == 1
       assert Retention.rolled_through() == {:ok, yesterday()}
       refute yesterday() in stat_dates()
 
       insert_event(%{inserted_at: days_ago(1)})
-      Retention.rollup_pending_days()
+      Retention.rollup_pending_days(early_today(1))
 
       assert %{pageviews: 1} = Repo.get_by!(DailyStat, date: yesterday())
+    end
+  end
+
+  describe "breakdown size per day" do
+    test "Dimensions.aggregate/3 keeps the most visited values under a limit" do
+      at = days_ago(2)
+      for _ <- 1..3, do: insert_event(%{path: "/popular", inserted_at: at})
+      for _ <- 1..2, do: insert_event(%{path: "/second", inserted_at: at})
+      insert_event(%{path: "/tail", inserted_at: at})
+
+      rows =
+        Event
+        |> PhoenixKitWebAnalytics.Dimensions.aggregate("page", limit: 2)
+        |> Repo.all()
+
+      assert Enum.map(rows, & &1.value) == ["/popular", "/second"]
+    end
+  end
+
+  describe "backfill_session_starts/0" do
+    test "marks the first hit of every unmarked session, in batches, then stops" do
+      a = UUIDv7.generate()
+      b = UUIDv7.generate()
+      at = days_ago(3)
+
+      first_a = insert_event(%{session_id: a, inserted_at: at})
+      insert_event(%{session_id: a, inserted_at: DateTime.add(at, 60, :second)})
+      first_b = insert_event(%{session_id: b, inserted_at: DateTime.add(at, 30, :second)})
+
+      # As a table from before V3 would be.
+      Repo.update_all(Event, set: [session_start: false])
+
+      assert Retention.backfill_session_starts() == 2
+
+      marked = from(e in Event, where: e.session_start, select: e.uuid) |> Repo.all()
+      assert Enum.sort(marked) == Enum.sort([first_a.uuid, first_b.uuid])
+
+      # Finished: later calls don't walk the table again.
+      assert PhoenixKit.Settings.get_setting("web_analytics_session_starts_backfilled") ==
+               "done"
+
+      Repo.update_all(Event, set: [session_start: false])
+      assert Retention.backfill_session_starts() == 0
     end
   end
 

@@ -182,6 +182,22 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       Enum.each(pids, &Process.exit(&1, :kill))
     end
 
+    test "by_path/1 keeps only the most open paths when there are more than the limit" do
+      pages =
+        for {path, n} <- [{"/one", 1}, {"/five", 5}, {"/three", 3}, {"/two", 2}, {"/four", 4}],
+            _ <- 1..n do
+          pid = spawn_page()
+          LivePresence.watch(pid, @client, %{path: path, site: "example.com"})
+          pid
+        end
+
+      wait_until(fn -> LivePresence.count(nil) == 15 end)
+
+      assert LivePresence.by_path(3) == [{"/five", 5}, {"/four", 4}, {"/three", 3}]
+
+      Enum.each(pages, &Process.exit(&1, :kill))
+    end
+
     test "by_path/1 counts open pages per path, following navigation and exits" do
       a = spawn_page()
       b = spawn_page()

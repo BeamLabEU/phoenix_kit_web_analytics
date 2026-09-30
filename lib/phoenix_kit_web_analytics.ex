@@ -229,6 +229,7 @@ defmodule PhoenixKitWebAnalytics do
   """
   def children do
     [
+      Collector.gate_spec(),
       Collector.task_supervisor_spec(),
       PhoenixKitWebAnalytics.LivePresence,
       PhoenixKitWebAnalytics.ReportCache,

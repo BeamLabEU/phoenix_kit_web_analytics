@@ -25,12 +25,37 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       `(session_id, inserted_at)` index for session timelines
     * `3` — `session_start` on events (the first hit of each visit) with a
       partial index on `inserted_at`, so the visits list pages through visit
-      starts instead of grouping every event in the period; existing rows are
-      backfilled
+      starts instead of grouping every event in the period. Existing rows are
+      marked afterwards, in batches, by the retention pass
+      (`PhoenixKitWebAnalytics.Retention`) — not here, where one statement over
+      a large table would hold the migration's lock for its whole run
     * `4` — engagement totals on `daily_stats` and the `daily_dims` table
       (one row per day, site and breakdown value), so every report reads
       finished days from rollups; the rollup watermark is reset so the days
       still in raw events are rolled up again with the new detail
+    * `5` — index changes for the paths that must not grow with the table:
+      `(path, inserted_at)` for page drill-downs and `(user_uuid,
+      inserted_at)` for a user's visits; the plain `session_id` index goes
+      (`(session_id, inserted_at)` already serves it)
+
+  ## Large existing tables
+
+  Creating an index blocks writes to its table while it builds, and inside a
+  migration it can't be built `CONCURRENTLY`. On a busy install with a large
+  events table, create V3's and V5's event indexes by hand first, under the
+  same names — the migration then finds them and skips the build:
+
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_session_starts_index
+        ON phoenix_kit_web_analytics_events (inserted_at) WHERE session_start;
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_path_inserted_at_index
+        ON phoenix_kit_web_analytics_events (path, inserted_at);
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_user_uuid_inserted_at_index
+        ON phoenix_kit_web_analytics_events (user_uuid, inserted_at)
+        WHERE user_uuid IS NOT NULL;
+
+  (`session_start` must exist before the first; add it with `ALTER TABLE …
+  ADD COLUMN session_start boolean NOT NULL DEFAULT false`, which is
+  instant.)
 
   ## Prefix safety
 
@@ -45,7 +70,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 4
+  @current_version 5
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -287,17 +312,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       )
     )
 
-    # Mark the earliest hit of every existing session.
-    execute("""
-    UPDATE #{Helpers.qualify_table("phoenix_kit_web_analytics_events", prefix)} AS e
-    SET session_start = true
-    FROM (
-      SELECT DISTINCT ON (session_id) uuid
-      FROM #{Helpers.qualify_table("phoenix_kit_web_analytics_events", prefix)}
-      ORDER BY session_id, inserted_at, uuid
-    ) AS firsts
-    WHERE e.uuid = firsts.uuid
-    """)
+    # Existing sessions get their first hit marked by the retention pass, in
+    # batches (`Retention.backfill_session_starts/0`).
   end
 
   defp down_v3(prefix) do
@@ -394,6 +410,54 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # ── v5 ────────────────────────────────────────────────────────────────────
+
+  defp up_v5(prefix) do
+    # A page drill-down (and the visits that landed on a page) reads one
+    # path over a period — without this, a scan of every event in it.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:path, :inserted_at], prefix: prefix)
+    )
+
+    # A user's visits, bounded by the period like every other report.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid, :inserted_at],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    # (session_id, inserted_at) leads with session_id: one index less to
+    # write on every hit.
+    drop_if_exists(index(:phoenix_kit_web_analytics_events, [:session_id], prefix: prefix))
+  end
+
+  defp down_v5(prefix) do
+    create_if_not_exists(index(:phoenix_kit_web_analytics_events, [:session_id], prefix: prefix))
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid, :inserted_at], prefix: prefix)
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:path, :inserted_at], prefix: prefix)
+    )
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -418,6 +482,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 3, prefix), do: down_v3(prefix)
   defp apply_step(:up, 4, prefix), do: up_v4(prefix)
   defp apply_step(:down, 4, prefix), do: down_v4(prefix)
+  defp apply_step(:up, 5, prefix), do: up_v5(prefix)
+  defp apply_step(:down, 5, prefix), do: down_v5(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

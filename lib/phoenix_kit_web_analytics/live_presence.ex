@@ -129,15 +129,35 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @doc """
   Open pages counted per path, most open first — `{path, count}` pairs,
   read from counters kept as pages open and close. `limit` caps the list.
+
+  One pass over the counters keeping only the top `limit` — no copy or sort
+  of every open path, which on a big site can be most of the open pages.
   """
   @spec by_path(pos_integer()) :: [{String.t(), pos_integer()}]
   def by_path(limit \\ 50) do
-    @paths
-    |> :ets.tab2list()
-    |> Enum.sort_by(&elem(&1, 1), :desc)
-    |> Enum.take(limit)
+    keep = &keep_top(&1, &2, limit)
+
+    keep
+    |> :ets.foldl({:gb_sets.empty(), 0}, @paths)
+    |> elem(0)
+    |> :gb_sets.to_list()
+    |> Enum.reverse()
+    |> Enum.map(fn {count, path} -> {path, count} end)
   rescue
     ArgumentError -> []
+  end
+
+  # A set ordered by {count, path}, trimmed to `limit` by dropping its
+  # smallest.
+  defp keep_top({path, count}, {set, size}, limit) when size < limit,
+    do: {:gb_sets.add({count, path}, set), size + 1}
+
+  defp keep_top({path, count}, {set, size}, _limit) do
+    {smallest, rest} = :gb_sets.take_smallest(set)
+
+    if {count, path} > smallest,
+      do: {:gb_sets.add({count, path}, rest), size},
+      else: {set, size}
   end
 
   @doc """

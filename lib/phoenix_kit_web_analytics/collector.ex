@@ -30,6 +30,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
   lock on the visitor, so two hits arriving together (a page and its
   prefetch, a double-click) can't both decide to start a session.
 
+  Before any of that, a hit takes one of #{3} slots for its visitor on this
+  node, and is dropped when they're all taken. One "visitor" can be a whole
+  office behind one address or a crawler: without the cap its hits would
+  queue on the advisory lock, each holding a database connection while it
+  waits, until the pool is theirs.
+
   ## Raw hit shape
 
   Every key is optional except `:path`:
@@ -84,6 +90,16 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # see the page view that opened it.
   @anchor_slack_seconds 5
   @warned_key {__MODULE__, :no_supervisor_warned}
+
+  @gate PhoenixKitWebAnalytics.Collector.Gate
+  @max_in_flight_per_visitor 3
+
+  @doc """
+  Child spec for the registry that counts each visitor's writes in flight.
+  Returned from `PhoenixKitWebAnalytics.children/0`.
+  """
+  @spec gate_spec() :: Supervisor.child_spec()
+  def gate_spec, do: Supervisor.child_spec({Registry, keys: :duplicate, name: @gate}, id: @gate)
 
   @doc """
   Child spec for the task supervisor that runs the async writes.
@@ -244,7 +260,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
       visitor_id ->
         site = Referrer.normalize_host(hit[:site])
 
-        result = insert_stitched(hit, config, ua, visitor_id, site, now, anchor)
+        result =
+          through_gate(visitor_id, fn ->
+            insert_stitched(hit, config, ua, visitor_id, site, now, anchor)
+          end)
 
         case result do
           {:ok, {event, new_session?}} ->
@@ -280,6 +299,28 @@ defmodule PhoenixKitWebAnalytics.Collector do
         {:error, changeset} -> repo().rollback(changeset)
       end
     end)
+  end
+
+  # Registered for the length of the write; the registry forgets a crashed
+  # writer by itself. Without the registry (children not started) there is
+  # no cap.
+  defp through_gate(visitor_id, fun) do
+    if Process.whereis(@gate) do
+      {:ok, _owner} = Registry.register(@gate, visitor_id, nil)
+
+      try do
+        if length(Registry.lookup(@gate, visitor_id)) > @max_in_flight_per_visitor do
+          Logger.debug("[WebAnalytics] dropped hit: too many writes in flight for one visitor")
+          {:error, :visitor_busy}
+        else
+          fun.()
+        end
+      after
+        Registry.unregister(@gate, visitor_id)
+      end
+    else
+      fun.()
+    end
   end
 
   # A hit with no client identity at all — a server-side `track_event/2` with

@@ -17,6 +17,12 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.UserNames
 
+  # Long visits (a bot, a tab left on an auto-refreshing page) can hold
+  # thousands of events; the timeline shows them 500 at a time.
+  @page 500
+  # Each "Show more" reloads from the start, so the list stops growing here.
+  @max_show 5_000
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok, assign(socket, :page_title, gettext("Visit"))}
@@ -41,6 +47,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      |> assign(:user_name, user_uuid && Map.get(UserNames.for_uuids([user_uuid]), user_uuid))
      |> assign(:show, show)
      |> assign(:more?, rest != [])
+     |> assign(:max_show, @max_show)
      |> assign(:summary, Reports.session_summary(session_id))}
   end
 
@@ -50,13 +57,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
     {:noreply, socket}
   end
 
-  # Long visits (a bot, a tab left on an auto-refreshing page) can hold
-  # thousands of events; the timeline shows them 500 at a time.
-  @page 500
-
   defp show_param(value) when is_binary(value) do
     case Integer.parse(value) do
-      {n, ""} when n > 0 and n <= 100_000 -> n
+      {n, ""} when n > 0 -> min(n, @max_show)
       _ -> @page
     end
   end
@@ -161,9 +164,13 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
         </li>
       </ol>
 
-      <div :if={@more?} class="flex justify-center">
+      <p :if={@more? and @show >= @max_show} class="text-center text-xs text-base-content/50">
+        {gettext("Showing the first %{count} events of this visit.", count: format_number(@max_show))}
+      </p>
+
+      <div :if={@more? and @show < @max_show} class="flex justify-center">
         <.link
-          patch={Paths.session(@session_id) <> "?show=#{@show + 500}"}
+          patch={Paths.session(@session_id) <> "?show=#{min(@show + 500, @max_show)}"}
           class="btn btn-ghost btn-sm"
         >
           {gettext("Show more")}

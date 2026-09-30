@@ -22,9 +22,11 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
   `%{site, value, detail, hits, visitors, exits, exit_visitors,
   engaged_ms_sum, engaged_count, scroll_sum, scroll_count, duration_ms_sum,
   duration_count, duration_max}`.
+
+  `limit: n` keeps the `n` most visited values (by hits, then exits).
   """
-  @spec aggregate(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
-  def aggregate(query, dimension) when dimension in @names do
+  @spec aggregate(Ecto.Queryable.t(), String.t(), keyword()) :: Ecto.Query.t()
+  def aggregate(query, dimension, opts \\ []) when dimension in @names do
     value = value(dimension)
     detail = detail(dimension)
 
@@ -82,6 +84,15 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
     |> restrict(dimension)
     |> group_by(^[site, value, detail])
     |> select(^fields)
+    |> top(Keyword.get(opts, :limit), fields)
+  end
+
+  defp top(query, nil, _fields), do: query
+
+  defp top(query, limit, fields) do
+    query
+    |> order_by(^[desc: fields.hits, desc: fields.exits])
+    |> limit(^limit)
   end
 
   @doc """

@@ -533,7 +533,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
       filter
       |> base_query()
       |> where([e], e.session_start == true)
-      |> sessions_for_user(Keyword.get(opts, :user_uuid))
+      |> sessions_for_user(Keyword.get(opts, :user_uuid), filter)
       |> started_before(Keyword.get(opts, :before))
       |> order_by([e], desc: e.inserted_at)
       |> limit(^(limit + 1))
@@ -663,7 +663,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
         from(e in Event,
           where: e.session_id == ^uuid,
           order_by: [asc: e.inserted_at],
-          limit: ^row_limit(opts, 1000, 100_000)
+          limit: ^row_limit(opts, 1000, 5_001)
         )
         |> all([])
 
@@ -678,6 +678,12 @@ defmodule PhoenixKitWebAnalytics.Reports do
   """
   @spec session_summary(String.t()) :: map() | nil
   def session_summary(session_id) do
+    # Cached: the visit page asks twice per load (dead render, then
+    # connected), and a long visit is a big aggregate.
+    cached({:session_summary, session_id}, fn -> compute_session_summary(session_id) end)
+  end
+
+  defp compute_session_summary(session_id) do
     with {:ok, uuid} <- Ecto.UUID.cast(session_id),
          %{started: %{}} = row <-
            from(e in Event,
@@ -853,12 +859,20 @@ defmodule PhoenixKitWebAnalytics.Reports do
   defp filter_bots(query, true), do: query
   defp filter_bots(query, _bots), do: where(query, [e], e.is_bot == false)
 
-  defp sessions_for_user(query, nil), do: query
+  defp sessions_for_user(query, nil, _filter), do: query
 
-  defp sessions_for_user(query, user_uuid) do
+  defp sessions_for_user(query, user_uuid, filter) do
     case Ecto.UUID.cast(user_uuid) do
       {:ok, uuid} ->
-        user_sessions = from(u in Event, where: u.user_uuid == ^uuid, select: u.session_id)
+        # Only visits that start in the period are listed, so the user's hits
+        # in them are never older than the period's start: a busy account
+        # costs its recent activity, not its whole history.
+        user_sessions =
+          from(u in Event,
+            where: u.user_uuid == ^uuid and u.inserted_at >= ^filter.from,
+            select: u.session_id
+          )
+
         where(query, [e], e.session_id in subquery(user_sessions))
 
       :error ->

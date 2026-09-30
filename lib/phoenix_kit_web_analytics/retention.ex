@@ -28,9 +28,19 @@ defmodule PhoenixKitWebAnalytics.Retention do
   nothing at all if the watermark can't be read: a database hiccup must cost
   an hour of compaction, never a day of history.
 
-  The two most recent completed days are re-rolled on every pass. A hit that
-  was being written as midnight passed lands in "yesterday" after that day's
-  first rollup; re-rolling picks it up, and the upsert makes it idempotent.
+  A day is re-rolled by the passes in the first #{3} hours after it ends. A
+  hit that was being written as midnight passed lands in "yesterday" after
+  that day's first rollup; a re-roll picks it up, and replacing the day whole
+  makes it idempotent. After that the day is final — re-rolling it every hour
+  would re-read a whole day of raw events 24 times for nothing.
+
+  Each breakdown keeps at most #{5_000} values per day (the most visited), so a
+  site with an id in every URL can't turn one day's rollup into a million
+  rows. The long tail below that still counts in the day's totals.
+
+  Sessions from before schema V3 get their first hit marked here too
+  (`backfill_session_starts/0`), a batch at a time, so the migration never
+  rewrites a large table in one statement.
 
   Days are UTC days, bounded with `inserted_at` ranges — never with a
   `DATE(...)` cast, which would depend on the database session's time zone.
@@ -64,6 +74,11 @@ defmodule PhoenixKitWebAnalytics.Retention do
   @delete_batch 5_000
   @max_delete_batches 200
   @reroll_days 2
+  @settle_seconds 3 * 3600
+  @max_dim_rows 5_000
+  @backfill_batch 5_000
+  @max_backfill_batches 100
+  @backfill_key "web_analytics_session_starts_backfilled"
   @stat_fields ~w(pageviews visitors events exits engaged_ms_sum engaged_count scroll_sum
                   scroll_count duration_ms_sum duration_count)a
   @watermark_key "web_analytics_rolled_through"
@@ -82,10 +97,23 @@ defmodule PhoenixKitWebAnalytics.Retention do
   """
   @spec run() :: %{rolled_up: non_neg_integer(), pruned: non_neg_integer()}
   def run do
-    rolled_up = rollup_pending_days()
-    pruned = prune_old_events()
-
-    %{rolled_up: rolled_up, pruned: pruned}
+    # One pass at a time across every node: "Run now" and each node's hourly
+    # timer would otherwise re-aggregate the same days side by side. The lock
+    # is session-level, so it's taken and released on one checked-out
+    # connection; a pass that finds it held skips rather than queueing.
+    repo().checkout(fn ->
+      if try_lock() do
+        try do
+          backfill_session_starts()
+          %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
+        after
+          unlock()
+        end
+      else
+        Logger.info("[WebAnalytics] retention pass skipped: another pass is running")
+        %{rolled_up: 0, pruned: 0}
+      end
+    end)
   end
 
   @doc "Asks the running process to do a pass. Returns immediately."
@@ -123,19 +151,19 @@ defmodule PhoenixKitWebAnalytics.Retention do
   #{@max_days_per_run} days are handled per pass. Stops at the first day whose
   rollup fails, so the watermark never skips a day.
   """
-  @spec rollup_pending_days() :: non_neg_integer()
-  def rollup_pending_days do
-    yesterday = Date.add(Date.utc_today(), -1)
+  @spec rollup_pending_days(DateTime.t()) :: non_neg_integer()
+  def rollup_pending_days(now \\ DateTime.utc_now()) do
+    yesterday = Date.add(DateTime.to_date(now), -1)
 
     case first_pending_date(yesterday) do
       {:ok, nil} ->
-        reroll_recent(yesterday, nil)
+        reroll_recent(yesterday, nil, now)
         0
 
       {:ok, first} ->
         last = Enum.min([Date.add(first, @max_days_per_run - 1), yesterday], Date)
         count = roll_forward(Date.range(first, last))
-        reroll_recent(yesterday, first)
+        reroll_recent(yesterday, first, now)
         count
 
       :error ->
@@ -196,7 +224,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
     dims =
       Enum.flat_map(Dimensions.names(), fn dimension ->
         day
-        |> Dimensions.aggregate(dimension)
+        |> Dimensions.aggregate(dimension, limit: @max_dim_rows)
         |> repo().all()
         |> Enum.reject(&(is_nil(&1.value) or (&1.hits == 0 and &1.exits == 0)))
         |> Enum.map(&dim_row(&1, date, dimension, now))
@@ -245,6 +273,75 @@ defmodule PhoenixKitWebAnalytics.Retention do
   defp to_integer_if_decimal(%Decimal{} = value), do: Decimal.to_integer(Decimal.round(value))
   defp to_integer_if_decimal(value), do: value
 
+  # ── session-start backfill ────────────────────────────────────────────────
+
+  @doc """
+  Marks the first hit of every session recorded before schema V3, which
+  introduced `session_start` — at most #{@max_backfill_batches} batches of
+  #{@backfill_batch} sessions per call, walking `session_id` in order from a
+  cursor kept in the `#{@backfill_key}` setting (`"done"` once finished).
+
+  Returns the number of hits it marked. Sessions recorded since V3 are
+  already marked; meeting one again is harmless (its first hit is the one
+  marked).
+  """
+  @spec backfill_session_starts() :: non_neg_integer()
+  def backfill_session_starts do
+    case Settings.get_setting(@backfill_key, nil) do
+      "done" ->
+        0
+
+      cursor ->
+        {marked, reached} = backfill_from(cursor, 0, 0)
+        # Saved once per pass, not per batch: every setting write is also an
+        # activity-log entry. A pass cut short re-walks its batches, harmlessly.
+        if reached != cursor, do: save_backfill_cursor(reached)
+        marked
+    end
+  rescue
+    error ->
+      Logger.warning("[WebAnalytics] session-start backfill failed: #{Exception.message(error)}")
+      0
+  end
+
+  defp backfill_from(cursor, marked, @max_backfill_batches), do: {marked, cursor}
+
+  defp backfill_from(cursor, marked, batches) do
+    # The first hit of the next sessions after the cursor: DISTINCT ON walks
+    # the (session_id, inserted_at) index, so each batch costs its own size.
+    firsts =
+      from(e in Event,
+        distinct: e.session_id,
+        order_by: [asc: e.session_id, asc: e.inserted_at, asc: e.uuid],
+        limit: @backfill_batch,
+        select: {e.session_id, e.uuid}
+      )
+      |> after_session(cursor)
+      |> repo().all()
+
+    case firsts do
+      [] ->
+        {marked, "done"}
+
+      firsts ->
+        uuids = Enum.map(firsts, &elem(&1, 1))
+
+        {count, _} =
+          from(e in Event, where: e.uuid in ^uuids and not e.session_start)
+          |> repo().update_all(set: [session_start: true])
+
+        {last_session, _} = List.last(firsts)
+        backfill_from(last_session, marked + count, batches + 1)
+    end
+  end
+
+  defp after_session(query, nil), do: query
+  defp after_session(query, cursor), do: where(query, [e], e.session_id > ^cursor)
+
+  defp save_backfill_cursor(value) do
+    Settings.update_setting_with_module(@backfill_key, value, Config.module_key())
+  end
+
   # ── prune ─────────────────────────────────────────────────────────────────
 
   @doc """
@@ -289,6 +386,19 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   defp schedule(delay), do: Process.send_after(self(), :run, delay)
 
+  @lock_key "phoenix_kit_web_analytics:retention"
+
+  defp try_lock do
+    %{rows: [[locked?]]} =
+      repo().query!("SELECT pg_try_advisory_lock(hashtext($1))", [@lock_key])
+
+    locked?
+  end
+
+  defp unlock do
+    repo().query!("SELECT pg_advisory_unlock(hashtext($1))", [@lock_key])
+  end
+
   # The first day after the watermark — or, before anything was rolled up,
   # the day of the oldest event (an indexed MIN). nil when there's nothing to
   # do.
@@ -322,14 +432,21 @@ defmodule PhoenixKitWebAnalytics.Retention do
     end)
   end
 
-  # Re-roll the most recent completed days that this pass didn't just roll.
-  defp reroll_recent(yesterday, first_new) do
+  # Re-roll the recent completed days this pass didn't just roll, while
+  # they're still settling.
+  defp reroll_recent(yesterday, first_new, now) do
     Date.add(yesterday, 1 - @reroll_days)
     |> Date.range(yesterday)
     |> Enum.reject(&(first_new && Date.compare(&1, first_new) != :lt))
-    # Every recent day, rows or not: a day that was empty when first rolled up
+    |> Enum.filter(&settling?(&1, now))
+    # Every such day, rows or not: a day that was empty when first rolled up
     # can have received a late hit since.
     |> Enum.each(&rollup_day/1)
+  end
+
+  defp settling?(date, now) do
+    day_end = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
+    DateTime.diff(now, day_end) < @settle_seconds
   end
 
   defp day_has_rows?(date) do

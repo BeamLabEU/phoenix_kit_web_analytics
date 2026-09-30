@@ -618,6 +618,46 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
     end
   end
 
+  describe "the per-visitor gate" do
+    setup do
+      enable_tracking()
+
+      unless Process.whereis(PhoenixKitWebAnalytics.Collector.Gate),
+        do: start_supervised!(Collector.gate_spec())
+
+      :ok
+    end
+
+    test "drops a hit while that visitor already has the maximum in flight" do
+      assert {:ok, first} = Collector.track(hit())
+
+      parent = self()
+
+      holders =
+        for _ <- 1..3 do
+          spawn_link(fn ->
+            Registry.register(PhoenixKitWebAnalytics.Collector.Gate, first.visitor_id, nil)
+            send(parent, :holding)
+            Process.sleep(:infinity)
+          end)
+        end
+
+      for _ <- holders, do: assert_receive(:holding)
+
+      assert {:error, :visitor_busy} = Collector.track(hit())
+
+      # Another visitor is unaffected.
+      assert {:ok, _} = Collector.track(hit(%{ip: {198, 51, 100, 7}}))
+
+      Enum.each(holders, &Process.unlink/1)
+      Enum.each(holders, &Process.exit(&1, :kill))
+      Process.sleep(20)
+
+      assert {:ok, _} = Collector.track(hit())
+      assert Repo.aggregate(Event, :count) == 3
+    end
+  end
+
   describe "session_start" do
     setup do
       enable_tracking()

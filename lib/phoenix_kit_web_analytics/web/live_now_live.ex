@@ -62,7 +62,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
 
   @impl true
   def handle_event("open_tab", %{"tab" => tab}, socket) when tab in ["visitors", "pages"] do
-    {:noreply, assign(socket, :open_tab, tab)}
+    {:noreply, socket |> assign(:open_tab, tab) |> assign_by_path()}
   end
 
   def handle_event("open_older", _params, socket) do
@@ -125,11 +125,17 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
     |> assign(:now, DateTime.utc_now())
     |> assign(:open, open)
     |> assign(:open_next, open_next)
-    |> assign(:open_by_path, LivePresence.by_path(@page_size))
+    |> assign_by_path()
     |> assign(:recent, recent)
     |> assign(:recent_next, recent_next)
     |> assign(:names, names)
   end
+
+  # Only counted while its tab is showing.
+  defp assign_by_path(%{assigns: %{open_tab: "pages"}} = socket),
+    do: assign(socket, :open_by_path, LivePresence.by_path(@page_size))
+
+  defp assign_by_path(socket), do: assign(socket, :open_by_path, [])
 
   @impl true
   def render(assigns) do
