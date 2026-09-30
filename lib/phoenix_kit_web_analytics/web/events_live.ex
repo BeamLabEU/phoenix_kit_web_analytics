@@ -108,7 +108,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
         <.breakdown_card
           title={gettext("What visitors do")}
           icon="hero-cursor-arrow-rays"
-          rows={Enum.map(@interactions, &Map.put(&1, :label, interaction_row_label(&1)))}
+          rows={label_interactions(@interactions)}
           metric_header={gettext("Times")}
           empty_message={
             gettext(
@@ -208,9 +208,4 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
     </div>
     """
   end
-
-  defp interaction_row_label(%{name: name, target: nil}), do: interaction_label(name)
-
-  defp interaction_row_label(%{name: name, target: target}),
-    do: "#{interaction_label(name)} · #{target}"
 end

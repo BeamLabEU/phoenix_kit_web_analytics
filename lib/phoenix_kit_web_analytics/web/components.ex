@@ -204,7 +204,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
           >
           </div>
           <% label = row_label(row.label, @labels) %>
-          <span class="relative truncate" title={label}>{label}</span>
+          <span class="relative min-w-0 truncate" title={label}>{label}</span>
           <span class="relative flex shrink-0 items-center gap-3 tabular-nums">
             <span
               :if={@show_visitors}
@@ -353,6 +353,14 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       }
       wrapper_class="overflow-x-auto"
     >
+      <:card_actions :let={session}>
+        <.link
+          navigate={PhoenixKitWebAnalytics.Paths.session(session.session_id)}
+          class="btn btn-ghost btn-xs"
+        >
+          {gettext("Open visit")}
+        </.link>
+      </:card_actions>
       <.table_default_header>
         <.table_default_row>
           <.table_default_header_cell>{gettext("Started")}</.table_default_header_cell>
@@ -486,6 +494,18 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   def interaction_label("click"), do: gettext("Click")
   def interaction_label("scroll"), do: gettext("Scrolled")
   def interaction_label(name), do: to_string(name)
+
+  @doc "A `Reports.top_interactions/2` row as words: \"Outbound link · github.com/x\"."
+  @spec interaction_row_label(map()) :: String.t()
+  def interaction_row_label(%{name: name, target: nil}), do: interaction_label(name)
+
+  def interaction_row_label(%{name: name, target: target}),
+    do: "#{interaction_label(name)} · #{target}"
+
+  @doc "Top-interaction rows with their labels in words, for a breakdown card."
+  @spec label_interactions([map()]) :: [map()]
+  def label_interactions(rows),
+    do: Enum.map(rows, &Map.put(&1, :label, interaction_row_label(&1)))
 
   defp row_label(label, :channel), do: channel_label(label)
   defp row_label(label, :device), do: device_label(label)

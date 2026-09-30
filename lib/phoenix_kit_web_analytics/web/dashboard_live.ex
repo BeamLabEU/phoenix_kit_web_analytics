@@ -177,7 +177,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
         <.breakdown_card
           title={gettext("What visitors do")}
           icon="hero-cursor-arrow-rays"
-          rows={@interactions}
+          rows={label_interactions(@interactions)}
           metric_header={gettext("Times")}
           link={Filters.link_to(Paths.events(), @filter)}
           empty_message={gettext("No clicks or form submits recorded in this period.")}
