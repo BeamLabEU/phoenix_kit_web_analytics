@@ -283,7 +283,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
     Date.add(yesterday, 1 - @reroll_days)
     |> Date.range(yesterday)
     |> Enum.reject(&(first_new && Date.compare(&1, first_new) != :lt))
-    |> Enum.each(fn date -> if day_has_rows?(date), do: rollup_day(date) end)
+    # Every recent day, rows or not: a day that was empty when first rolled up
+    # can have received a late hit since.
+    |> Enum.each(&rollup_day/1)
   end
 
   defp day_has_rows?(date) do

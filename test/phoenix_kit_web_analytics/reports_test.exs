@@ -162,4 +162,460 @@ defmodule PhoenixKitWebAnalytics.ReportsTest do
       assert DateTime.to_date(stats.oldest) == Date.add(Date.utc_today(), -3)
     end
   end
+
+  # ── engagement ──────────────────────────────────────────────────────────────
+
+  describe "engagement/1" do
+    test "exits count leave rows; avg time comes from their engaged_ms" do
+      insert_event(%{path: "/a"})
+      insert_event(%{event_type: "leave", path: "/a", engaged_ms: 1_000, scroll_depth: 50})
+      insert_event(%{event_type: "leave", path: "/b", engaged_ms: 3_000, scroll_depth: 100})
+      # A pageview's engaged_ms must not leak into the leave-only average.
+      insert_event(%{path: "/b", engaged_ms: 90_000})
+
+      result = Reports.engagement(Reports.filter(period: "7d"))
+
+      assert result.exits == 2
+      assert_in_delta result.avg_time_ms, 2_000.0, 0.01
+      assert_in_delta result.avg_scroll, 75.0, 0.01
+    end
+
+    test "avg_scroll is nil when nothing recorded a scroll depth" do
+      insert_event(%{event_type: "leave", engaged_ms: 500})
+
+      result = Reports.engagement(Reports.filter(period: "7d"))
+
+      assert result.exits == 1
+      assert_in_delta result.avg_time_ms, 500.0, 0.01
+      assert result.avg_scroll == nil
+    end
+
+    test "an empty window has zero exits and nil averages" do
+      insert_event(%{path: "/only-a-pageview"})
+
+      assert %{exits: 0, avg_time_ms: nil, avg_scroll: nil} =
+               Reports.engagement(Reports.filter(period: "7d"))
+    end
+  end
+
+  describe "exit_pages/2" do
+    test "ranks paths by leave count, ignoring page views" do
+      for _ <- 1..3, do: insert_event(%{event_type: "leave", path: "/pricing"})
+      insert_event(%{event_type: "leave", path: "/"})
+      # Many page views on "/" must not lift it above /pricing.
+      for _ <- 1..5, do: insert_event(%{path: "/"})
+
+      assert [%{label: "/pricing", pageviews: 3}, %{label: "/", pageviews: 1}] =
+               Reports.exit_pages(Reports.filter(period: "7d"))
+    end
+  end
+
+  describe "page_engagement/2" do
+    test "maps each requested path to its engagement" do
+      insert_event(%{event_type: "leave", path: "/a", engaged_ms: 2_000, scroll_depth: 40})
+      insert_event(%{event_type: "leave", path: "/a", engaged_ms: 4_000, scroll_depth: 60})
+      insert_event(%{event_type: "leave", path: "/b", engaged_ms: 1_000})
+      insert_event(%{event_type: "leave", path: "/not-requested", engaged_ms: 1})
+
+      result = Reports.page_engagement(Reports.filter(period: "7d"), ["/a", "/b", "/none"])
+
+      assert Map.keys(result) |> Enum.sort() == ["/a", "/b"]
+      assert result["/a"].exits == 2
+      assert_in_delta result["/a"].avg_time_ms, 3_000.0, 0.01
+      assert_in_delta result["/a"].avg_scroll, 50.0, 0.01
+      assert result["/b"].avg_scroll == nil
+    end
+
+    test "paths with page views but no leave are absent" do
+      insert_event(%{path: "/viewed"})
+
+      assert Reports.page_engagement(Reports.filter(period: "7d"), ["/viewed"]) == %{}
+    end
+
+    # Regression, fixed in lib/phoenix_kit_web_analytics/reports.ex:465: the query
+    # selects `event_type in ["leave", "interaction"]`, so a path that only has
+    # an interaction (e.g. a click) appears with `exits: 0`, contradicting the
+    # documented "Paths with no leave recorded are absent."
+    test "paths with interactions but no leave are absent" do
+      insert_event(%{event_type: "interaction", event_name: "click", path: "/clicked"})
+
+      assert Reports.page_engagement(Reports.filter(period: "7d"), ["/clicked"]) == %{}
+    end
+
+    test "an empty path list returns an empty map" do
+      insert_event(%{event_type: "leave", path: "/a", engaged_ms: 1})
+
+      assert Reports.page_engagement(Reports.filter(period: "7d"), []) == %{}
+    end
+  end
+
+  describe "top_interactions/2" do
+    test "groups by name and target, excludes scroll, and labels rows" do
+      for _ <- 1..2 do
+        insert_event(%{
+          event_type: "interaction",
+          event_name: "outbound",
+          target: "github.com/x"
+        })
+      end
+
+      insert_event(%{event_type: "interaction", event_name: "outbound", target: "gitlab.com/y"})
+      insert_event(%{event_type: "interaction", event_name: "add_to_cart"})
+      insert_event(%{event_type: "interaction", event_name: "scroll", target: "75"})
+      # Custom events are not interactions.
+      insert_event(%{event_type: "event", event_name: "signup"})
+
+      rows = Reports.top_interactions(Reports.filter(period: "7d"))
+
+      assert [%{label: "outbound · github.com/x", pageviews: 2} | rest] = rows
+      assert length(rows) == 3
+
+      labels = Enum.map(rest, & &1.label) |> Enum.sort()
+      assert labels == ["add_to_cart", "outbound · gitlab.com/y"]
+
+      assert %{name: "add_to_cart", target: nil} = Enum.find(rest, &(&1.label == "add_to_cart"))
+      refute Enum.any?(rows, &(&1.name in ["scroll", "signup"]))
+    end
+  end
+
+  # ── sessions ────────────────────────────────────────────────────────────────
+
+  describe "sessions/2" do
+    test "one row per session with at least one page view" do
+      s1 = UUIDv7.generate()
+      leave_only = UUIDv7.generate()
+
+      insert_event(%{session_id: s1, path: "/"})
+      insert_event(%{session_id: leave_only, event_type: "leave", path: "/", engaged_ms: 10})
+
+      assert [%{session_id: ^s1}] = Reports.sessions(Reports.filter(period: "7d"))
+    end
+
+    test "entry/exit paths, first-page source, and counts" do
+      session = UUIDv7.generate()
+      t0 = hours_ago(2)
+
+      insert_event(%{
+        session_id: session,
+        path: "/landing",
+        referrer_source: "Google",
+        referrer_medium: "organic",
+        inserted_at: t0
+      })
+
+      insert_event(%{
+        session_id: session,
+        path: "/middle",
+        referrer_source: "Internal",
+        referrer_medium: "internal",
+        inserted_at: DateTime.add(t0, 30, :second)
+      })
+
+      insert_event(%{
+        session_id: session,
+        event_type: "interaction",
+        event_name: "click",
+        path: "/middle",
+        inserted_at: DateTime.add(t0, 40, :second)
+      })
+
+      insert_event(%{
+        session_id: session,
+        event_type: "event",
+        event_name: "signup",
+        path: "/middle",
+        inserted_at: DateTime.add(t0, 45, :second)
+      })
+
+      insert_event(%{
+        session_id: session,
+        path: "/checkout",
+        referrer_medium: "internal",
+        inserted_at: DateTime.add(t0, 60, :second)
+      })
+
+      # A later leave on another path must not become the exit path.
+      insert_event(%{
+        session_id: session,
+        event_type: "leave",
+        path: "/elsewhere",
+        inserted_at: DateTime.add(t0, 90, :second)
+      })
+
+      assert [row] = Reports.sessions(Reports.filter(period: "7d"))
+
+      assert row.entry_path == "/landing"
+      assert row.exit_path == "/checkout"
+      assert row.source == "Google"
+      assert row.medium == "organic"
+      assert row.pageviews == 3
+      assert row.interactions == 2
+      assert row.seconds == 90
+    end
+
+    test "seconds span every event type — a trailing leave counts" do
+      session = UUIDv7.generate()
+      t0 = hours_ago(1)
+
+      insert_event(%{session_id: session, inserted_at: t0})
+
+      insert_event(%{
+        session_id: session,
+        event_type: "leave",
+        engaged_ms: 180_000,
+        inserted_at: DateTime.add(t0, 180, :second)
+      })
+
+      assert [%{seconds: 180, pageviews: 1}] = Reports.sessions(Reports.filter(period: "7d"))
+    end
+
+    test "newest first, :limit and :before paging" do
+      old = UUIDv7.generate()
+      mid = UUIDv7.generate()
+      new = UUIDv7.generate()
+
+      insert_event(%{session_id: old, inserted_at: hours_ago(5)})
+      insert_event(%{session_id: mid, inserted_at: hours_ago(3)})
+      # `mid` continues after `new` starts — paging is by start, not end.
+      insert_event(%{
+        session_id: mid,
+        inserted_at: DateTime.add(DateTime.utc_now(), -1800, :second)
+      })
+
+      insert_event(%{session_id: new, inserted_at: hours_ago(1)})
+
+      filter = Reports.filter(period: "7d")
+
+      assert Enum.map(Reports.sessions(filter), & &1.session_id) == [new, mid, old]
+      assert Enum.map(Reports.sessions(filter, limit: 2), & &1.session_id) == [new, mid]
+
+      assert Enum.map(Reports.sessions(filter, before: hours_ago(2)), & &1.session_id) ==
+               [mid, old]
+
+      assert Enum.map(Reports.sessions(filter, before: hours_ago(4)), & &1.session_id) == [old]
+    end
+
+    test ":user_uuid returns every session the user appears in, anonymous hits included" do
+      user = UUIDv7.generate()
+      theirs = UUIDv7.generate()
+      also_theirs = UUIDv7.generate()
+      someone_else = UUIDv7.generate()
+
+      # Anonymous first page, then signed in within the same session.
+      insert_event(%{session_id: theirs, path: "/anon", inserted_at: hours_ago(2)})
+      insert_event(%{session_id: theirs, path: "/in", user_uuid: user, inserted_at: hours_ago(1)})
+      insert_event(%{session_id: also_theirs, user_uuid: user, inserted_at: hours_ago(3)})
+      insert_event(%{session_id: someone_else, user_uuid: UUIDv7.generate()})
+
+      filter = Reports.filter(period: "7d")
+      rows = Reports.sessions(filter, user_uuid: user)
+
+      assert Enum.map(rows, & &1.session_id) == [theirs, also_theirs]
+
+      theirs_row = Enum.find(rows, &(&1.session_id == theirs))
+      assert theirs_row.pageviews == 2
+      assert theirs_row.entry_path == "/anon"
+      assert theirs_row.user_uuid == user
+    end
+
+    test ":user_uuid with an invalid uuid string returns nothing" do
+      insert_event(%{user_uuid: UUIDv7.generate()})
+
+      assert Reports.sessions(Reports.filter(period: "7d"), user_uuid: "not-a-uuid") == []
+    end
+  end
+
+  describe "session_timeline/1" do
+    test "returns the session's events oldest first, and only that session's" do
+      session = UUIDv7.generate()
+
+      insert_event(%{session_id: session, path: "/second", inserted_at: hours_ago(1)})
+      insert_event(%{session_id: session, path: "/first", inserted_at: hours_ago(2)})
+
+      insert_event(%{
+        session_id: session,
+        event_type: "leave",
+        path: "/second",
+        inserted_at: DateTime.add(DateTime.utc_now(), -1800, :second)
+      })
+
+      insert_event(%{path: "/other-session"})
+
+      assert ["/first", "/second", "/second"] ==
+               session |> Reports.session_timeline() |> Enum.map(& &1.path)
+
+      assert List.last(Reports.session_timeline(session)).event_type == "leave"
+    end
+
+    test "[] for a non-UUID and for an unknown UUID" do
+      insert_event(%{})
+
+      assert Reports.session_timeline("nope") == []
+      assert Reports.session_timeline("") == []
+      assert Reports.session_timeline(UUIDv7.generate()) == []
+    end
+  end
+
+  # ── bots ────────────────────────────────────────────────────────────────────
+
+  describe "bot traffic" do
+    setup do
+      insert_event(%{path: "/human", visitor_id: "h"})
+      insert_event(%{path: "/bot", visitor_id: "b", is_bot: true, device_type: "bot"})
+      :ok
+    end
+
+    test "is excluded from overview, top_paths and sessions by default" do
+      filter = Reports.filter(period: "7d")
+
+      assert Reports.overview(filter).pageviews == 1
+      assert Reports.overview(filter).visitors == 1
+      assert [%{label: "/human"}] = Reports.top_paths(filter)
+      assert [%{entry_path: "/human"}] = Reports.sessions(filter)
+    end
+
+    test "is included with bots: true" do
+      filter = Reports.filter(period: "7d", bots: true)
+
+      assert Reports.overview(filter).pageviews == 2
+      assert Reports.overview(filter).visitors == 2
+
+      assert filter |> Reports.top_paths() |> Enum.map(& &1.label) |> Enum.sort() == [
+               "/bot",
+               "/human"
+             ]
+
+      assert length(Reports.sessions(filter)) == 2
+    end
+
+    test "only a literal true opts in" do
+      assert Reports.filter(period: "7d", bots: "true").bots == false
+      assert Reports.overview(Reports.filter(period: "7d", bots: "true")).pageviews == 1
+    end
+  end
+
+  describe "overview/1 session length" do
+    test "includes a trailing leave, and a one-page session still bounces" do
+      session = UUIDv7.generate()
+      t0 = hours_ago(1)
+
+      insert_event(%{session_id: session, inserted_at: t0})
+
+      insert_event(%{
+        session_id: session,
+        event_type: "leave",
+        inserted_at: DateTime.add(t0, 120, :second)
+      })
+
+      overview = Reports.overview(Reports.filter(period: "7d"))
+
+      assert overview.sessions == 1
+      assert overview.pageviews == 1
+      assert_in_delta overview.avg_session_seconds, 120.0, 0.01
+      assert overview.bounce_rate == 100.0
+    end
+
+    test "a session of only a leave is not a session" do
+      insert_event(%{event_type: "leave"})
+
+      overview = Reports.overview(Reports.filter(period: "7d"))
+
+      assert overview.sessions == 0
+      assert overview.avg_session_seconds == nil
+    end
+  end
+
+  describe "active_visitors/2" do
+    test "ignores leave rows" do
+      insert_event(%{event_type: "leave", visitor_id: "leaver"})
+      assert Reports.active_visitors(5) == 0
+
+      insert_event(%{visitor_id: "viewer"})
+      assert Reports.active_visitors(5) == 1
+    end
+
+    test "only counts the last `minutes`, and restricts by site" do
+      insert_event(%{visitor_id: "stale", inserted_at: hours_ago(1)})
+      insert_event(%{visitor_id: "fresh", site: "a.com"})
+      insert_event(%{visitor_id: "fresh2", site: "b.com"})
+
+      assert Reports.active_visitors(5) == 2
+      assert Reports.active_visitors(5, "a.com") == 1
+    end
+  end
+
+  describe "storage_stats/0 counts" do
+    test "is exact and not estimated for a small table, and counts rollup days" do
+      for _ <- 1..7, do: insert_event(%{})
+
+      assert %{events: 7, events_estimated?: false, rollup_days: 0} = Reports.storage_stats()
+    end
+
+    test "an empty table reports zero and no oldest" do
+      assert %{events: 0, events_estimated?: false, oldest: nil} = Reports.storage_stats()
+    end
+  end
+
+  describe "timeseries/2 for all time" do
+    test "monthly series starts at the oldest event's month, not 1970" do
+      today = Date.utc_today()
+      three_months_ago = Date.shift(today, month: -3)
+
+      insert_event(%{inserted_at: DateTime.new!(three_months_ago, ~T[12:00:00], "Etc/UTC")})
+      insert_event(%{})
+
+      series = Reports.timeseries(Reports.filter(period: "all"), :month)
+
+      assert [%{bucket: first, pageviews: 1} | _] = series
+      assert DateTime.to_date(first) == Date.beginning_of_month(three_months_ago)
+      assert length(series) == 4
+      assert List.last(series).pageviews == 1
+      assert DateTime.to_date(List.last(series).bucket) == Date.beginning_of_month(today)
+    end
+
+    test "with no data the series is short, never the 1970 backlog" do
+      series = Reports.timeseries(Reports.filter(period: "all"), :month)
+
+      assert length(series) <= 1
+      assert Enum.all?(series, &(&1.pageviews == 0))
+    end
+
+    test "with no data mid-month the series is the current month only" do
+      filter = Reports.filter(period: "all", now: ~U[2026-01-15 12:00:00Z])
+
+      assert [%{pageviews: 0, bucket: ~U[2026-01-01 00:00:00Z]}] =
+               Reports.timeseries(filter, :month)
+    end
+
+    # Regression, fixed in lib/phoenix_kit_web_analytics/reports.ex:915: with no
+    # data, `first_month/1` falls back to `DateTime.to_date(filter.to)` — the
+    # EXCLUSIVE end, i.e. tomorrow. On the last day of a month tomorrow is next
+    # month, which is past `to_month`, so the series is `[]` instead of the
+    # current month (one bucket on every other day of the month).
+    test "with no data on the last day of a month the series is still the current month" do
+      filter = Reports.filter(period: "all", now: ~U[2026-01-31 12:00:00Z])
+
+      assert [%{pageviews: 0, bucket: ~U[2026-01-01 00:00:00Z]}] =
+               Reports.timeseries(filter, :month)
+    end
+  end
+
+  describe "recent_hits/2 event types" do
+    test "filters to interaction and to leave" do
+      insert_event(%{path: "/pv"})
+      insert_event(%{event_type: "interaction", event_name: "click", path: "/i"})
+      insert_event(%{event_type: "leave", path: "/l"})
+
+      filter = Reports.filter(period: "7d")
+
+      assert [%{path: "/i", event_type: "interaction"}] =
+               Reports.recent_hits(filter, event_type: "interaction")
+
+      assert [%{path: "/l", event_type: "leave"}] =
+               Reports.recent_hits(filter, event_type: "leave")
+
+      # An unknown type is ignored rather than matching nothing.
+      assert length(Reports.recent_hits(filter, event_type: "bogus")) == 3
+    end
+  end
 end

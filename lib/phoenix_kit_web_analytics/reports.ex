@@ -464,6 +464,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> base_query()
     |> where([e], e.path in ^paths and e.event_type in ["leave", "interaction"])
     |> group_by([e], e.path)
+    |> having([e], fragment("COUNT(*) FILTER (WHERE ? = 'leave')", e.event_type) > 0)
     |> select([e], %{
       path: e.path,
       exits: fragment("COUNT(*) FILTER (WHERE ? = 'leave')", e.event_type),
@@ -912,7 +913,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
     [oldest_event && to_utc(oldest_event) |> DateTime.to_date(), oldest_rollup]
     |> Enum.reject(&is_nil/1)
-    |> Enum.min(Date, fn -> DateTime.to_date(filter.to) end)
+    # `to` is exclusive (tomorrow's midnight for "all"), so with no data the
+    # series starts at the month of its last included instant — today's.
+    |> Enum.min(Date, fn -> filter.to |> DateTime.add(-1, :second) |> DateTime.to_date() end)
   end
 
   defp first_month(filter), do: DateTime.to_date(filter.from)
