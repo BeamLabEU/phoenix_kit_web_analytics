@@ -28,7 +28,12 @@ defmodule PhoenixKitWebAnalytics.Test.TrackedLive do
     ~H"""
     <div id="tracked">
       <p>Count: {@count}</p>
-      <button id="add" phx-click="add_to_cart" phx-value-tab="pricing" phx-value-email="secret@example.com">
+      <button
+        id="add"
+        phx-click="add_to_cart"
+        phx-value-tab="pricing"
+        phx-value-email="secret@example.com"
+      >
         Add
       </button>
       <button id="ping" phx-click="ping">Ping</button>

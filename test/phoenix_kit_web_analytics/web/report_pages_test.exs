@@ -184,7 +184,7 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       view |> element("button[phx-click='run_retention']") |> render_click()
 
       # The pass runs in start_async, off the LiveView's own process.
-      assert render_async(view) =~ "Rolled up 1 day(s)"
+      assert render_async(view, 2_000) =~ "Rolled up 1 day(s)"
     end
   end
 end

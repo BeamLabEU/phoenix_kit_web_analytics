@@ -101,9 +101,12 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @doc "How many pages are open right now."
   @spec count(String.t() | nil) :: non_neg_integer()
   def count(nil) do
-    :ets.info(@table, :size) || 0
-  rescue
-    ArgumentError -> 0
+    # `:ets.info/2` answers :undefined (it doesn't raise) when the table is
+    # gone — the server not running on this node.
+    case :ets.info(@table, :size) do
+      size when is_integer(size) -> size
+      _ -> 0
+    end
   end
 
   def count(site), do: site |> list() |> length()
