@@ -25,6 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
+     |> Filters.track_online()
      |> assign(:page_title, gettext("Pages"))
      |> assign(:page_limit, @page_limit)
      |> assign(:slow_min_views, Reports.slow_min_views())}
@@ -41,6 +42,8 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
   end
 
   @impl true
+  def handle_info(:refresh_online, socket), do: {:noreply, Filters.refresh_online(socket)}
+
   def handle_info(message, socket) do
     Logger.debug("[WebAnalytics] PagesLive ignored #{inspect(message)}")
     {:noreply, socket}
@@ -61,23 +64,27 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <p class="text-sm text-base-content/60">
-          {gettext("%{views} page views across %{paths} paths.",
-            views: format_number(@overview.pageviews),
-            paths: format_number(length(@paths))
-          )}
-        </p>
-        <.filter_bar
-          period={@period}
-          site={@site}
-          sites={@sites}
-          path={@path}
-          base_path={Paths.pages()}
-        />
-      </div>
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.pages()}
+        online={@online}
+        live_path={Paths.live()}
+      />
 
-      <div class="rounded-xl border border-base-300 bg-base-100">
+      <.report_card id="all-pages" title={gettext("All pages")} icon="hero-document-text">
+        <:info>
+          <p>{gettext("Every page that was opened in this period, most viewed first.")}</p>
+          <.columns_explained />
+          <p>
+            {gettext(
+              "Share: this page's part of all page views. Time on page: how long it stayed open on average. Exits: how many visits ended on it."
+            )}
+          </p>
+          <p>{gettext("Click a page to see the overview for that page alone.")}</p>
+        </:info>
         <.empty_state
           :if={@paths == []}
           title={gettext("No page views recorded in this period.")}
@@ -87,7 +94,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
         <.table_default :if={@paths != []} size="sm" wrapper_class="overflow-x-auto">
           <.table_default_header>
             <.table_default_row>
-              <.table_default_header_cell>{gettext("Path")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Page")}</.table_default_header_cell>
               <.table_default_header_cell class="text-right">
                 {gettext("Visitors")}
               </.table_default_header_cell>
@@ -97,16 +104,10 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
               <.table_default_header_cell class="text-right">
                 {gettext("Share")}
               </.table_default_header_cell>
-              <.table_default_header_cell
-                class="text-right"
-                title={gettext("Average time on the page, from exits")}
-              >
+              <.table_default_header_cell class="text-right">
                 {gettext("Time on page")}
               </.table_default_header_cell>
-              <.table_default_header_cell
-                class="text-right"
-                title={gettext("Visits that ended on this page")}
-              >
+              <.table_default_header_cell class="text-right">
                 {gettext("Exits")}
               </.table_default_header_cell>
             </.table_default_row>
@@ -129,7 +130,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
                   {row.label}
                 </.link>
               </.table_default_cell>
-              <.table_default_cell class="text-right tabular-nums">
+              <.table_default_cell class="text-right tabular-nums text-base-content/60">
                 {format_number(row.visitors)}
               </.table_default_cell>
               <.table_default_cell class="text-right tabular-nums font-medium">
@@ -147,23 +148,25 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
             </.table_default_row>
           </.table_default_body>
         </.table_default>
-      </div>
+        <p :if={length(@paths) >= @page_limit} class="px-4 py-3 text-xs text-base-content/50">
+          {gettext("Showing the top %{count} paths by page views.", count: @page_limit)}
+        </p>
+      </.report_card>
 
-      <p :if={length(@paths) >= @page_limit} class="text-xs text-base-content/50">
-        {gettext("Showing the top %{count} paths by page views.", count: @page_limit)}
-      </p>
-
-      <div class="rounded-xl border border-base-300 bg-base-100">
-        <div class="border-b border-base-300 px-4 py-3">
-          <h2 class="text-sm font-semibold">{gettext("Slowest pages")}</h2>
-          <p class="mt-1 text-xs text-base-content/50">
+      <.report_card id="slowest-pages" title={gettext("Slowest pages")} icon="hero-clock">
+        <:info>
+          <p>
             {gettext(
-              "Average server response time, for paths with at least %{count} views in this period.",
+              "How long the server took to build each page, on average — the time before the visitor's browser gets anything."
+            )}
+          </p>
+          <p>
+            {gettext(
+              "Only pages opened at least %{count} times in this period, so one slow first load doesn't top the list.",
               count: @slow_min_views
             )}
           </p>
-        </div>
-
+        </:info>
         <.empty_state
           :if={@slowest == []}
           title={gettext("Not enough traffic yet to rank response times.")}
@@ -173,7 +176,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
         <.table_default :if={@slowest != []} size="sm" wrapper_class="overflow-x-auto">
           <.table_default_header>
             <.table_default_row>
-              <.table_default_header_cell>{gettext("Path")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Page")}</.table_default_header_cell>
               <.table_default_header_cell class="text-right">
                 {gettext("Views")}
               </.table_default_header_cell>
@@ -202,7 +205,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
             </.table_default_row>
           </.table_default_body>
         </.table_default>
-      </div>
+      </.report_card>
     </div>
     """
   end

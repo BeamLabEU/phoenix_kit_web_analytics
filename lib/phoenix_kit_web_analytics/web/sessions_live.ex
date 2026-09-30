@@ -25,7 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, gettext("Visits"))}
+    {:ok, socket |> Filters.track_online() |> assign(:page_title, gettext("Visits"))}
   end
 
   @impl true
@@ -45,6 +45,8 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
   end
 
   @impl true
+  def handle_info(:refresh_online, socket), do: {:noreply, Filters.refresh_online(socket)}
+
   def handle_info(message, socket) do
     Logger.debug("[WebAnalytics] SessionsLive ignored #{inspect(message)}")
     {:noreply, socket}
@@ -70,36 +72,55 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <p class="text-sm text-base-content/60">
-          <%= if @user_uuid do %>
-            {gettext("Visits by %{name}.",
-              name: Map.get(@names, @user_uuid, gettext("a signed-in user"))
-            )}
-            <.link patch={patch_path(%{"period" => @period, "site" => @site})} class="link">
-              {gettext("Show everyone")}
-            </.link>
-          <% else %>
-            {gettext("Every visit, newest first. Open one to see everything that visitor did.")}
-          <% end %>
-        </p>
-        <.filter_bar
-          period={@period}
-          site={@site}
-          sites={@sites}
-          path={@path}
-          base_path={Paths.sessions()}
-        />
-      </div>
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.sessions()}
+        online={@online}
+        live_path={Paths.live()}
+      />
 
-      <div class="rounded-xl border border-base-300 bg-base-100">
+      <.report_card
+        id="all-visits"
+        title={
+          if @user_uuid,
+            do:
+              gettext("Visits by %{name}",
+                name: Map.get(@names, @user_uuid, gettext("a signed-in user"))
+              ),
+            else: gettext("Visits")
+        }
+        icon="hero-users"
+      >
+        <:info>
+          <p>
+            {gettext(
+              "Every visit in this period, newest first. Open one to see everything that visitor did, in order."
+            )}
+          </p>
+          <p>
+            {gettext(
+              "Visitor: a signed-in user's name, otherwise Anonymous. Landed on → left from: the first and last page. Pages: pages opened. Actions: clicks, form submits and events. Duration: from the first page opening to leaving the last. Source: where the visit came from."
+            )}
+          </p>
+        </:info>
+        <:actions :if={@user_uuid}>
+          <.link
+            patch={patch_path(%{"period" => @period, "site" => @site})}
+            class="btn btn-ghost btn-xs"
+          >
+            <.icon name="hero-x-mark" class="h-3 w-3" /> {gettext("Show everyone")}
+          </.link>
+        </:actions>
         <.sessions_table
           id="web-analytics-sessions"
           sessions={@sessions}
           names={@names}
           empty_message={gettext("No visits in this period.")}
         />
-      </div>
+      </.report_card>
 
       <div :if={@more? or @before} class="flex justify-between">
         <.link

@@ -30,7 +30,7 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       {:ok, _view, html} = live(conn, "#{@base}/live")
 
       assert html =~ "/watched-page"
-      assert html =~ "1 page open right now"
+      assert html =~ "1 online"
       refute html =~ "Live presence isn"
     end
 

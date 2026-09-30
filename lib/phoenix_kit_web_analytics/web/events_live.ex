@@ -29,6 +29,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
 
     {:ok,
      socket
+     |> Filters.track_online()
      |> assign(:page_title, gettext("Events"))
      |> assign(:refresh_seconds, div(@refresh_ms, 1000))
      |> assign(:feed_type, "all")}
@@ -52,6 +53,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
 
   @impl true
   def handle_info(:refresh, socket), do: {:noreply, load_feed(socket)}
+  def handle_info(:refresh_online, socket), do: {:noreply, Filters.refresh_online(socket)}
 
   def handle_info(message, socket) do
     Logger.debug("[WebAnalytics] EventsLive ignored #{inspect(message)}")
@@ -91,54 +93,78 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <p class="text-sm text-base-content/60">
-          {gettext("What visitors did on the site, and every hit as it arrives.")}
-        </p>
-        <.filter_bar
-          period={@period}
-          site={@site}
-          sites={@sites}
-          path={@path}
-          base_path={Paths.events()}
-        />
-      </div>
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.events()}
+        online={@online}
+        live_path={Paths.live()}
+      />
 
       <div class="grid gap-4 lg:grid-cols-2">
         <.breakdown_card
+          id="card-interactions"
           title={gettext("What visitors do")}
           icon="hero-cursor-arrow-rays"
           rows={label_interactions(@interactions)}
+          label_header={gettext("Action")}
           metric_header={gettext("Times")}
-          empty_message={
-            gettext(
-              "No interactions yet. LiveView clicks and submits are recorded by the LiveView hook; plain links and scroll depth by the optional client script."
-            )
-          }
-        />
+          empty_message={gettext("No clicks or form submits recorded in this period.")}
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Buttons clicked and forms sent on LiveView pages, by the name the page gives them — plus outbound links and downloads when the optional client script is on."
+              )}
+            </p>
+            <p>
+              {gettext(
+                "Visitors: how many different people did it. Times: how often it was done in total."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
         <.breakdown_card
+          id="card-custom-events"
           title={gettext("Custom events")}
           icon="hero-bolt"
           rows={@events}
-          metric_header={gettext("Count")}
-          empty_message={
-            gettext(
-              "No custom events recorded. Send them with PhoenixKitWebAnalytics.track_event/2 or phoenixKitAnalytics(name, props) in the browser."
-            )
-          }
-        />
-      </div>
-
-      <div class="rounded-xl border border-base-300 bg-base-100">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-4 py-3">
-          <div>
-            <h2 class="text-sm font-semibold">{gettext("Live feed")}</h2>
-            <p class="text-xs text-base-content/50">
-              {gettext("Most recent hits, refreshed every %{seconds} seconds.",
-                seconds: @refresh_seconds
+          label_header={gettext("Event")}
+          metric_header={gettext("Times")}
+          empty_message={gettext("No custom events recorded in this period.")}
+          info_align="end"
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Events the site reports itself, with a name of its choosing — an order placed, a sign-up finished. They come from PhoenixKitWebAnalytics.track_event/2 in the app, or phoenixKitAnalytics(name, props) in the browser."
               )}
             </p>
-          </div>
+            <p>
+              {gettext(
+                "Visitors: how many different people did it. Times: how often it was done in total."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
+      </div>
+
+      <.report_card id="live-feed" title={gettext("Live feed")} icon="hero-signal">
+        <:info>
+          <p>
+            {gettext("Every hit as it arrives, newest first — updated every %{seconds} seconds.",
+              seconds: @refresh_seconds
+            )}
+          </p>
+          <p>
+            {gettext(
+              "Page views, actions, exits (with how long the page was open) and custom events. The last column opens the whole visit."
+            )}
+          </p>
+        </:info>
+        <:actions>
           <form id="web-analytics-feed-type" phx-change="feed_type">
             <.select
               name="feed_type"
@@ -154,8 +180,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
               aria-label={gettext("Hit type")}
             />
           </form>
-        </div>
-
+        </:actions>
         <.empty_state
           :if={@feed == []}
           title={gettext("Nothing recorded in this period yet.")}
@@ -204,7 +229,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
             </.table_default_row>
           </.table_default_body>
         </.table_default>
-      </div>
+      </.report_card>
     </div>
     """
   end

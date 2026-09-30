@@ -25,7 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, gettext("Technology"))}
+    {:ok, socket |> Filters.track_online() |> assign(:page_title, gettext("Technology"))}
   end
 
   @impl true
@@ -39,6 +39,8 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
   end
 
   @impl true
+  def handle_info(:refresh_online, socket), do: {:noreply, Filters.refresh_online(socket)}
+
   def handle_info(message, socket) do
     Logger.debug("[WebAnalytics] TechnologyLive ignored #{inspect(message)}")
     {:noreply, socket}
@@ -59,43 +61,103 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <p class="text-sm text-base-content/60">
-          {gettext("Derived from request headers — nothing is measured in the browser.")}
-        </p>
-        <.filter_bar
-          period={@period}
-          site={@site}
-          sites={@sites}
-          path={@path}
-          base_path={Paths.technology()}
-        />
-      </div>
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.technology()}
+        online={@online}
+        live_path={Paths.live()}
+      />
 
       <div class="grid gap-4 lg:grid-cols-2">
-        <.breakdown_card title={gettext("Browsers")} icon="hero-globe-alt" rows={@browsers} />
         <.breakdown_card
+          id="card-browsers"
+          title={gettext("Browsers")}
+          icon="hero-globe-alt"
+          rows={@browsers}
+          label_header={gettext("Browser")}
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Read from the browser's description of itself, which it sends with every page. Nothing is measured on the visitor's device."
+              )}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
+        <.breakdown_card
+          id="card-systems"
           title={gettext("Operating systems")}
           icon="hero-computer-desktop"
           rows={@operating_systems}
-        />
+          label_header={gettext("System")}
+          info_align="end"
+        >
+          <:info>
+            <p>
+              {gettext("Windows, macOS, iOS, Android… — from the same description the browser sends.")}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
         <.breakdown_card
+          id="card-devices"
           title={gettext("Devices")}
           icon="hero-device-phone-mobile"
           rows={@devices}
           labels={:device}
-        />
-        <.breakdown_card title={gettext("Languages")} icon="hero-language" rows={@languages} />
+          label_header={gettext("Device")}
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Desktop, mobile or tablet — read from the browser's description of itself, which it sends with every page."
+              )}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
         <.breakdown_card
+          id="card-languages"
+          title={gettext("Languages")}
+          icon="hero-language"
+          rows={@languages}
+          label_header={gettext("Language")}
+          info_align="end"
+        >
+          <:info>
+            <p>
+              {gettext(
+                "The language the visitor's browser asks for first (et-EE is Estonian as used in Estonia) — usually the language of their device."
+              )}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
+        <.breakdown_card
+          id="card-countries"
           title={gettext("Countries")}
           icon="hero-map"
           rows={@countries}
+          label_header={gettext("Country")}
           empty_message={
             gettext(
               "No location data. Configure a geo resolver, or run behind a CDN that sets a country header."
             )
           }
-        />
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Only filled when the site runs behind a CDN that says the visitor's country (Cloudflare does), or when a location lookup is configured. No IP address is ever stored."
+              )}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
       </div>
     </div>
     """

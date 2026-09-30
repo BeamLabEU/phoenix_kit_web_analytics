@@ -19,16 +19,12 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.Filters
 
-  @refresh_ms 30_000
-
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: :timer.send_interval(@refresh_ms, self(), :refresh_online)
-
     {:ok,
      socket
+     |> Filters.track_online()
      |> assign(:page_title, gettext("Web Analytics"))
-     |> assign(:online, 0)
      |> assign(:session_timeout, PhoenixKitWebAnalytics.Config.session_timeout_minutes())
      |> assign(:tracking_enabled?, PhoenixKitWebAnalytics.enabled?())}
   end
@@ -45,7 +41,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
 
   @impl true
   def handle_info(:refresh_online, socket) do
-    {:noreply, assign(socket, :online, Filters.online(socket.assigns.site))}
+    {:noreply, Filters.refresh_online(socket)}
   end
 
   def handle_info(message, socket) do
@@ -67,7 +63,6 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
     |> assign(:devices, Reports.devices(filter, limit: 4))
     |> assign(:interactions, Reports.top_interactions(filter, limit: 8))
     |> assign(:exit_pages, Reports.exit_pages(filter, limit: 8))
-    |> assign(:online, Filters.online(filter.site))
   end
 
   # Day buckets read through the rollups, so a trend reaching past the
@@ -86,16 +81,15 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <.filter_bar
-          period={@period}
-          site={@site}
-          sites={@sites}
-          path={@path}
-          base_path={Paths.dashboard()}
-        />
-        <.online_badge count={@online} path={Paths.live()} />
-      </div>
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.dashboard()}
+        online={@online}
+        live_path={Paths.live()}
+      />
 
       <.disabled_notice :if={not @tracking_enabled?} settings_path={Paths.settings()} />
 

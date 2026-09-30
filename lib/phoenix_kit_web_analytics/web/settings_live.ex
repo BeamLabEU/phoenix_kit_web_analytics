@@ -152,10 +152,6 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-3xl space-y-6 px-4 py-6">
-      <p class="text-sm text-base-content/60">
-        {gettext("What is collected, how long it is kept, and who is told about what.")}
-      </p>
-
       <div class="flex items-center justify-between rounded-xl border border-base-300 bg-base-100 p-4">
         <div>
           <p class="font-medium">

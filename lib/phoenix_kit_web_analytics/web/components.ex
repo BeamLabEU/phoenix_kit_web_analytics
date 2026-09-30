@@ -80,22 +80,98 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   "N online" — people on the site now — linking to the Right now page.
   """
   attr :count, :integer, required: true
-  attr :path, :string, required: true
+
+  attr :path, :string,
+    default: nil,
+    doc: "where the badge links; nil on the Right now page itself"
 
   def online_badge(assigns) do
     ~H"""
     <.link
+      :if={@path}
       navigate={@path}
       class="badge badge-ghost h-8 gap-2 px-3"
       title={gettext("People on the site now — open Right now")}
     >
-      <.status_dot
-        variant={if @count > 0, do: :success, else: :neutral}
-        pulse={@count > 0}
-        size={:xs}
-      />
-      {ngettext("%{count} online", "%{count} online", @count)}
+      <.online_badge_content count={@count} />
     </.link>
+    <span :if={is_nil(@path)} class="badge badge-ghost h-8 gap-2 px-3">
+      <.online_badge_content count={@count} />
+    </span>
+    """
+  end
+
+  attr :count, :integer, required: true
+
+  defp online_badge_content(assigns) do
+    ~H"""
+    <.status_dot
+      variant={if @count > 0, do: :success, else: :neutral}
+      pulse={@count > 0}
+      size={:xs}
+    />
+    {ngettext("%{count} online", "%{count} online", @count)}
+    """
+  end
+
+  @doc """
+  The top row of every report page: the filters on the left, the online
+  badge on the right. On the Right now page, pass no `period` (there is no
+  window to choose) and no `live_path`.
+  """
+  attr :period, :string, default: nil
+  attr :site, :string, default: nil
+  attr :sites, :list, default: []
+  attr :path, :string, default: nil
+  attr :base_path, :string, default: nil
+  attr :online, :integer, required: true
+  attr :live_path, :string, default: nil
+
+  def top_row(assigns) do
+    ~H"""
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <.filter_bar
+        :if={@period}
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={@base_path}
+      />
+      <span :if={is_nil(@period)}></span>
+      <.online_badge count={@online} path={@live_path} />
+    </div>
+    """
+  end
+
+  @doc """
+  A titled card around a table or list, with an optional (i) explanation
+  and actions on the right — the frame every report section shares.
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :icon, :string, default: nil
+  attr :info_align, :string, default: "start", values: ["start", "end"]
+  attr :class, :any, default: nil
+  slot :info
+  slot :actions
+  slot :inner_block, required: true
+
+  def report_card(assigns) do
+    ~H"""
+    <div id={@id} class={["min-w-0 rounded-xl border border-base-300 bg-base-100", @class]}>
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
+        <h2 class="flex items-center gap-2 text-sm font-semibold">
+          <.icon :if={@icon} name={@icon} class="h-4 w-4 text-base-content/50" />
+          {@title}
+          <.info_tip :if={@info != []} id={"#{@id}-info"} title={@title} align={@info_align}>
+            {render_slot(@info)}
+          </.info_tip>
+        </h2>
+        <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
+      </div>
+      {render_slot(@inner_block)}
+    </div>
     """
   end
 

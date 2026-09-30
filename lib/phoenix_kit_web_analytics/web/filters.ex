@@ -39,7 +39,8 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
       # Scoped to the selected window, not all time: an all-time GROUP BY site
       # would scan the entire events table on every page load, which is the one
       # query on these pages that has no time bound to keep it cheap.
-      sites: Reports.sites(filter)
+      sites: Reports.sites(filter),
+      online: online(filter.site)
     )
   end
 
@@ -79,6 +80,25 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
   @doc "Applies the current filter's params to another report path."
   @spec link_to(String.t(), Reports.filter()) :: String.t()
   def link_to(path, filter), do: patch_to(path, to_params(filter))
+
+  @online_refresh_ms 30_000
+
+  @doc """
+  Assigns `:online` and, once connected, refreshes it every 30 seconds by
+  sending the LiveView `:refresh_online` — which it hands back to
+  `refresh_online/1`. Every report page shows the same badge this way.
+  """
+  @spec track_online(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def track_online(socket) do
+    if Phoenix.LiveView.connected?(socket),
+      do: :timer.send_interval(@online_refresh_ms, self(), :refresh_online)
+
+    assign(socket, online: 0)
+  end
+
+  @doc "Re-reads the online count for the page's current site filter."
+  @spec refresh_online(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def refresh_online(socket), do: assign(socket, online: online(socket.assigns[:site]))
 
   @doc """
   How many people are on the site now: the larger of the pages open over a

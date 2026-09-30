@@ -71,6 +71,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
       UserNames.for_uuids(Enum.map(open, & &1.user_uuid) ++ Enum.map(recent, & &1.user_uuid))
 
     socket
+    |> assign(:online, PhoenixKitWebAnalytics.Web.Filters.online(nil))
     |> assign(:now, now)
     |> assign(:open, open)
     |> assign(:recent, recent)
@@ -85,17 +86,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <p class="flex items-center gap-2 text-sm text-base-content/60">
-          <.status_dot
-            variant={if @open != [], do: :success, else: :neutral}
-            pulse={@open != []}
-            size={:sm}
-          />
-          {ngettext("%{count} page open right now", "%{count} pages open right now", length(@open))}
-        </p>
-        <span class="text-xs text-base-content/50">{gettext("Updates every few seconds.")}</span>
-      </div>
+      <.top_row online={@online} />
 
       <div
         :if={not @presence?}
@@ -111,13 +102,24 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
-        <div class="min-w-0 rounded-xl border border-base-300 bg-base-100 lg:col-span-2">
-          <div class="border-b border-base-300 px-4 py-3">
-            <h2 class="text-sm font-semibold">{gettext("Open pages")}</h2>
-            <p class="text-xs text-base-content/50">
-              {gettext("Every LiveView page connected at this moment.")}
+        <.report_card
+          id="open-pages"
+          title={gettext("Open pages")}
+          icon="hero-eye"
+          class="lg:col-span-2"
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Every page someone has open this moment, and for how long. Updated every few seconds; a page disappears the moment its tab is closed."
+              )}
             </p>
-          </div>
+            <p>
+              {gettext(
+                "Covers LiveView pages, which keep a live connection. Pages without one show up under Recent visits instead."
+              )}
+            </p>
+          </:info>
           <.empty_state
             :if={@open == []}
             title={gettext("Nobody has a page open right now.")}
@@ -165,30 +167,40 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
               </.table_default_row>
             </.table_default_body>
           </.table_default>
-        </div>
+        </.report_card>
 
         <.breakdown_card
+          id="card-open-by-page"
+          label_header={gettext("Page")}
+          info_align="end"
           title={gettext("Pages open now")}
           icon="hero-document-text"
           rows={Enum.map(@open_by_path, fn {path, count} -> %{label: path, pageviews: count} end)}
           metric_header={gettext("Open")}
           show_visitors={false}
           empty_message={gettext("No open pages.")}
-        />
+        >
+          <:info>
+            <p>
+              {gettext(
+                "The same open pages, counted per page — what the site is being used for right now."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
       </div>
 
-      <div class="rounded-xl border border-base-300 bg-base-100">
-        <div class="border-b border-base-300 px-4 py-3">
-          <h2 class="text-sm font-semibold">{gettext("Recent visits")}</h2>
-          <p class="text-xs text-base-content/50">
+      <.report_card id="recent-visits-card" title={gettext("Recent visits")} icon="hero-clock">
+        <:info>
+          <p>
             {gettext(
-              "Visits with activity in the last %{minutes} minutes, including pages without a LiveView.",
+              "Visits with any activity in the last %{minutes} minutes, newest first — including pages without a live connection. Open one to see what that visitor did.",
               minutes: @recent_minutes
             )}
           </p>
-        </div>
+        </:info>
         <.sessions_table sessions={@recent} names={@names} now={@now} id="recent-visits" />
-      </div>
+      </.report_card>
     </div>
     """
   end
