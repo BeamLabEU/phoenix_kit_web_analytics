@@ -10,10 +10,25 @@ defmodule PhoenixKitWebAnalytics.Collector do
   the insert) happens after the response is on its way out. The request process
   spends microseconds building a map.
 
-  The task supervisor is started with a `max_children` cap. Under a flood, once
-  the cap is reached, further hits are **dropped** rather than queued — an
-  analytics backlog must not become the reason a host runs out of database
-  connections. Drops are logged at debug level.
+  The task supervisor is started with a `max_children` cap (200 by default,
+  `config :phoenix_kit_web_analytics, max_concurrent_writes: n`). Under a
+  flood, once the cap is reached, further hits are **dropped** rather than
+  queued — an analytics backlog must not become the reason a host runs out of
+  database connections. Drops are logged at debug level. With no supervisor
+  running at all (a host that didn't start the module's children) hits are
+  dropped too, with one warning, rather than spawned without a cap.
+
+  In tests, `config :phoenix_kit_web_analytics, async_tracking: false` makes
+  `track_async/1` write inline in the caller, so the write happens on the
+  test's sandbox connection and can be asserted on.
+
+  ## Sessions
+
+  A hit joins the visitor's most recent session on the same site when that
+  session saw activity within the inactivity window; otherwise it starts a
+  new one. The lookup and the insert run in one transaction under an advisory
+  lock on the visitor, so two hits arriving together (a page and its
+  prefetch, a double-click) can't both decide to start a session.
 
   ## Raw hit shape
 
@@ -32,13 +47,22 @@ defmodule PhoenixKitWebAnalytics.Collector do
         language: "en-US",
         user_uuid: "018e…",
         status: 200,
-        duration_ms: 12,
+        duration_ms: 12,                    # server render time (page views)
+        engaged_ms: 45_000,                 # time on page ("leave")
+        scroll_depth: 80,                   # 0–100 ("leave", client script)
+        target: "https://example.com/x",    # what was clicked ("interaction")
+        session_anchor: ~U[…],              # when the hit's page was opened
         location: %{country_code: "EE"},     # pre-resolved (edge headers)
         metadata: %{"plan" => "pro"}
       }
 
   `:ip` and `:user_agent` are used for the daily visitor hash and the client
   classification, then discarded — see `PhoenixKitWebAnalytics.Visitor`.
+
+  `:session_anchor` is for hits reported *after* the page they belong to — a
+  leave recorded when a tab closes an hour after it opened. The visitor hash
+  and the session lookup use the anchor instead of the insert time, so the
+  leave joins the session its page view started rather than opening a new one.
   """
 
   require Logger
@@ -53,6 +77,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Visitor
 
   @task_supervisor PhoenixKitWebAnalytics.TaskSupervisor
+  @default_max_writes 200
+  @warned_key {__MODULE__, :no_supervisor_warned}
 
   @doc """
   Child spec for the task supervisor that runs the async writes.
@@ -63,26 +89,60 @@ defmodule PhoenixKitWebAnalytics.Collector do
   @spec task_supervisor_spec() :: Supervisor.child_spec()
   def task_supervisor_spec do
     Supervisor.child_spec(
-      {Task.Supervisor, name: @task_supervisor, max_children: 2_000},
+      {Task.Supervisor,
+       name: @task_supervisor,
+       max_children:
+         Application.get_env(
+           :phoenix_kit_web_analytics,
+           :max_concurrent_writes,
+           @default_max_writes
+         )},
       id: @task_supervisor
     )
   end
 
   @doc """
   Stores a hit off the request path. Always returns `:ok`.
-
-  Falls back to an unsupervised process when the task supervisor isn't running
-  (a host that hasn't wired PhoenixKit's module children), so tracking still
-  works — just without the backpressure cap.
   """
   @spec track_async(map()) :: :ok
   def track_async(hit) when is_map(hit) do
-    if Process.whereis(@task_supervisor) do
-      supervised_track(hit)
-    else
-      spawn(fn -> safe_track(hit) end)
-      :ok
+    cond do
+      not Application.get_env(:phoenix_kit_web_analytics, :async_tracking, true) ->
+        safe_track(hit)
+
+      Process.whereis(@task_supervisor) ->
+        supervised_track(hit)
+
+      true ->
+        warn_no_supervisor()
+        :ok
     end
+  end
+
+  @doc """
+  Runs `fun` under the same supervisor and cap as the writes — for other
+  after-the-fact work that must stay off the caller's process (alerts). Inline
+  when `async_tracking` is off. Always returns `:ok`; failures are logged.
+  """
+  @spec run_async((-> any())) :: :ok
+  def run_async(fun) when is_function(fun, 0) do
+    job = fn ->
+      try do
+        fun.()
+      rescue
+        error -> Logger.debug("[WebAnalytics] background job failed: #{Exception.message(error)}")
+      catch
+        :exit, reason -> Logger.debug("[WebAnalytics] background job exited: #{inspect(reason)}")
+      end
+    end
+
+    cond do
+      not Application.get_env(:phoenix_kit_web_analytics, :async_tracking, true) -> job.()
+      Process.whereis(@task_supervisor) -> Task.Supervisor.start_child(@task_supervisor, job)
+      true -> warn_no_supervisor()
+    end
+
+    :ok
   end
 
   @doc """
@@ -108,30 +168,16 @@ defmodule PhoenixKitWebAnalytics.Collector do
   @doc """
   Resolves which session a visitor's hit belongs to.
 
-  Reuses the visitor's previous session when their last hit is within
-  `timeout_minutes`, otherwise mints a new one. This is the whole reason no
-  session cookie is needed: the stitch is an indexed lookup on
+  Reuses the visitor's previous session on `site` when their last hit there is
+  within `timeout_minutes`, otherwise mints a new one. `site` defaults to
+  `:any`, which ignores the site. This is the whole reason
+  no session cookie is needed: the stitch is an indexed lookup on
   (`visitor_id`, `inserted_at`), server-side.
   """
-  @spec resolve_session(String.t(), pos_integer(), DateTime.t()) :: Ecto.UUID.t()
-  def resolve_session(visitor_id, timeout_minutes, now) do
-    cutoff = DateTime.add(now, -timeout_minutes * 60, :second)
-
-    query =
-      from(e in Event,
-        where: e.visitor_id == ^visitor_id and e.inserted_at >= ^cutoff,
-        order_by: [desc: e.inserted_at],
-        limit: 1,
-        select: e.session_id
-      )
-
-    case repo().one(query) do
-      nil -> UUIDv7.generate()
-      session_id -> session_id
-    end
-  rescue
-    # A failed stitch must not lose the event — start a new session instead.
-    _ -> UUIDv7.generate()
+  @spec resolve_session(String.t(), pos_integer(), DateTime.t(), String.t() | nil | :any) ::
+          Ecto.UUID.t()
+  def resolve_session(visitor_id, timeout_minutes, now, site \\ :any) do
+    visitor_id |> stitch(timeout_minutes, now, site) |> Map.fetch!(:session_id)
   end
 
   # ── internals ─────────────────────────────────────────────────────────────
@@ -147,6 +193,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  # The task boundary: whatever goes wrong in one hit stays in that hit.
   defp safe_track(hit) do
     track(hit)
     :ok
@@ -158,6 +205,17 @@ defmodule PhoenixKitWebAnalytics.Collector do
     :exit, reason ->
       Logger.debug("[WebAnalytics] track exited: #{inspect(reason)}")
       :ok
+  end
+
+  defp warn_no_supervisor do
+    unless :persistent_term.get(@warned_key, false) do
+      :persistent_term.put(@warned_key, true)
+
+      Logger.warning(
+        "[WebAnalytics] #{inspect(@task_supervisor)} is not running, so hits are dropped. " <>
+          "Start the module's children (PhoenixKitWebAnalytics.children/0)."
+      )
+    end
   end
 
   defp do_track(hit, config) do
@@ -172,20 +230,105 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   defp insert_event(hit, config, ua) do
     now = hit[:inserted_at] || DateTime.utc_now()
-    salt = Config.hash_salt()
-    visitor_id = Visitor.visitor_id(hit[:ip], hit[:user_agent], salt, DateTime.to_date(now))
-    session_id = resolve_session(visitor_id, config.session_timeout_minutes, now)
+    anchor = session_anchor(hit[:session_anchor], now)
 
-    %Event{}
-    |> Event.changeset(
-      hit
-      |> base_attrs(now)
-      |> Map.merge(identity_attrs(visitor_id, session_id, ua))
-      |> Map.merge(source_attrs(hit))
-      |> Map.merge(location_attrs(hit))
-    )
-    |> repo().insert()
+    case visitor_id(hit, anchor) do
+      nil ->
+        {:error, :no_salt}
+
+      visitor_id ->
+        site = Referrer.normalize_host(hit[:site])
+
+        result =
+          repo().transaction(fn ->
+            lock_visitor(visitor_id)
+            stitch = stitch(visitor_id, config.session_timeout_minutes, anchor, site)
+
+            %Event{}
+            |> Event.changeset(
+              hit
+              |> base_attrs(now)
+              |> Map.merge(identity_attrs(visitor_id, stitch.session_id, ua))
+              |> Map.merge(source_attrs(hit))
+              |> Map.merge(location_attrs(hit))
+              |> carry_language(stitch)
+            )
+            |> repo().insert()
+            |> case do
+              {:ok, event} -> {event, stitch.new?}
+              {:error, changeset} -> repo().rollback(changeset)
+            end
+          end)
+
+        case result do
+          {:ok, {event, new_session?}} ->
+            PhoenixKitWebAnalytics.Alerts.event_recorded(event, new_session?)
+            {:ok, event}
+
+          {:error, _} = error ->
+            error
+        end
+    end
   end
+
+  # A hit with no client identity at all — a server-side `track_event/2` with
+  # neither IP nor User-Agent — would otherwise hash every such event on a day
+  # to one "unknown" visitor and stitch them into one endless session. Such an
+  # event is its own visitor, unless it names a user.
+  defp visitor_id(hit, anchor) do
+    cond do
+      hit[:ip] || hit[:user_agent] ->
+        case Config.hash_salt() do
+          nil -> nil
+          salt -> Visitor.visitor_id(hit[:ip], hit[:user_agent], salt, DateTime.to_date(anchor))
+        end
+
+      is_binary(hit[:user_uuid]) ->
+        "user:" <> hit[:user_uuid]
+
+      true ->
+        "anon:" <> String.replace(UUIDv7.generate(), "-", "")
+    end
+  end
+
+  defp lock_visitor(visitor_id) do
+    repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [visitor_id], log: false)
+  end
+
+  # The visitor's latest hit on this site inside the window decides the
+  # session; its language fills in for hits that can't see the
+  # Accept-Language header (LiveView navigations, leaves).
+  defp stitch(visitor_id, timeout_minutes, now, site) do
+    cutoff = DateTime.add(now, -timeout_minutes * 60, :second)
+
+    query =
+      from(e in Event,
+        where: e.visitor_id == ^visitor_id and e.inserted_at >= ^cutoff,
+        order_by: [desc: e.inserted_at],
+        limit: 1,
+        select: %{session_id: e.session_id, language: e.language}
+      )
+      |> where_site(site)
+
+    case repo().one(query) do
+      nil -> %{session_id: UUIDv7.generate(), language: nil, new?: true}
+      previous -> Map.put(previous, :new?, false)
+    end
+  rescue
+    # A failed stitch must not lose the event — start a new session instead.
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.debug("[WebAnalytics] session stitch failed: #{Exception.message(error)}")
+      %{session_id: UUIDv7.generate(), language: nil, new?: true}
+  end
+
+  defp where_site(query, :any), do: query
+  defp where_site(query, nil), do: where(query, [e], is_nil(e.site))
+  defp where_site(query, site), do: where(query, [e], e.site == ^site)
+
+  defp carry_language(%{language: nil} = attrs, %{language: language}),
+    do: %{attrs | language: language}
+
+  defp carry_language(attrs, _stitch), do: attrs
 
   defp base_attrs(hit, now) do
     %{
@@ -198,6 +341,9 @@ defmodule PhoenixKitWebAnalytics.Collector do
       language: normalize_language(hit[:language]),
       status: hit[:status],
       duration_ms: hit[:duration_ms],
+      engaged_ms: hit[:engaged_ms],
+      scroll_depth: hit[:scroll_depth],
+      target: presence(hit[:target]),
       metadata: hit[:metadata] || %{},
       inserted_at: now
     }
@@ -216,12 +362,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
     }
   end
 
+  defp session_anchor(%DateTime{} = anchor, now) do
+    if DateTime.compare(anchor, now) == :gt, do: now, else: anchor
+  end
+
+  defp session_anchor(_anchor, now), do: now
+
   # UTM parameters win over the Referer header: a campaign URL is the visitor
   # telling us where they came from, and it survives redirects that strip the
   # referrer.
   defp source_attrs(hit) do
     params = hit[:query_params] || %{}
-    referrer = presence(hit[:referrer])
+    referrer = hit[:referrer] |> presence() |> strip_query()
     {source, medium} = Referrer.classify(referrer, hit[:site])
 
     utm_source = param(params, "utm_source")
@@ -265,6 +417,21 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
       _ ->
         Map.take(Geo.resolve(hit[:ip]), [:country_code, :region, :city])
+    end
+  end
+
+  # A referrer is stored without its query string or fragment, for the same
+  # reason paths are: an internal referrer is often the previous page's full
+  # URL — a password-reset link, a search for an email address.
+  defp strip_query(nil), do: nil
+
+  defp strip_query(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} = uri when is_binary(scheme) and is_binary(host) ->
+        URI.to_string(%URI{uri | query: nil, fragment: nil, userinfo: nil})
+
+      _ ->
+        url |> String.split(["?", "#"], parts: 2) |> List.first() |> presence()
     end
   end
 

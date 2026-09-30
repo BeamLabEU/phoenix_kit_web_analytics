@@ -20,6 +20,9 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `0` — tables absent (not installed)
     * `1` — `phoenix_kit_web_analytics_events` +
       `phoenix_kit_web_analytics_daily_stats`, UUIDv7 primary keys
+    * `2` — engagement columns on events (`engaged_ms`, `scroll_depth`,
+      `target`) for the `"interaction"` and `"leave"` event types, and a
+      `(session_id, inserted_at)` index for session timelines
 
   ## Prefix safety
 
@@ -34,7 +37,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 1
+  @current_version 2
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -227,6 +230,38 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     )
   end
 
+  # ── v2 ────────────────────────────────────────────────────────────────────
+
+  defp up_v2(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      # Time spent on the page, for "leave" events.
+      add_if_not_exists(:engaged_ms, :integer)
+      # Furthest scroll position reached, 0–100, from the optional client script.
+      add_if_not_exists(:scroll_depth, :smallint)
+      # What was clicked, for client-reported interactions (a link's href, a
+      # button's label) — never form contents.
+      add_if_not_exists(:target, :text)
+    end
+
+    # A session's timeline is read in order; the v1 index on session_id alone
+    # would sort every hit of a long session in memory.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:session_id, :inserted_at], prefix: prefix)
+    )
+  end
+
+  defp down_v2(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:session_id, :inserted_at], prefix: prefix)
+    )
+
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:target, :text)
+      remove_if_exists(:scroll_depth, :smallint)
+      remove_if_exists(:engaged_ms, :integer)
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -245,6 +280,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
 
   defp apply_step(:up, 1, prefix), do: up_v1(prefix)
   defp apply_step(:down, 1, prefix), do: down_v1(prefix)
+  defp apply_step(:up, 2, prefix), do: up_v2(prefix)
+  defp apply_step(:down, 2, prefix), do: down_v2(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

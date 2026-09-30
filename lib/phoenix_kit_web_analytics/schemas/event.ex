@@ -22,6 +22,12 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     * `"pageview"` — one HTML response served, or one LiveView navigation
     * `"event"` — a custom event reported through
       `PhoenixKitWebAnalytics.track_event/2` or the beacon endpoint
+    * `"interaction"` — something the visitor did on a page: a LiveView event
+      (`event_name` is the event, e.g. `"add_to_cart"`) or a click reported by
+      the optional client script (`event_name` is `"click"`, `"outbound"` or
+      `"download"`, `target` what was clicked)
+    * `"leave"` — the visitor left a page; `engaged_ms` is how long it was
+      open and `scroll_depth` (client script only) how far they scrolled
 
   Tables are created by `PhoenixKitWebAnalytics.Migrations`, never by this
   schema.
@@ -34,7 +40,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
 
   @type t :: %__MODULE__{}
 
-  @event_types ~w(pageview event)
+  @event_types ~w(pageview event interaction leave)
   @device_types ~w(desktop mobile tablet bot unknown)
   @referrer_mediums ~w(none organic social referral internal email paid)
 
@@ -75,6 +81,9 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
 
     field(:status, :integer)
     field(:duration_ms, :integer)
+    field(:engaged_ms, :integer)
+    field(:scroll_depth, :integer)
+    field(:target, :string)
 
     field(:metadata, :map, default: %{})
 
@@ -87,7 +96,8 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     referrer referrer_source referrer_medium
     utm_source utm_medium utm_campaign utm_term utm_content
     browser browser_version os os_version device_type language is_bot
-    country_code region city status duration_ms metadata inserted_at
+    country_code region city status duration_ms engaged_ms scroll_depth target
+    metadata inserted_at
   )a
 
   @doc "Valid `event_type` values."
@@ -135,12 +145,16 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     |> truncate(:language, 20)
     |> truncate(:region, 120)
     |> truncate(:city, 120)
+    |> truncate(:target, 512)
+    |> clamp(:scroll_depth, 0, 100)
+    |> clamp(:engaged_ms, 0, 24 * 60 * 60 * 1000)
     |> upcase_country_code()
   end
 
-  # A custom event without a name would be indistinguishable in every report.
+  # A custom event or interaction without a name would be indistinguishable in
+  # every report.
   defp validate_event_name(changeset) do
-    if get_field(changeset, :event_type) == "event" do
+    if get_field(changeset, :event_type) in ["event", "interaction"] do
       validate_required(changeset, [:event_name])
     else
       changeset
@@ -154,6 +168,15 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
 
       _ ->
         changeset
+    end
+  end
+
+  # Client-reported numbers are clamped rather than rejected, for the same
+  # reason long strings are truncated.
+  defp clamp(changeset, field, min, max) do
+    case get_change(changeset, field) do
+      value when is_integer(value) -> put_change(changeset, field, value |> max(min) |> min(max))
+      _ -> changeset
     end
   end
 

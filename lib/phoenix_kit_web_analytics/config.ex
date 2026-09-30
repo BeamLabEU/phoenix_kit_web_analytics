@@ -27,6 +27,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_session_timeout_minutes` | `30` | Inactivity gap that ends a session |
   | `web_analytics_retention_days` | `365` | Age at which raw events are rolled up and deleted |
   | `web_analytics_beacon_enabled` | `false` | Accept hits from the JS beacon / pixel endpoints |
+  | `web_analytics_track_interactions` | `true` | Record LiveView events (clicks, submits) as interactions |
+  | `web_analytics_ignore_events` | `validate` | LiveView event names never recorded as interactions |
+  | `web_analytics_event_params` | `tab, view, …` | Event param names whose short values are kept |
+  | `web_analytics_client_script` | `false` | Accept clicks / scroll / leave from the optional client script |
   | `web_analytics_hash_salt` | generated | Secret mixed into the daily visitor hash |
   """
 
@@ -42,12 +46,18 @@ defmodule PhoenixKitWebAnalytics.Config do
   @retention_days_key "web_analytics_retention_days"
   @beacon_key "web_analytics_beacon_enabled"
   @salt_key "web_analytics_hash_salt"
+  @track_interactions_key "web_analytics_track_interactions"
+  @ignore_events_key "web_analytics_ignore_events"
+  @event_params_key "web_analytics_event_params"
+  @client_script_key "web_analytics_client_script"
 
   @module_key "web_analytics"
 
   @default_exclusions "/admin*\n/dev*\n/phoenix*\n/live*"
   @default_session_timeout 30
   @default_retention_days 365
+  @default_ignore_events "validate"
+  @default_event_params "tab, view, section, step, sort, filter, period"
 
   @hot_keys [
     @enabled_key,
@@ -55,7 +65,11 @@ defmodule PhoenixKitWebAnalytics.Config do
     @respect_dnt_key,
     @exclude_paths_key,
     @session_timeout_key,
-    @beacon_key
+    @beacon_key,
+    @track_interactions_key,
+    @ignore_events_key,
+    @event_params_key,
+    @client_script_key
   ]
 
   @type collection_config :: %{
@@ -64,7 +78,11 @@ defmodule PhoenixKitWebAnalytics.Config do
           respect_dnt?: boolean(),
           beacon_enabled?: boolean(),
           exclusions: [String.t()],
-          session_timeout_minutes: pos_integer()
+          session_timeout_minutes: pos_integer(),
+          track_interactions?: boolean(),
+          client_script?: boolean(),
+          ignore_events: [String.t()],
+          event_params: [String.t()]
         }
 
   @doc "Settings key for the module's master switch."
@@ -92,7 +110,11 @@ defmodule PhoenixKitWebAnalytics.Config do
       beacon_enabled?: truthy?(values[@beacon_key], false),
       exclusions: parse_exclusions(values[@exclude_paths_key]),
       session_timeout_minutes:
-        positive_integer(values[@session_timeout_key], @default_session_timeout)
+        positive_integer(values[@session_timeout_key], @default_session_timeout),
+      track_interactions?: truthy?(values[@track_interactions_key], true),
+      client_script?: truthy?(values[@client_script_key], false),
+      ignore_events: parse_list(values[@ignore_events_key] || @default_ignore_events),
+      event_params: parse_list(values[@event_params_key] || @default_event_params)
     }
   rescue
     error ->
@@ -109,6 +131,25 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "Whether the beacon / pixel endpoints accept hits."
   @spec beacon_enabled?() :: boolean()
   def beacon_enabled?, do: collection_config().beacon_enabled?
+
+  @doc "Whether the optional client script's hits (clicks, scroll, leave) are accepted."
+  @spec client_script?() :: boolean()
+  def client_script?, do: collection_config().client_script?
+
+  @doc """
+  Whether a LiveView event is left out of the interaction record — either
+  interaction tracking is off, or the name is in the ignore list. A trailing
+  `*` in the list matches a prefix, as with path exclusions.
+  """
+  @spec ignored_event?(String.t()) :: boolean()
+  def ignored_event?(event) when is_binary(event) do
+    config = collection_config()
+    not config.track_interactions? or excluded?(event, config.ignore_events)
+  end
+
+  @doc "LiveView event param names whose short values an interaction keeps."
+  @spec event_params() :: [String.t()]
+  def event_params, do: collection_config().event_params
 
   @doc "Inactivity gap, in minutes, after which a new session starts."
   @spec session_timeout_minutes() :: pos_integer()
@@ -137,6 +178,14 @@ defmodule PhoenixKitWebAnalytics.Config do
     :exit, _ -> @default_exclusions
   end
 
+  @doc "Default LiveView event names that are never recorded."
+  @spec default_ignore_events() :: String.t()
+  def default_ignore_events, do: @default_ignore_events
+
+  @doc "Default event param names whose values are kept."
+  @spec default_event_params() :: String.t()
+  def default_event_params, do: @default_event_params
+
   @doc "The default path exclusions, used when the setting was never written."
   @spec default_exclusions() :: String.t()
   def default_exclusions, do: @default_exclusions
@@ -161,43 +210,51 @@ defmodule PhoenixKitWebAnalytics.Config do
   def excluded?(_path, _exclusions), do: false
 
   @doc """
-  The secret mixed into the daily visitor hash.
+  The secret mixed into the daily visitor hash, or `nil` when it can't be read
+  or created — in which case the hit is dropped rather than hashed with a
+  guessable fallback.
 
   Generated and persisted on first use. Losing it is harmless — it only means
   visitor IDs computed before and after the change don't line up — but it must
   never be exposed to clients, since the hash could then be recomputed from a
   guessed IP + User-Agent pair.
   """
-  @spec hash_salt() :: String.t()
+  @spec hash_salt() :: String.t() | nil
   def hash_salt do
     case Settings.get_setting_cached(@salt_key, nil) do
       salt when is_binary(salt) and byte_size(salt) >= 16 -> salt
       _ -> generate_salt()
     end
   rescue
-    _ -> fallback_salt()
+    error ->
+      Logger.warning("[WebAnalytics] could not read the visitor salt: #{inspect(error)}")
+      nil
   catch
-    :exit, _ -> fallback_salt()
+    :exit, _ -> nil
   end
 
   @doc """
-  Generates and persists a new visitor hash salt, returning it.
+  Generates and persists a new visitor hash salt, returning the one that ended
+  up stored (`nil` if it couldn't be written).
 
   Called on first use and from `enable_system/0` so a fresh install has one
-  before the first request arrives.
+  before the first request arrives. Two nodes generating at once converge: each
+  re-reads what was stored after writing, so both use the last write.
   """
-  @spec generate_salt() :: String.t()
+  @spec generate_salt() :: String.t() | nil
   def generate_salt do
     salt = 32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
 
     case Settings.update_setting_with_module(@salt_key, salt, @module_key) do
-      {:ok, _} -> salt
-      _ -> fallback_salt()
+      {:ok, _} -> Settings.get_setting(@salt_key, salt) || salt
+      _ -> nil
     end
   rescue
-    _ -> fallback_salt()
+    error ->
+      Logger.warning("[WebAnalytics] could not store a visitor salt: #{inspect(error)}")
+      nil
   catch
-    :exit, _ -> fallback_salt()
+    :exit, _ -> nil
   end
 
   @doc """
@@ -224,7 +281,11 @@ defmodule PhoenixKitWebAnalytics.Config do
       exclude_paths: @exclude_paths_key,
       session_timeout: @session_timeout_key,
       retention_days: @retention_days_key,
-      beacon: @beacon_key
+      beacon: @beacon_key,
+      track_interactions: @track_interactions_key,
+      ignore_events: @ignore_events_key,
+      event_params: @event_params_key,
+      client_script: @client_script_key
     }
   end
 
@@ -237,7 +298,11 @@ defmodule PhoenixKitWebAnalytics.Config do
       respect_dnt?: true,
       beacon_enabled?: false,
       exclusions: parse_exclusions(@default_exclusions),
-      session_timeout_minutes: @default_session_timeout
+      session_timeout_minutes: @default_session_timeout,
+      track_interactions?: false,
+      client_script?: false,
+      ignore_events: parse_list(@default_ignore_events),
+      event_params: []
     }
   end
 
@@ -270,6 +335,15 @@ defmodule PhoenixKitWebAnalytics.Config do
 
   defp parse_exclusions(_value), do: []
 
+  defp parse_list(value) when is_binary(value) do
+    value
+    |> String.split([",", "\n", "\r", " "], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_list(_value), do: []
+
   defp matches_pattern?(path, pattern) do
     if String.ends_with?(pattern, "*") do
       String.starts_with?(path, String.trim_trailing(pattern, "*"))
@@ -278,11 +352,4 @@ defmodule PhoenixKitWebAnalytics.Config do
     end
   end
 
-  # Last resort when settings are unreachable: a per-node salt derived from the
-  # node name so visitor IDs stay stable within a boot instead of turning every
-  # hit into a new "visitor".
-  defp fallback_salt do
-    :crypto.hash(:sha256, "phoenix_kit_web_analytics:#{node()}")
-    |> Base.url_encode64(padding: false)
-  end
 end

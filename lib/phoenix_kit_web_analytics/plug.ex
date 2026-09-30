@@ -63,8 +63,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Tracking
 
-  @utm_params ~w(utm_source utm_medium utm_campaign utm_term utm_content)
   @country_headers ~w(cf-ipcountry x-vercel-ip-country fastly-geo-country x-country-code)
   @skip_key :phoenix_kit_web_analytics_skip
 
@@ -107,13 +107,34 @@ defmodule PhoenixKitWebAnalytics.Plug do
     config = Config.collection_config()
     path = conn.request_path
 
-    if config.enabled? and trackable_path?(path, config, opts) and not opted_out?(conn, config) do
-      started_at = System.monotonic_time(:microsecond)
-      register_before_send(conn, &track(&1, started_at))
+    cond do
+      not config.enabled? or not trackable_path?(path, config, opts) ->
+        conn
+
+      opted_out?(conn, config) ->
+        remember_opt_out(conn)
+
+      true ->
+        started_at = System.monotonic_time(:microsecond)
+        register_before_send(conn, &track(&1, started_at))
+    end
+  end
+
+  # The LiveView socket can't see request headers, so a DNT / GPC visitor is
+  # noted in the session for `PhoenixKitWebAnalytics.LiveHook` to honour. Only
+  # opted-out visitors get the key, and only when the host already fetched a
+  # session — this plug never starts one.
+  defp remember_opt_out(conn) do
+    key = Tracking.dnt_session_key()
+
+    if session_fetched?(conn) and get_session(conn, key) != true do
+      put_session(conn, key, true)
     else
       conn
     end
   end
+
+  defp session_fetched?(conn), do: conn.private[:plug_session_fetch] == :done
 
   defp trackable_path?(path, config, opts) do
     not Config.excluded?(path, config.exclusions) and
@@ -161,10 +182,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
       site: conn.host,
       referrer: header(conn, "referer"),
       query_params: query_params,
-      ip: client_ip(conn),
+      ip: Tracking.client_ip(conn),
       user_agent: header(conn, "user-agent"),
       language: header(conn, "accept-language"),
-      user_uuid: current_user_uuid(conn),
+      user_uuid: Tracking.current_user_uuid(conn.assigns),
       status: conn.status,
       duration_ms: duration_ms,
       location: edge_location(conn)
@@ -175,29 +196,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # deliberately never looked at, let alone stored (see `Collector`).
   defp fetch_utm_params(conn) do
     case conn.query_params do
-      %Plug.Conn.Unfetched{} -> conn.query_string |> URI.decode_query() |> Map.take(@utm_params)
-      params when is_map(params) -> Map.take(params, @utm_params)
+      %Plug.Conn.Unfetched{} -> Tracking.utm_params(conn.query_string)
+      params when is_map(params) -> Map.take(params, Tracking.utm_param_names())
     end
   rescue
     _ -> %{}
-  end
-
-  defp client_ip(conn) do
-    if Application.get_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, false) do
-      forwarded_ip(conn) || conn.remote_ip
-    else
-      conn.remote_ip
-    end
-  end
-
-  defp forwarded_ip(conn) do
-    with header when is_binary(header) <- header(conn, "x-forwarded-for"),
-         [first | _] <- String.split(header, ","),
-         {:ok, ip} <- first |> String.trim() |> String.to_charlist() |> :inet.parse_address() do
-      ip
-    else
-      _ -> nil
-    end
   end
 
   # Most CDNs already resolved the country at the edge; using it avoids needing
@@ -231,14 +234,6 @@ defmodule PhoenixKitWebAnalytics.Plug do
     URI.decode(city)
   rescue
     _ -> nil
-  end
-
-  defp current_user_uuid(conn) do
-    case conn.assigns do
-      %{phoenix_kit_current_user: %{uuid: uuid}} -> uuid
-      %{phoenix_kit_current_scope: %{user: %{uuid: uuid}}} -> uuid
-      _ -> nil
-    end
   end
 
   defp header(conn, name) do

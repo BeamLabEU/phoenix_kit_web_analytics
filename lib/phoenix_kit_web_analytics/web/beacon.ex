@@ -113,8 +113,12 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   """
   attr :cache_buster, :string, default: nil
 
+  attr :path, :string,
+    default: nil,
+    doc: "the page's path; without it the endpoint falls back to the Referer header"
+
   def pixel(assigns) do
-    assigns = assign(assigns, :src, Paths.pixel_endpoint(assigns.cache_buster))
+    assigns = assign(assigns, :src, Paths.pixel_endpoint(assigns.cache_buster, assigns.path))
 
     ~H"""
     <img src={@src} alt="" width="1" height="1" style="position:absolute;left:-9999px" />
