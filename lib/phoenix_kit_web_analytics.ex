@@ -1,66 +1,52 @@
 defmodule PhoenixKitWebAnalytics do
   @moduledoc """
-  Privacy-first web analytics for PhoenixKit — the numbers a hosted analytics
-  product gives you, without the script tag.
+  Web analytics for PhoenixKit sites, recorded by the server — who comes,
+  where from, what they do, and when they leave.
 
-  ## What makes it different
+  ## Where the data comes from
 
-  Tracking happens **server-side**, in
-  `PhoenixKitWebAnalytics.Plug`. One line in the host's browser pipeline counts
-  every HTML response:
+    * `PhoenixKitWebAnalytics.Plug` — one line in the host's browser pipeline
+      records every HTML page view.
+    * `PhoenixKitWebAnalytics.LiveHook` — on LiveView pages, records live
+      navigation, every event the LiveView handles (by name, never form
+      contents), and — through `PhoenixKitWebAnalytics.LivePresence` — when
+      the visitor leaves and who is online right now.
+    * The optional client script (`js_sources/0`) — outbound and download
+      clicks, scroll depth, exits from pages without a LiveView. Its reports
+      are stored only when switched on in Settings.
+    * `track_event/2` — facts your server already knows.
 
-      pipeline :browser do
-        # … existing plugs …
-        plug PhoenixKitWebAnalytics.Plug
-      end
+  No cookie, no IP address, no raw User-Agent and no query string is stored;
+  visitors are a salted daily hash — see `PhoenixKitWebAnalytics.Visitor`.
 
-  From there:
+  ## Reports and alerts
 
-    * **Nothing is added to your pages.** No script tag, no bundle to download,
-      no render-blocking request, no third-party domain. Page weight and Core
-      Web Vitals are exactly what they were.
-    * **No cookies, no consent banner.** Visitors are identified by a salted
-      hash of IP + User-Agent that rotates daily and is never stored in
-      reversible form — see `PhoenixKitWebAnalytics.Visitor`. No IP address is
-      written to the database.
-    * **Ad blockers can't remove it.** There is no client-side request to
-      block, so the numbers are the server's, not a script's.
-    * **The data is yours.** It lives in two tables in the host's own database.
+  Admin pages: overview, right now, sessions with a per-visit timeline, pages,
+  acquisition, technology, events, settings. Everything they show comes from
+  `PhoenixKitWebAnalytics.Reports`, a plain module you can call:
 
-  For LiveView navigation (`push_patch` / `push_navigate`), add
-  `PhoenixKitWebAnalytics.LiveHook` to the `live_session`. For custom events
-  from the browser, there is an optional ~300-byte inline snippet —
-  `PhoenixKitWebAnalytics.Web.Beacon` — that is off by default.
+      alias PhoenixKitWebAnalytics.Reports
 
-  ## Reports
+      Reports.top_paths(Reports.filter(period: "30d"), limit: 20)
 
-  Six admin pages under **Web Analytics**: an overview with the trend and
-  headline numbers, pages, acquisition (referrers / channels / campaigns),
-  technology (browsers, systems, devices, countries), custom events with a live
-  feed, and settings. Everything they show comes from
-  `PhoenixKitWebAnalytics.Reports`, which is a plain module you can call from
-  your own code:
-
-      import PhoenixKitWebAnalytics.Reports
-
-      "30d" |> then(&filter(period: &1)) |> top_paths(limit: 20)
+  `PhoenixKitWebAnalytics.Alerts` registers a "Website activity" notification
+  type — new visitors (filtered), sign-ups, tracked events — delivered through
+  PhoenixKit's notification channels (in-app, email, Telegram, digests).
 
   ## Installation
 
       # host mix.exs
       {:phoenix_kit_web_analytics, "~> 0.2"}
 
-  Then `mix deps.get` and `mix phoenix_kit.update` (creates
-  `phoenix_kit_web_analytics_events` and
-  `phoenix_kit_web_analytics_daily_stats`), add the plug, and enable the module
-  on the admin Modules page.
+  Then `mix deps.get` and `mix phoenix_kit.update`, add the plug and the hook,
+  list `:peer_data` and `:user_agent` in the LiveView socket's `connect_info`
+  (websocket and longpoll), and enable the module on the admin Modules page.
 
   ## Data growth
 
-  This is the one PhoenixKit table that grows with traffic rather than with
-  content. `PhoenixKitWebAnalytics.Retention` rolls completed days into daily
-  totals and prunes raw events past the retention window (365 days by default),
-  so the trend line is permanent while the row count is bounded.
+  `PhoenixKitWebAnalytics.Retention` rolls completed days into daily totals and
+  prunes raw events past the retention window (365 days by default), so the
+  trend line is permanent while the row count is bounded.
   """
 
   use PhoenixKit.Module

@@ -4,55 +4,78 @@ This file provides guidance to AI agents working with code in this repository.
 
 ## Project Overview
 
-Privacy-first, cookieless web analytics as a PhoenixKit plugin module. The whole
-premise is that installing analytics must not change what a host's pages cost to
-load: tracking is a **plug**, not a script tag. Before changing anything in the
-collection path, check the change against that premise — if it adds bytes to a
-rendered page, adds a client-side request, or writes a cookie, it doesn't belong
-here.
+Web analytics as a PhoenixKit plugin module, recorded **server-side**: a plug
+counts page views, and a LiveView `on_mount` hook records what visitors do on
+LiveView pages — navigations, interactions (events the LiveView handles) and
+exits — straight from the socket. An optional client script (shipped via
+`js_sources/0`, its reports stored only when switched on) adds what a server
+can't see: outbound/download clicks, scroll depth, exits from non-LiveView
+pages. It tracks the one site it's installed on.
+
+Premise to check changes against: server-side first. Anything that can be
+known on the server is recorded there; the client script only covers what
+can't, stays optional, and never writes a cookie or storage.
 
 ## Architecture
 
-Two halves, deliberately independent:
-
 **Write path** (must never slow down or break a host request)
 
-- `lib/phoenix_kit_web_analytics/plug.ex` — the tracker. In the request process
-  it does a method/path check, one cached settings read, and
-  `register_before_send/2`. Everything else is deferred.
-- `lib/phoenix_kit_web_analytics/collector.ex` — enrichment + insert, run in a
-  `Task.Supervisor` with a `max_children` cap (drops, never queues). Owns
-  session stitching and path/query normalization.
-- `lib/phoenix_kit_web_analytics/{visitor,user_agent,referrer,geo}.ex` — pure
-  classification helpers, no database, no dependencies.
-- `lib/phoenix_kit_web_analytics/live_hook.ex` — LiveView navigation.
-- `lib/phoenix_kit_web_analytics/web/{track_controller,beacon_payload,beacon}.ex`
-  — the optional public beacon/pixel. `BeaconPayload` is the trust boundary and
-  is where any change to what a client may influence belongs.
+- `plug.ex` — page views. In the request process: a method/path check, one
+  cached settings read, `register_before_send/2`. Notes DNT/GPC in the session
+  for the hook.
+- `live_hook.ex` — LiveView: page views for live navigation (`_live_referer` +
+  `_mounts == 0`; a reconnect is not a view), interactions via an
+  `attach_hook(:handle_event)`, and registration with `LivePresence`.
+- `live_presence.ex` — monitors LiveView processes; ETS "who is on which page
+  now"; records a `"leave"` with `engaged_ms` on DOWN or on a patch.
+- `collector.ex` — enrichment + insert in a capped `Task.Supervisor` (drops,
+  never queues). Session stitching runs with the insert in one transaction
+  under an advisory lock on the visitor. Calls `Alerts.event_recorded/2`.
+- `tracking.ex` — the helpers the plug, hook and beacon share (client IP rule,
+  UTM params, current user, UTF-8-safe truncation).
+- `{visitor,user_agent,referrer,geo}.ex` — pure classification helpers.
+- `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
+  the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
+- `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
+- `alerts.ex` — the "Website activity" notification type; turns stored hits
+  and core's `{:user_created, user}` broadcast into activity entries per
+  recipient (core routes them to inbox / email / Telegram / digests).
 
 **Read path**
 
-- `lib/phoenix_kit_web_analytics/reports.ex` — every aggregate the UI shows.
-  All queries degrade to empty results rather than raising.
-- `lib/phoenix_kit_web_analytics/web/*_live.ex` — six admin pages.
-- `lib/phoenix_kit_web_analytics/web/{components,filters}.ex` — shared UI.
-- `lib/phoenix_kit_web_analytics/retention.ex` — hourly rollup + prune.
+- `reports.ex` — every aggregate the UI shows, including `sessions/2` and
+  `session_timeline/1`. Queries degrade to empty results and log.
+- `session_stats.ex` — the per-session query shared by reports and rollup.
+- `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
+  Acquisition, Technology, Events, Settings.
+- `web/{components,filters,user_names}.ex` — shared UI.
+- `admin.ex` — every operator mutation (settings, tracking switch, retention
+  run, salt rotation), each logged to `PhoenixKit.Activity`.
+- `retention.ex` — hourly rollup (watermark `web_analytics_rolled_through`) +
+  prune (never past the watermark; fails closed).
 
 ## Rules that are load-bearing
 
-- **Never store an IP address, a raw User-Agent, or a query string.** The
-  schema has no column for the first two, and `Collector.normalize_path/1`
-  strips the third. Campaign parameters get their own columns before that point.
+- **Never store an IP address, a raw User-Agent, or a query string** — in a
+  path *or* a referrer. The schema has no column for the first two; the
+  collector strips the third from both. Campaign parameters get their own
+  columns before that point.
+- **Never store form contents.** An interaction keeps its event name and only
+  the short values of allow-listed params (`web_analytics_event_params`);
+  `phx-change` (recognised by `_target`) isn't recorded at all.
 - **Nothing in the tracking path may raise.** The plug's `before_send` callback,
   the collector, `Config.collection_config/0`, and every `Reports` query rescue
   and degrade. A broken analytics read costs a missing row, never a failed page.
 - **`enabled?/0` must answer `false` when it can't tell.** Boot ordering and a
   stopped test sandbox both hit this.
-- **The charts are CSS.** Do not add a charting library, here or to the host.
-- **Interpolation inside `<script>` goes through `data-` attributes.** HEEx
-  doesn't interpolate script bodies; `Web.Beacon` reads its configuration off
-  `document.currentScript` for exactly this reason (and it keeps the script body
-  a static string a strict CSP can hash).
+- **Charts are core's SVG components** (`bar_chart` etc.). Do not add a
+  charting library, here or to the host.
+- **Client JavaScript ships through `js_sources/0`**, never an inline
+  `<script>` (the legacy `<.beacon />` component is the one exception, kept
+  for hosts already using it).
+- **A hit reported after its page (a leave) carries `session_anchor`**, so it
+  joins the session its page view started.
+- **Alert text never includes an email address or visitor input.**
 
 ## Migrations
 
@@ -63,7 +86,8 @@ a `COMMENT ON TABLE` on `phoenix_kit_web_analytics_events`, and is returned from
 `migration_module/0`. `mix phoenix_kit.update` in the host generates the
 migration that calls it.
 
-Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
+Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
+`(session_id, inserted_at)` index. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
 add the `apply_step/3` clauses, and keep every statement prefix-safe (pass
 `prefix:` through, bare index names, schema-anchored existence checks).
 
@@ -73,9 +97,17 @@ host migration, so the suite runs against exactly the DDL an install gets.
 ## Settings
 
 All keys are `web_analytics_*` and live in the host's `phoenix_kit_settings`.
-`lib/phoenix_kit_web_analytics/config.ex` is the only module that knows their
-names and defaults — add new ones there, not inline. `collection_config/0` is on
-the hot path and reads through the settings cache in one multi-get.
+Collection keys belong to `config.ex`, alert keys to `alerts.ex` — add new
+ones there, not inline. `collection_config/0` is on the hot path and reads
+through the settings cache in one multi-get. Writes go through `Admin`.
+
+## Translations
+
+Every string goes through `PhoenixKitWebAnalytics.Gettext` (LiveViews do
+`use Gettext, backend: PhoenixKitWebAnalytics.Gettext` after
+`use PhoenixKitWeb, :live_view`, which repoints `gettext/1` at this module's
+catalogue; tabs set `gettext_backend:`). After changing strings run
+`mix gettext.extract --merge` and fill en/et/ru — none may stay empty.
 
 ## Common Commands
 
@@ -108,17 +140,23 @@ a broken package.
 excludes `:integration` when PostgreSQL isn't reachable.
 
 - `PhoenixKitWebAnalytics.DataCase` — sandbox + settings-cache reset +
-  `insert_event/1`, `enable_tracking/1`, `days_ago/1`, `hours_ago/1`
+  `insert_event/1`, `enable_tracking/1`, `days_ago/1`, `hours_ago/1`, and
+  `ActivityLogAssertions`
 - `PhoenixKitWebAnalytics.LiveCase` — the test endpoint/router for LiveView and
   controller tests
+- `PhoenixKitWebAnalytics.Test.TrackedLive` at `/shop` — a host page mounted
+  with the LiveView hook (give the conn `put_connect_info` for
+  `:peer_data`/`:user_agent`)
 
 **The settings cache lives outside the sandbox transaction.** Both cases clear
 it in `setup`; a test that writes a setting must `clear_settings_cache/0` before
 reading it back, or it will see the stale value.
 
-**Async writes can't see the sandbox connection.** Test storage through
-`Collector.track/1` (synchronous), not `track_async/1` or an HTTP request to the
-beacon endpoint.
+**Hits are written inline in tests** (`config :phoenix_kit_web_analytics,
+async_tracking: false` in `config/test.exs`), so a plug request, a beacon POST
+or a LiveView click can be asserted on in the database directly.
+`LivePresence` and `Alerts` aren't started by the test helper — use
+`start_supervised!/1` where a test needs them.
 
 ## Critical Conventions
 
