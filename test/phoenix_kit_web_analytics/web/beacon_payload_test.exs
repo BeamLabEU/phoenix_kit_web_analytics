@@ -6,7 +6,7 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
 
   use ExUnit.Case, async: true
 
-  import Plug.Test, only: [conn: 2, conn: 3]
+  import Plug.Test, only: [conn: 3]
 
   doctest PhoenixKitWebAnalytics.Web.BeaconPayload
 
@@ -134,6 +134,176 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
 
         assert is_binary(hit.path)
         assert hit.event_type in ["pageview", "event"]
+      end
+    end
+  end
+
+  describe "kind/1" do
+    test "maps every e value" do
+      assert BeaconPayload.kind(%{"e" => "pageview"}) == :pageview
+      assert BeaconPayload.kind(%{"e" => "click"}) == :click
+      assert BeaconPayload.kind(%{"e" => "scroll"}) == :scroll
+      assert BeaconPayload.kind(%{"e" => "leave"}) == :leave
+    end
+
+    test "an event is recognised by a non-empty name" do
+      assert BeaconPayload.kind(%{"e" => "event", "n" => "signup"}) == :event
+      assert BeaconPayload.kind(%{"n" => "signup"}) == :event
+    end
+
+    test "anything else is a page view" do
+      for params <- [
+            %{},
+            %{"e" => "event"},
+            %{"e" => "event", "n" => ""},
+            %{"e" => "purchase"},
+            %{"e" => "CLICK"},
+            %{"n" => 42},
+            %{"e" => nil}
+          ] do
+        assert BeaconPayload.kind(params) == :pageview, inspect(params)
+      end
+    end
+
+    test "a client-script kind wins over a name" do
+      assert BeaconPayload.kind(%{"e" => "click", "n" => "signup"}) == :click
+      assert BeaconPayload.kind(%{"e" => "leave", "n" => "signup"}) == :leave
+    end
+  end
+
+  describe "client_script_hit?/1" do
+    test "is true only for clicks, scroll and leaves" do
+      for e <- ~w(click scroll leave) do
+        assert BeaconPayload.client_script_hit?(%{"e" => e})
+      end
+
+      refute BeaconPayload.client_script_hit?(%{"e" => "pageview"})
+      refute BeaconPayload.client_script_hit?(%{"n" => "signup"})
+      refute BeaconPayload.client_script_hit?(%{"e" => "event", "n" => "signup"})
+      refute BeaconPayload.client_script_hit?(%{})
+    end
+  end
+
+  describe "click payloads" do
+    test "become an interaction named by the click kind" do
+      for kind <- ~w(click outbound download contact) do
+        hit = BeaconPayload.to_hit(request(), %{"e" => "click", "k" => kind, "x" => "a.com/b"})
+
+        assert hit.event_type == "interaction"
+        assert hit.event_name == kind
+        assert hit.target == "a.com/b"
+        assert hit.metadata == %{"source" => "client_script"}
+      end
+    end
+
+    test "an unknown or missing kind is a plain click" do
+      for params <- [
+            %{"e" => "click", "k" => "exfiltrate"},
+            %{"e" => "click", "k" => 1},
+            %{"e" => "click"}
+          ] do
+        assert BeaconPayload.to_hit(request(), params).event_name == "click"
+      end
+    end
+
+    test "the target is truncated to 512 bytes without splitting a character" do
+      hit =
+        BeaconPayload.to_hit(request(), %{
+          "e" => "click",
+          "x" => "a" <> String.duplicate("€", 1_000)
+        })
+
+      assert byte_size(hit.target) <= 512
+      assert byte_size(hit.target) >= 510
+      assert String.valid?(hit.target)
+    end
+
+    test "a non-string target is nil" do
+      assert BeaconPayload.to_hit(request(), %{"e" => "click", "x" => %{"a" => 1}}).target == nil
+    end
+  end
+
+  describe "scroll payloads" do
+    test "become a scroll interaction with a clamped depth" do
+      hit = BeaconPayload.to_hit(request(), %{"e" => "scroll", "sd" => 55})
+
+      assert hit.event_type == "interaction"
+      assert hit.event_name == "scroll"
+      assert hit.scroll_depth == 55
+
+      assert BeaconPayload.to_hit(request(), %{"e" => "scroll", "sd" => 150}).scroll_depth == 100
+      assert BeaconPayload.to_hit(request(), %{"e" => "scroll", "sd" => -3}).scroll_depth == 0
+      assert BeaconPayload.to_hit(request(), %{"e" => "scroll", "sd" => 55.6}).scroll_depth == 56
+    end
+
+    test "a non-numeric depth is nil" do
+      for sd <- ["50", nil, [1]] do
+        assert BeaconPayload.to_hit(request(), %{"e" => "scroll", "sd" => sd}).scroll_depth == nil
+      end
+    end
+  end
+
+  describe "leave payloads" do
+    @four_hours 4 * 60 * 60 * 1000
+
+    test "carry engaged time, scroll depth and an anchor at the page's open time" do
+      hit = BeaconPayload.to_hit(request(), %{"e" => "leave", "ms" => 60_000, "sd" => 70})
+
+      assert hit.event_type == "leave"
+      assert hit.engaged_ms == 60_000
+      assert hit.scroll_depth == 70
+      assert hit.metadata == %{"source" => "client_script"}
+      assert DateTime.diff(hit.inserted_at, hit.session_anchor, :millisecond) == 60_000
+      assert DateTime.diff(DateTime.utc_now(), hit.inserted_at, :second) in 0..5
+    end
+
+    test "engaged time is clamped to four hours, and the anchor with it" do
+      hit = BeaconPayload.to_hit(request(), %{"e" => "leave", "ms" => 99_999_999_999})
+
+      assert hit.engaged_ms == @four_hours
+      assert DateTime.diff(hit.inserted_at, hit.session_anchor, :millisecond) == @four_hours
+    end
+
+    test "negative time is zero and a float is rounded" do
+      assert BeaconPayload.to_hit(request(), %{"e" => "leave", "ms" => -500}).engaged_ms == 0
+      assert BeaconPayload.to_hit(request(), %{"e" => "leave", "ms" => 1234.6}).engaged_ms == 1235
+    end
+
+    test "missing time leaves engaged_ms nil and anchors at now" do
+      hit = BeaconPayload.to_hit(request(), %{"e" => "leave", "ms" => "lots", "sd" => 250})
+
+      assert hit.engaged_ms == nil
+      assert hit.scroll_depth == 100
+      assert hit.session_anchor == hit.inserted_at
+    end
+  end
+
+  describe "every hit shape" do
+    @payloads [
+      %{"e" => "pageview", "p" => "/"},
+      %{"n" => "signup"},
+      %{"e" => "click", "k" => "outbound"},
+      %{"e" => "scroll", "sd" => 10},
+      %{"e" => "leave", "ms" => 10}
+    ]
+
+    test "carries :event_name and :user_uuid keys" do
+      for params <- @payloads do
+        hit = BeaconPayload.to_hit(request(), params)
+
+        assert Map.has_key?(hit, :event_name), inspect(params)
+        assert Map.has_key?(hit, :user_uuid), inspect(params)
+      end
+    end
+
+    test "user_uuid is nil even when the payload sends one" do
+      uuid = "018e0000-0000-7000-8000-000000000000"
+
+      for params <- @payloads,
+          spoof <- [%{"user_uuid" => uuid}, %{"u" => uuid}, %{"user" => %{"uuid" => uuid}}] do
+        hit = BeaconPayload.to_hit(request(), Map.merge(params, spoof))
+
+        assert hit.user_uuid == nil, inspect(params)
       end
     end
   end

@@ -161,10 +161,12 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     end
   end
 
+  # Never on a byte boundary inside a character: Postgres rejects the invalid
+  # UTF-8 and the whole hit is lost.
   defp truncate(changeset, field, max) do
     case get_change(changeset, field) do
       value when is_binary(value) and byte_size(value) > max ->
-        put_change(changeset, field, binary_part(value, 0, max))
+        put_change(changeset, field, PhoenixKitWebAnalytics.Tracking.truncate_utf8(value, max))
 
       _ ->
         changeset

@@ -191,4 +191,392 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert %{event_name: _} = errors_on(changeset)
     end
   end
+
+  describe "referrer storage" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "drops the query string, fragment and userinfo of an absolute referrer" do
+      assert {:ok, event} =
+               Collector.track(hit(%{referrer: "https://bob:hunter2@app.com/reset?token=abc#x"}))
+
+      assert event.referrer == "https://app.com/reset"
+
+      stored = Repo.get!(Event, event.uuid)
+      assert stored.referrer == "https://app.com/reset"
+      refute stored.referrer =~ "token"
+      refute stored.referrer =~ "hunter2"
+    end
+
+    test "a relative referrer keeps only the part before ? or #" do
+      assert {:ok, event} = Collector.track(hit(%{referrer: "/account/reset?token=abc#frag"}))
+
+      assert event.referrer == "/account/reset"
+      assert event.referrer_medium == "none"
+    end
+
+    test "a garbage referrer is stored without its query and classified as none" do
+      assert {:ok, event} = Collector.track(hit(%{referrer: "not a url?email=a@b.c"}))
+
+      assert event.referrer == "not a url"
+      assert event.referrer_medium == "none"
+      assert event.referrer_source == nil
+    end
+
+    test "a referrer that is only a query string becomes nil" do
+      assert {:ok, event} = Collector.track(hit(%{referrer: "?token=abc"}))
+      assert event.referrer == nil
+
+      assert {:ok, blank} = Collector.track(hit(%{referrer: "   "}))
+      assert blank.referrer == nil
+    end
+  end
+
+  describe "session stitching per site" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "the same visitor on two sites gets two sessions" do
+      assert {:ok, on_a} = Collector.track(hit(%{site: "a.example"}))
+      assert {:ok, on_b} = Collector.track(hit(%{site: "b.example"}))
+
+      assert on_a.visitor_id == on_b.visitor_id
+      refute on_a.session_id == on_b.session_id
+
+      # And going back to the first site rejoins its session.
+      assert {:ok, back_on_a} = Collector.track(hit(%{site: "a.example", path: "/docs"}))
+      assert back_on_a.session_id == on_a.session_id
+    end
+
+    test "site comparison is normalized (www. and case)" do
+      assert {:ok, first} = Collector.track(hit(%{site: "MyApp.com"}))
+      assert {:ok, second} = Collector.track(hit(%{site: "www.myapp.com"}))
+
+      assert first.site == "myapp.com"
+      assert first.session_id == second.session_id
+    end
+
+    test "hits with no site stitch only with other site-less hits" do
+      assert {:ok, no_site} = Collector.track(hit(%{site: nil}))
+      assert {:ok, with_site} = Collector.track(hit(%{site: "a.example"}))
+      assert {:ok, no_site_again} = Collector.track(hit(%{site: nil, path: "/x"}))
+
+      refute no_site.session_id == with_site.session_id
+      assert no_site_again.session_id == no_site.session_id
+    end
+
+    test "resolve_session/4 filters by site, and the default :any ignores it" do
+      assert {:ok, on_a} =
+               Collector.track(
+                 hit(%{
+                   site: "a.example",
+                   inserted_at: DateTime.add(DateTime.utc_now(), -60, :second)
+                 })
+               )
+
+      assert {:ok, on_b} = Collector.track(hit(%{site: "b.example"}))
+
+      now = DateTime.utc_now()
+
+      assert Collector.resolve_session(on_a.visitor_id, 30, now, "a.example") == on_a.session_id
+      assert Collector.resolve_session(on_a.visitor_id, 30, now, "b.example") == on_b.session_id
+      # :any → the visitor's latest hit, whatever site it was on.
+      assert Collector.resolve_session(on_a.visitor_id, 30, now) == on_b.session_id
+      assert Collector.resolve_session(on_a.visitor_id, 30, now, :any) == on_b.session_id
+
+      minted = Collector.resolve_session(on_a.visitor_id, 30, now, "c.example")
+      refute minted in [on_a.session_id, on_b.session_id]
+    end
+  end
+
+  describe "session_anchor" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "a late hit anchored at its page view joins that page view's session" do
+      opened = hours_ago(2)
+      assert {:ok, page} = Collector.track(hit(%{inserted_at: opened}))
+
+      assert {:ok, leave} =
+               Collector.track(
+                 hit(%{
+                   event_type: "leave",
+                   engaged_ms: 2 * 60 * 60 * 1000,
+                   session_anchor: DateTime.add(opened, 1, :second)
+                 })
+               )
+
+      assert leave.session_id == page.session_id
+      assert leave.visitor_id == page.visitor_id
+      # Stored at its own time, not the anchor.
+      assert DateTime.diff(leave.inserted_at, opened, :second) >= 7_100
+    end
+
+    test "without the anchor the same late hit starts a new session" do
+      assert {:ok, page} = Collector.track(hit(%{inserted_at: hours_ago(2)}))
+      assert {:ok, leave} = Collector.track(hit(%{event_type: "leave"}))
+
+      refute leave.session_id == page.session_id
+    end
+
+    test "an anchor in the future is clamped to now" do
+      assert {:ok, page} = Collector.track(hit())
+
+      future = DateTime.add(DateTime.utc_now(), 2 * 3600, :second)
+
+      assert {:ok, later} =
+               Collector.track(hit(%{event_type: "leave", session_anchor: future}))
+
+      # Unclamped, the lookup window would start 1.5h from now and miss the
+      # page view entirely.
+      assert later.session_id == page.session_id
+      assert later.visitor_id == page.visitor_id
+    end
+
+    test "a non-DateTime anchor is ignored" do
+      assert {:ok, page} = Collector.track(hit())
+      assert {:ok, other} = Collector.track(hit(%{session_anchor: "yesterday"}))
+
+      assert other.session_id == page.session_id
+    end
+  end
+
+  describe "language" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "stores the primary tag of an Accept-Language header" do
+      assert {:ok, event} = Collector.track(hit(%{language: "et-EE,et;q=0.9,en;q=0.8"}))
+      assert event.language == "et-EE"
+    end
+
+    test "a hit with no language inherits the session's previous hit's language" do
+      assert {:ok, first} = Collector.track(hit(%{language: "de-DE,de;q=0.9"}))
+      assert {:ok, live_nav} = Collector.track(hit(%{path: "/next"}))
+
+      assert live_nav.session_id == first.session_id
+      assert live_nav.language == "de-DE"
+    end
+
+    test "an explicit language is not overwritten by the session's" do
+      assert {:ok, _first} = Collector.track(hit(%{language: "de-DE"}))
+      assert {:ok, second} = Collector.track(hit(%{language: "fr-FR"}))
+
+      assert second.language == "fr-FR"
+    end
+
+    test "a new session has nothing to inherit" do
+      assert {:ok, event} = Collector.track(hit(%{language: nil}))
+      assert event.language == nil
+
+      assert {:ok, blank} = Collector.track(hit(%{language: "  ", ip: {198, 51, 100, 1}}))
+      assert blank.language == nil
+    end
+  end
+
+  describe "server-side hits without client identity" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "each hit with neither ip nor user agent is its own visitor" do
+      assert {:ok, one} =
+               Collector.track(%{path: "/webhook", event_type: "event", event_name: "paid"})
+
+      assert {:ok, two} =
+               Collector.track(%{path: "/webhook", event_type: "event", event_name: "paid"})
+
+      assert "anon:" <> rest = one.visitor_id
+      assert byte_size(rest) == 32
+      assert String.starts_with?(two.visitor_id, "anon:")
+      refute one.visitor_id == two.visitor_id
+      refute one.session_id == two.session_id
+    end
+
+    test "with a user_uuid the visitor is that user, and sessions stitch" do
+      user_uuid = UUIDv7.generate()
+
+      assert {:ok, one} =
+               Collector.track(%{
+                 path: "/x",
+                 event_type: "event",
+                 event_name: "a",
+                 user_uuid: user_uuid
+               })
+
+      assert {:ok, two} =
+               Collector.track(%{
+                 path: "/x",
+                 event_type: "event",
+                 event_name: "b",
+                 user_uuid: user_uuid
+               })
+
+      assert one.visitor_id == "user:" <> user_uuid
+      assert one.user_uuid == user_uuid
+      assert two.session_id == one.session_id
+    end
+
+    test "an ip or user agent alone still hashes to a daily visitor" do
+      assert {:ok, ua_only} = Collector.track(%{path: "/", user_agent: @chrome})
+      assert {:ok, ua_only_again} = Collector.track(%{path: "/", user_agent: @chrome})
+
+      refute String.starts_with?(ua_only.visitor_id, "anon:")
+      assert ua_only.visitor_id == ua_only_again.visitor_id
+    end
+  end
+
+  describe "interaction and leave fields" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "engaged_ms, scroll_depth and target are stored" do
+      assert {:ok, leave} =
+               Collector.track(hit(%{event_type: "leave", engaged_ms: 45_000, scroll_depth: 80}))
+
+      stored = Repo.get!(Event, leave.uuid)
+      assert stored.event_type == "leave"
+      assert stored.engaged_ms == 45_000
+      assert stored.scroll_depth == 80
+
+      assert {:ok, click} =
+               Collector.track(
+                 hit(%{
+                   event_type: "interaction",
+                   event_name: "outbound",
+                   target: "  example.org/x  "
+                 })
+               )
+
+      assert Repo.get!(Event, click.uuid).target == "example.org/x"
+    end
+
+    test "an interaction requires an event name" do
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Collector.track(hit(%{event_type: "interaction"}))
+
+      assert %{event_name: _} = errors_on(changeset)
+      assert Repo.aggregate(Event, :count) == 0
+    end
+
+    test "a leave needs no event name" do
+      assert {:ok, event} = Collector.track(hit(%{event_type: "leave"}))
+      assert event.event_name == nil
+    end
+
+    test "an unknown event type is rejected" do
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Collector.track(hit(%{event_type: "purchase", event_name: "x"}))
+
+      assert %{event_type: _} = errors_on(changeset)
+      assert Repo.aggregate(Event, :count) == 0
+    end
+
+    test "scroll_depth is clamped to 0..100" do
+      assert {:ok, high} = Collector.track(hit(%{event_type: "leave", scroll_depth: 150}))
+      assert {:ok, low} = Collector.track(hit(%{event_type: "leave", scroll_depth: -20}))
+
+      assert Repo.get!(Event, high.uuid).scroll_depth == 100
+      assert Repo.get!(Event, low.uuid).scroll_depth == 0
+    end
+
+    test "engaged_ms is clamped to 0..24h" do
+      day_ms = 24 * 60 * 60 * 1000
+
+      assert {:ok, huge} =
+               Collector.track(hit(%{event_type: "leave", engaged_ms: 10 * day_ms}))
+
+      assert {:ok, negative} = Collector.track(hit(%{event_type: "leave", engaged_ms: -5}))
+
+      assert Repo.get!(Event, huge.uuid).engaged_ms == day_ms
+      assert Repo.get!(Event, negative.uuid).engaged_ms == 0
+    end
+  end
+
+  describe "UTF-8 truncation" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    # Two-byte chars at an even offset land exactly on 512 — fine either way.
+    test "a 600-char two-byte title is truncated to valid UTF-8" do
+      assert {:ok, event} = Collector.track(hit(%{page_title: String.duplicate("ä", 600)}))
+
+      stored = Repo.get!(Event, event.uuid)
+      assert byte_size(stored.page_title) <= 512
+      assert String.valid?(stored.page_title)
+      assert String.starts_with?(stored.page_title, "ää")
+    end
+
+    test "a 600-emoji title is truncated to valid UTF-8" do
+      assert {:ok, event} = Collector.track(hit(%{page_title: String.duplicate("😀", 600)}))
+
+      stored = Repo.get!(Event, event.uuid)
+      assert byte_size(stored.page_title) <= 512
+      assert String.valid?(stored.page_title)
+    end
+
+    # Regression: Event.changeset/2 used to truncate with binary_part/3, which
+    # cut a multibyte character in half; Postgres rejected the invalid UTF-8
+    # and the hit was lost.
+    test "a title whose 512-byte boundary falls inside a character still inserts" do
+      for title <- [
+            String.duplicate("€", 600),
+            "a" <> String.duplicate("ä", 600),
+            "ab" <> String.duplicate("😀", 600)
+          ] do
+        assert {:ok, event} = Collector.track(hit(%{page_title: title}))
+
+        stored = Repo.get!(Event, event.uuid)
+        assert byte_size(stored.page_title) <= 512
+        assert String.valid?(stored.page_title)
+      end
+    end
+  end
+
+  describe "track_async/1 and run_async/1 with async_tracking off" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "track_async/1 writes inline before returning" do
+      assert Application.get_env(:phoenix_kit_web_analytics, :async_tracking) == false
+
+      assert :ok = Collector.track_async(hit(%{path: "/inline"}))
+
+      assert [%Event{path: "/inline"}] = Repo.all(Event)
+    end
+
+    test "track_async/1 returns :ok and stores nothing for an invalid hit" do
+      assert :ok = Collector.track_async(%{site: "myapp.com"})
+      assert :ok = Collector.track_async(hit(%{event_type: "event"}))
+
+      assert Repo.aggregate(Event, :count) == 0
+    end
+
+    test "run_async/1 runs the function inline in the caller" do
+      parent = self()
+      assert :ok = Collector.run_async(fn -> send(parent, {:ran_in, self()}) end)
+
+      assert_received {:ran_in, ^parent}
+    end
+
+    test "run_async/1 swallows a raise and an exit" do
+      assert :ok = Collector.run_async(fn -> raise "boom" end)
+      assert :ok = Collector.run_async(fn -> exit(:bye) end)
+    end
+  end
 end

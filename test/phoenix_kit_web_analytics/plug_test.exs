@@ -67,3 +67,161 @@ defmodule PhoenixKitWebAnalytics.PlugTest do
     end
   end
 end
+
+defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
+  @moduledoc """
+  The plug end to end with tracking on: what it stores for a page view and what
+  it does for an opted-out visitor. Writes are inline (`async_tracking: false`
+  in the test config), so the before_send callback lands on the sandbox.
+  """
+
+  use PhoenixKitWebAnalytics.DataCase, async: false
+
+  import Plug.Test, only: [conn: 2, init_test_session: 2]
+
+  alias PhoenixKitWebAnalytics.Plug, as: TrackingPlug
+  alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.Tracking
+
+  @chrome "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+  setup do
+    enable_tracking()
+    :ok
+  end
+
+  defp request(path, headers \\ []) do
+    Enum.reduce([{"user-agent", @chrome} | headers], conn(:get, path), fn {k, v}, conn ->
+      Plug.Conn.put_req_header(conn, k, v)
+    end)
+  end
+
+  defp respond(conn, content_type \\ "text/html", status \\ 200) do
+    conn
+    |> TrackingPlug.call(TrackingPlug.init([]))
+    |> Plug.Conn.put_resp_content_type(content_type)
+    |> Plug.Conn.send_resp(status, "<html></html>")
+  end
+
+  describe "a normal HTML page view" do
+    test "is stored with path, site, status and campaign" do
+      "/pricing/?utm_source=hn&token=secret"
+      |> request([{"accept-language", "et-EE,et;q=0.9"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.event_type == "pageview"
+      assert event.path == "/pricing"
+      # The Host is normalized: www. dropped.
+      assert event.site == "example.com"
+      assert event.status == 200
+      assert event.utm_source == "hn"
+      assert event.language == "et-EE"
+      assert event.browser == "Chrome"
+      assert is_integer(event.duration_ms) and event.duration_ms >= 0
+    end
+
+    test "stores the referrer without its query string" do
+      "/landing"
+      |> request([{"referer", "https://mail.example.org/reset?token=abc&email=a@b.c#top"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.referrer == "https://mail.example.org/reset"
+    end
+
+    test "a non-HTML or non-2xx response stores nothing" do
+      "/api/data" |> request() |> respond("application/json")
+      "/moved" |> request() |> respond("text/html", 302)
+      "/missing" |> request() |> respond("text/html", 404)
+
+      assert Repo.all(Event) == []
+    end
+
+    test "an excluded path stores nothing and registers no callback" do
+      conn = "/admin/settings" |> request() |> TrackingPlug.call(TrackingPlug.init([]))
+
+      assert (conn.private[:before_send] || []) == []
+      conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
+
+      "/healthz"
+      |> request()
+      |> TrackingPlug.call(TrackingPlug.init(exclude: "/healthz"))
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "")
+
+      assert Repo.all(Event) == []
+    end
+
+    test "skip/1 after the plug ran still drops the hit" do
+      "/preview"
+      |> request()
+      |> TrackingPlug.call(TrackingPlug.init([]))
+      |> TrackingPlug.skip()
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "")
+
+      assert Repo.all(Event) == []
+    end
+  end
+
+  describe "an opted-out visitor" do
+    test "with a fetched session gets the DNT session key and no event" do
+      conn =
+        "/pricing"
+        |> request([{"dnt", "1"}])
+        |> init_test_session(%{})
+        |> TrackingPlug.call(TrackingPlug.init([]))
+
+      assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == true
+      assert (conn.private[:before_send] || []) == []
+
+      conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
+      assert Repo.all(Event) == []
+    end
+
+    test "Sec-GPC is honoured the same way" do
+      conn =
+        "/pricing"
+        |> request([{"sec-gpc", "1"}])
+        |> init_test_session(%{})
+        |> TrackingPlug.call(TrackingPlug.init([]))
+
+      assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == true
+    end
+
+    test "without a fetched session the plug neither crashes nor starts one" do
+      conn = "/pricing" |> request([{"dnt", "1"}]) |> TrackingPlug.call(TrackingPlug.init([]))
+
+      refute Map.has_key?(conn.private, :plug_session)
+      refute conn.private[:plug_session_fetch] == :done
+      assert (conn.private[:before_send] || []) == []
+
+      conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
+      assert Repo.all(Event) == []
+    end
+
+    test "a visitor without DNT gets no session key" do
+      conn =
+        "/pricing"
+        |> request()
+        |> init_test_session(%{})
+        |> TrackingPlug.call(TrackingPlug.init([]))
+
+      assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == nil
+    end
+
+    test "with respect_dnt off the visitor is tracked and not marked" do
+      enable_tracking(%{"web_analytics_respect_dnt" => "false"})
+
+      conn =
+        "/pricing"
+        |> request([{"dnt", "1"}])
+        |> init_test_session(%{})
+        |> respond()
+
+      assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == nil
+      assert [%Event{path: "/pricing"}] = Repo.all(Event)
+    end
+  end
+end

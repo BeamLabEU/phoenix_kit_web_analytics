@@ -70,13 +70,17 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   defp track(conn, params) do
     config = Config.collection_config()
 
-    if accepted?(params, config) and not opted_out?(conn, config) do
+    if reported?(params) and accepted?(params, config) and not opted_out?(conn, config) do
       hit = BeaconPayload.to_hit(conn, params)
       unless Config.excluded?(hit.path, config.exclusions), do: Collector.track_async(hit)
     end
 
     :ok
   end
+
+  # A payload says what it reports (`e`, or a custom event's `n`). An empty or
+  # undecodable body says nothing, and must not become a page view of "/".
+  defp reported?(params), do: Map.has_key?(params, "e") or is_binary(params["n"])
 
   # Page views ride on the beacon switch; clicks, scroll and leaves on the
   # client-script switch; custom events (`phoenixKitAnalytics(...)`, which
