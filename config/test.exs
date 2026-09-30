@@ -27,6 +27,11 @@ config :phoenix_kit_web_analytics, PhoenixKitWebAnalytics.Test.Endpoint,
   url: [host: "localhost"],
   render_errors: [formats: [html: PhoenixKitWebAnalytics.Test.Layouts]]
 
+# Write hits inline instead of in a supervised task, so they land on the
+# test's sandbox connection (and can be asserted on) instead of racing the
+# test's end.
+config :phoenix_kit_web_analytics, async_tracking: false
+
 config :phoenix, :json_library, Jason
 
 config :logger, level: :warning

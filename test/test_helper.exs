@@ -77,9 +77,11 @@ repo_available =
       # Then this module's tables, through the same coordinator a real host
       # runs via `mix phoenix_kit.update` — so the suite can never pass against
       # a schema that differs from what installs get.
+      # One Ecto version per chain version: a test DB created at an older
+      # chain version runs the new steps instead of being skipped as "done".
       Ecto.Migrator.up(
         PhoenixKitWebAnalytics.Test.Repo,
-        20_260_726_000_001,
+        20_260_726_000_000 + PhoenixKitWebAnalytics.Migrations.current_version(),
         PhoenixKitWebAnalytics.Test.Migration,
         log: false
       )
