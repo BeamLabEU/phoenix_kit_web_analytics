@@ -84,6 +84,8 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     field(:engaged_ms, :integer)
     field(:scroll_depth, :integer)
     field(:target, :string)
+    # The first hit of its visit — what the visits list pages through.
+    field(:session_start, :boolean, default: false)
 
     field(:metadata, :map, default: %{})
 
@@ -97,7 +99,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     utm_source utm_medium utm_campaign utm_term utm_content
     browser browser_version os os_version device_type language is_bot
     country_code region city status duration_ms engaged_ms scroll_depth target
-    metadata inserted_at
+    session_start metadata inserted_at
   )a
 
   @doc "Valid `event_type` values."

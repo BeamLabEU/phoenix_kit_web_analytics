@@ -33,7 +33,11 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    {:noreply, socket |> Filters.assign_filter(params) |> load()}
+    {:noreply,
+     socket
+     |> Filters.assign_filter(params)
+     |> assign(:page, page_param(params["page"]))
+     |> load()}
   end
 
   @impl true
@@ -51,10 +55,18 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
 
   defp load(socket) do
     filter = socket.assigns.filter
-    paths = Reports.top_paths(filter, limit: @page_limit)
+    # One row more than a page tells whether there is a next one.
+    rows =
+      Reports.top_paths(filter,
+        limit: @page_limit + 1,
+        offset: (socket.assigns.page - 1) * @page_limit
+      )
+
+    {paths, rest} = Enum.split(rows, @page_limit)
 
     socket
     |> assign(:paths, paths)
+    |> assign(:more?, rest != [])
     |> assign(:engagement, Reports.page_engagement(filter, Enum.map(paths, & &1.label)))
     |> assign(:slowest, Reports.slowest_paths(filter, limit: 10))
     |> assign(:overview, Reports.overview(filter))
@@ -148,9 +160,13 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
             </.table_default_row>
           </.table_default_body>
         </.table_default>
-        <p :if={length(@paths) >= @page_limit} class="px-4 py-3 text-xs text-base-content/50">
-          {gettext("Showing the top %{count} paths by page views.", count: @page_limit)}
-        </p>
+        <.pager
+          newer?={@page > 1}
+          older?={@more?}
+          newer_path={page_path(assigns, @page - 1)}
+          older_path={page_path(assigns, @page + 1)}
+          summary={@page > 1 && gettext("Page %{page}", page: @page)}
+        />
       </.report_card>
 
       <.report_card id="slowest-pages" title={gettext("Slowest pages")} icon="hero-clock">
@@ -209,6 +225,28 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
     </div>
     """
   end
+
+  defp page_path(assigns, page) do
+    base =
+      Filters.patch_to(Paths.pages(), %{
+        "period" => assigns.period,
+        "site" => assigns.site,
+        "path" => assigns.path
+      })
+
+    if page <= 1,
+      do: base,
+      else: base <> if(String.contains?(base, "?"), do: "&", else: "?") <> "page=#{page}"
+  end
+
+  defp page_param(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {page, ""} when page > 0 and page <= 10_000 -> page
+      _ -> 1
+    end
+  end
+
+  defp page_param(_value), do: 1
 
   defp share(_part, total) when total in [0, nil], do: nil
   defp share(part, total), do: part * 100 / total

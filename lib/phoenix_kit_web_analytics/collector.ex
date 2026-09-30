@@ -273,6 +273,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         |> Map.merge(source_attrs(hit))
         |> Map.merge(location_attrs(hit))
         |> carry_language(stitch)
+        |> Map.put(:session_start, stitch.new?)
 
       case %Event{} |> Event.changeset(attrs) |> repo().insert() do
         {:ok, event} -> {event, stitch.new?}

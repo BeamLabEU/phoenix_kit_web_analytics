@@ -14,6 +14,70 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
 
   # ── /live ─────────────────────────────────────────────────────────────────
 
+  describe "paging on a busy site" do
+    test "/live switches between each visitor and by page, and ticks the clock", %{conn: conn} do
+      server = start_supervised!(LivePresence)
+      page = spawn(fn -> Process.sleep(:infinity) end)
+      on_exit(fn -> Process.exit(page, :kill) end)
+
+      LivePresence.watch(page, %{ip: {1, 2, 3, 4}, user_agent: @ua}, %{
+        path: "/tabbed",
+        site: "example.com"
+      })
+
+      _ = :sys.get_state(server)
+
+      {:ok, view, html} = live(conn, "#{@base}/live")
+      assert html =~ "Each visitor"
+      assert html =~ "1 page open"
+
+      html = view |> element("button[phx-value-tab='pages']") |> render_click()
+      assert html =~ "/tabbed"
+      refute html =~ "1 page open"
+
+      # The one-second tick re-renders the clock without a reload.
+      send(view.pid, :tick)
+      assert render(view) =~ "/tabbed"
+    end
+
+    test "/pages pages past the first hundred paths", %{conn: conn} do
+      for i <- 1..101, do: insert_event(%{path: "/p#{String.pad_leading(to_string(i), 3, "0")}"})
+
+      {:ok, _view, html} = live(conn, "#{@base}/pages")
+      assert html =~ "/p001"
+      refute html =~ "/p101"
+      assert html =~ "Older"
+
+      {:ok, _view, html} = live(conn, "#{@base}/pages?page=2")
+      assert html =~ "/p101"
+      refute html =~ "/p001"
+      assert html =~ "Newer"
+    end
+
+    test "a visit's timeline shows 500 events and then 'Show more'", %{conn: conn} do
+      session = UUIDv7.generate()
+      start = DateTime.add(DateTime.utc_now(), -3600, :second)
+
+      for i <- 0..501 do
+        insert_event(%{
+          session_id: session,
+          visitor_id: "long",
+          path: "/step#{i}",
+          inserted_at: DateTime.add(start, i, :second)
+        })
+      end
+
+      {:ok, view, html} = live(conn, "#{@base}/sessions/#{session}")
+      assert html =~ "/step499"
+      refute html =~ "/step500"
+      assert html =~ "Show more"
+
+      html = view |> element("a", "Show more") |> render_click()
+      assert html =~ "/step501"
+      refute html =~ "Show more"
+    end
+  end
+
   describe "/live" do
     test "lists a watched page when presence is running", %{conn: conn} do
       server = start_supervised!(LivePresence)
@@ -76,7 +140,7 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       assert html =~ "Show everyone"
     end
 
-    test "pages 50 at a time with an 'Older visits' link and ?before=", %{conn: conn} do
+    test "pages 50 at a time with an 'Older' link and ?before=", %{conn: conn} do
       now = DateTime.utc_now()
 
       # Session 0 is the newest, session 50 the oldest.
@@ -98,22 +162,22 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
 
       {:ok, view, html} = live(conn, "#{@base}/sessions")
 
-      assert html =~ "Older visits"
+      assert html =~ "Older"
       assert html =~ "/sessions/#{newest}"
       refute html =~ "/sessions/#{oldest}"
 
-      html = view |> element("a", "Older visits") |> render_click()
+      html = view |> element("a", "Older") |> render_click()
 
       assert html =~ "/sessions/#{oldest}"
       refute html =~ "/sessions/#{newest}"
-      refute html =~ "Older visits"
-      assert html =~ "Newest"
+      refute html =~ "Older"
+      assert html =~ "Newer"
     end
 
     test "fewer than 50 visits shows no paging link", %{conn: conn} do
       insert_event(%{})
       {:ok, _view, html} = live(conn, "#{@base}/sessions")
-      refute html =~ "Older visits"
+      refute html =~ "Older"
     end
   end
 

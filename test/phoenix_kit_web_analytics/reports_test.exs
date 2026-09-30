@@ -618,4 +618,84 @@ defmodule PhoenixKitWebAnalytics.ReportsTest do
       assert length(Reports.recent_hits(filter, event_type: "bogus")) == 3
     end
   end
+
+  describe "recent_sessions/2" do
+    test "the most recently active visits first, a page at a time" do
+      now = DateTime.utc_now()
+
+      ids =
+        for i <- 0..4 do
+          id = UUIDv7.generate()
+
+          insert_event(%{
+            session_id: id,
+            visitor_id: "r#{i}",
+            inserted_at: DateTime.add(now, -i * 10, :second)
+          })
+
+          id
+        end
+
+      # An old visit outside the window never shows.
+      insert_event(%{visitor_id: "old", inserted_at: DateTime.add(now, -3600, :second)})
+
+      {first, cursor} = Reports.recent_sessions(5, limit: 2)
+      assert Enum.map(first, & &1.session_id) == Enum.take(ids, 2)
+      assert cursor
+
+      {second, _} = Reports.recent_sessions(5, limit: 2, before: cursor)
+      assert Enum.map(second, & &1.session_id) == Enum.slice(ids, 2, 2)
+
+      {all, nil} = Reports.recent_sessions(5, limit: 50)
+      assert length(all) == 5
+    end
+  end
+
+  describe "sessions_page/2" do
+    test "pages through visit starts and hands back the next cursor" do
+      now = DateTime.utc_now()
+
+      for i <- 0..2 do
+        insert_event(%{visitor_id: "s#{i}", inserted_at: DateTime.add(now, -i * 60, :second)})
+      end
+
+      filter = Reports.filter(period: "today")
+      {page, next} = Reports.sessions_page(filter, limit: 2)
+      assert length(page) == 2
+      assert %DateTime{} = next
+
+      {rest, nil} = Reports.sessions_page(filter, limit: 2, before: next)
+      assert length(rest) == 1
+    end
+  end
+
+  describe "session_summary/1" do
+    test "totals the whole visit, not just the rows a timeline page shows" do
+      session = UUIDv7.generate()
+      start = DateTime.add(DateTime.utc_now(), -120, :second)
+
+      insert_event(%{session_id: session, visitor_id: "x", inserted_at: start})
+
+      insert_event(%{
+        session_id: session,
+        visitor_id: "x",
+        event_type: "interaction",
+        event_name: "click",
+        inserted_at: DateTime.add(start, 30, :second)
+      })
+
+      insert_event(%{
+        session_id: session,
+        visitor_id: "x",
+        event_type: "leave",
+        scroll_depth: 70,
+        inserted_at: DateTime.add(start, 90, :second)
+      })
+
+      assert %{pageviews: 1, actions: 1, max_scroll: 70, seconds: 90} =
+               Reports.session_summary(session)
+
+      assert Reports.session_summary("not-a-uuid") == nil
+    end
+  end
 end

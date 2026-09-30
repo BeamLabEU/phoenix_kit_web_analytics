@@ -617,4 +617,26 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert :ok = Collector.run_async(fn -> exit(:bye) end)
     end
   end
+
+  describe "session_start" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    # The visits list pages through these marks instead of grouping every
+    # event in the period — so exactly the first hit of each visit has one.
+    test "marks the first hit of a visit and no other" do
+      assert {:ok, first} = Collector.track(hit())
+      assert {:ok, second} = Collector.track(hit(%{path: "/blog"}))
+      assert first.session_id == second.session_id
+      assert first.session_start
+      refute second.session_start
+
+      later = DateTime.add(DateTime.utc_now(), 3600, :second)
+      assert {:ok, next_visit} = Collector.track(hit(%{inserted_at: later}))
+      refute next_visit.session_id == first.session_id
+      assert next_visit.session_start
+    end
+  end
 end

@@ -150,6 +150,59 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
     end
   end
 
+  describe "paging (a busy site)" do
+    setup do
+      enable_tracking()
+      start_supervised!(LivePresence)
+      :ok
+    end
+
+    test "page/1 returns the newest pages first, a page at a time, with a cursor" do
+      pids =
+        for i <- 1..5 do
+          pid = spawn_page()
+          LivePresence.watch(pid, @client, %{path: "/p#{i}", site: "example.com"})
+          # Distinct start times, so the order is defined.
+          wait_until(fn -> LivePresence.count(nil) == i end)
+          Process.sleep(2)
+          pid
+        end
+
+      {first, cursor} = LivePresence.page(limit: 2)
+      assert Enum.map(first, & &1.path) == ["/p5", "/p4"]
+      assert cursor
+
+      {second, cursor} = LivePresence.page(limit: 2, after: cursor)
+      assert Enum.map(second, & &1.path) == ["/p3", "/p2"]
+
+      {third, cursor} = LivePresence.page(limit: 2, after: cursor)
+      assert Enum.map(third, & &1.path) == ["/p1"]
+      assert cursor == nil
+
+      Enum.each(pids, &Process.exit(&1, :kill))
+    end
+
+    test "by_path/1 counts open pages per path, following navigation and exits" do
+      a = spawn_page()
+      b = spawn_page()
+      c = spawn_page()
+      LivePresence.watch(a, @client, %{path: "/pricing", site: "example.com"})
+      LivePresence.watch(b, @client, %{path: "/pricing", site: "example.com"})
+      LivePresence.watch(c, @client, %{path: "/blog", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 3 end)
+
+      assert LivePresence.by_path(10) == [{"/pricing", 2}, {"/blog", 1}]
+
+      LivePresence.navigate(b, "/blog")
+      _ = :sys.get_state(LivePresence)
+      assert Enum.sort(LivePresence.by_path(10)) == [{"/blog", 2}, {"/pricing", 1}]
+
+      Process.exit(a, :kill)
+      wait_until(fn -> LivePresence.count(nil) == 2 end)
+      assert LivePresence.by_path(10) == [{"/blog", 2}]
+    end
+  end
+
   describe "reconnects (found in review)" do
     setup do
       enable_tracking()

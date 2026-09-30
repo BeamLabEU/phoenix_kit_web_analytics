@@ -27,6 +27,7 @@ defmodule PhoenixKitWebAnalytics.DataCase do
     end
   end
 
+  alias Ecto.Adapters.SQL
   alias Ecto.Adapters.SQL.Sandbox
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Test.Repo, as: TestRepo
@@ -101,9 +102,31 @@ defmodule PhoenixKitWebAnalytics.DataCase do
       inserted_at: DateTime.utc_now()
     }
 
-    %Event{}
-    |> Event.changeset(Map.merge(defaults, attrs))
-    |> TestRepo.insert!()
+    event =
+      %Event{}
+      |> Event.changeset(Map.merge(defaults, attrs))
+      |> TestRepo.insert!()
+
+    mark_session_start(event.session_id)
+    TestRepo.get!(Event, event.uuid)
+  end
+
+  # The collector marks the first hit of each visit as it stores it; a test
+  # inserting rows directly (in any order) gets the same marking here.
+  defp mark_session_start(session_id) do
+    SQL.query!(
+      TestRepo,
+      """
+      UPDATE phoenix_kit_web_analytics_events AS e
+      SET session_start = (e.uuid = (
+        SELECT f.uuid FROM phoenix_kit_web_analytics_events AS f
+        WHERE f.session_id = e.session_id
+        ORDER BY f.inserted_at, f.uuid LIMIT 1
+      ))
+      WHERE e.session_id = $1
+      """,
+      [Ecto.UUID.dump!(session_id)]
+    )
   end
 
   @doc "A `DateTime` the given number of hours in the past."

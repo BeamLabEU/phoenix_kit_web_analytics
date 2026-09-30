@@ -510,7 +510,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
   # ── sessions ──────────────────────────────────────────────────────────────
 
   @doc """
-  Visits in the window, newest first — one row per session that has at least
+  Visits in the window, newest first — one row per visit that has at least
   one page view:
 
       %{session_id, started_at, ended_at, seconds, pageviews, interactions,
@@ -518,23 +518,101 @@ defmodule PhoenixKitWebAnalytics.Reports do
         country_code, user_uuid}
 
   `source`/`medium` are the first page view's. `seconds` spans every event
-  type, so a session that ended with a leave counts the time on its last
-  page.
+  type, so a visit that ended with a leave counts the time on its last page.
+
+  Built to stay cheap on a busy site: it pages through visit *starts* (the
+  indexed `session_start` rows) and only then sums up the visits on the page,
+  instead of grouping every event in the window. With a path filter it lists
+  visits that landed on that page.
 
   ## Options
 
     * `:limit` — default 50
-    * `:before` — a `DateTime`; only sessions that started before it (paging)
-    * `:user_uuid` — only sessions in which that signed-in user was active
+    * `:before` — a `DateTime`; only visits that started before it (paging)
+    * `:user_uuid` — only visits in which that signed-in user was active
   """
   @spec sessions(filter(), keyword()) :: [map()]
-  def sessions(filter, opts \\ []) do
-    filter
-    |> base_query()
-    |> sessions_for_user(Keyword.get(opts, :user_uuid))
+  def sessions(filter, opts \\ []), do: filter |> sessions_page(opts) |> elem(0)
+
+  @doc """
+  `sessions/2`, plus the cursor for the next page: `{rows, next_before}`,
+  where `next_before` is `nil` on the last page.
+  """
+  @spec sessions_page(filter(), keyword()) :: {[map()], DateTime.t() | nil}
+  def sessions_page(filter, opts \\ []) do
+    limit = row_limit(opts, 50)
+
+    starts =
+      filter
+      |> base_query()
+      |> where([e], e.session_start == true)
+      |> sessions_for_user(Keyword.get(opts, :user_uuid))
+      |> started_before(Keyword.get(opts, :before))
+      |> order_by([e], desc: e.inserted_at)
+      |> limit(^(limit + 1))
+      |> select([e], {e.session_id, e.inserted_at})
+      |> all([])
+
+    {page, rest} = Enum.split(starts, limit)
+    rows = page |> Enum.map(&elem(&1, 0)) |> summarize_sessions(filter)
+    next = if rest == [], do: nil, else: page |> List.last() |> elem(1) |> to_utc()
+
+    {Enum.sort_by(rows, & &1.started_at, {:desc, DateTime}), next}
+  end
+
+  @doc """
+  Visits with any activity in the last `minutes`, most recently active first
+  — `{rows, next_before}` like `sessions_page/2`.
+
+  Reads the newest events through the time index and keeps the first `limit`
+  distinct visits, so it costs the same with ten people online or ten
+  thousand.
+
+  ## Options
+
+    * `:limit` — default 50
+    * `:before` — a `DateTime`; only visits whose latest hit is older (paging)
+  """
+  @spec recent_sessions(pos_integer(), keyword()) :: {[map()], DateTime.t() | nil}
+  def recent_sessions(minutes, opts \\ []) do
+    limit = row_limit(opts, 50)
+    now = DateTime.utc_now()
+    from = DateTime.add(now, -minutes * 60, :second)
+
+    hits =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.is_bot == false,
+        order_by: [desc: e.inserted_at],
+        # Enough hits to find `limit + 1` distinct visits in any realistic mix.
+        limit: ^((limit + 1) * 20),
+        select: {e.session_id, e.inserted_at}
+      )
+      |> active_before(Keyword.get(opts, :before))
+      |> all([])
+
+    latest = hits |> Enum.uniq_by(&elem(&1, 0)) |> Enum.take(limit + 1)
+    {page, rest} = Enum.split(latest, limit)
+    last_seen = Map.new(page)
+
+    rows =
+      page
+      |> Enum.map(&elem(&1, 0))
+      |> summarize_sessions(%{bots: false})
+      |> Enum.map(&Map.put(&1, :last_seen, to_utc(last_seen[&1.session_id])))
+      |> Enum.sort_by(& &1.last_seen, {:desc, DateTime})
+
+    {rows, if(rest == [], do: nil, else: page |> List.last() |> elem(1) |> to_utc())}
+  end
+
+  # One row per visit for the given ids, over ALL their events (a visit that
+  # began before the window is still shown whole).
+  defp summarize_sessions([], _filter), do: []
+
+  defp summarize_sessions(ids, filter) do
+    from(e in Event, where: e.session_id in ^ids)
+    |> filter_bots(Map.get(filter, :bots, false))
     |> group_by([e], e.session_id)
     |> having([e], fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type) > 0)
-    |> sessions_before(Keyword.get(opts, :before))
     |> select([e], %{
       session_id: e.session_id,
       started_at: min(e.inserted_at),
@@ -580,8 +658,6 @@ defmodule PhoenixKitWebAnalytics.Reports do
           Ecto.UUID
         )
     })
-    |> order_by([e], desc: min(e.inserted_at))
-    |> limit(^row_limit(opts, 50))
     |> all([])
     |> Enum.map(fn row ->
       Map.put(row, :seconds, max(DateTime.diff(to_utc(row.ended_at), to_utc(row.started_at)), 0))
@@ -589,22 +665,53 @@ defmodule PhoenixKitWebAnalytics.Reports do
   end
 
   @doc """
-  Every event of one session, oldest first — the visit replayed. At most 1000
-  events; `[]` for an id that isn't a UUID.
+  The events of one session, oldest first — the visit replayed. `:limit`
+  caps how many (default 1000; the visit page asks for 500 at a time); `[]`
+  for an id that isn't a UUID.
   """
-  @spec session_timeline(String.t()) :: [Event.t()]
-  def session_timeline(session_id) do
+  @spec session_timeline(String.t(), keyword()) :: [Event.t()]
+  def session_timeline(session_id, opts \\ []) do
     case Ecto.UUID.cast(session_id) do
       {:ok, uuid} ->
         from(e in Event,
           where: e.session_id == ^uuid,
           order_by: [asc: e.inserted_at],
-          limit: 1000
+          limit: ^row_limit(opts, 1000, 100_000)
         )
         |> all([])
 
       :error ->
         []
+    end
+  end
+
+  @doc """
+  One visit's totals over all its events, however long the visit —
+  `%{started, seconds, pageviews, actions, max_scroll}`, or `nil`.
+  """
+  @spec session_summary(String.t()) :: map() | nil
+  def session_summary(session_id) do
+    with {:ok, uuid} <- Ecto.UUID.cast(session_id),
+         %{started: %{}} = row <-
+           from(e in Event,
+             where: e.session_id == ^uuid,
+             select: %{
+               started: min(e.inserted_at),
+               ended: max(e.inserted_at),
+               pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
+               actions:
+                 fragment("COUNT(*) FILTER (WHERE ? IN ('interaction', 'event'))", e.event_type),
+               max_scroll: max(e.scroll_depth)
+             }
+           )
+           |> one(nil) do
+      started = to_utc(row.started)
+
+      row
+      |> Map.put(:started, started)
+      |> Map.put(:seconds, max(DateTime.diff(to_utc(row.ended), started), 0))
+    else
+      _ -> nil
     end
   end
 
@@ -738,10 +845,15 @@ defmodule PhoenixKitWebAnalytics.Reports do
     end
   end
 
-  defp sessions_before(query, %DateTime{} = before),
-    do: having(query, [e], min(e.inserted_at) < ^before)
+  defp started_before(query, %DateTime{} = before),
+    do: where(query, [e], e.inserted_at < ^before)
 
-  defp sessions_before(query, _before), do: query
+  defp started_before(query, _before), do: query
+
+  defp active_before(query, %DateTime{} = before),
+    do: where(query, [e], e.inserted_at < ^before)
+
+  defp active_before(query, _before), do: query
 
   defp to_utc(%DateTime{} = at), do: at
   defp to_utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
@@ -770,8 +882,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
       pageviews: count(e.uuid),
       visitors: count(e.visitor_id, :distinct)
     })
-    |> order_by([e], desc: count(e.uuid))
+    |> order_by([e], desc: count(e.uuid), asc: field(e, ^field))
     |> limit(^row_limit(opts))
+    |> offset(^Keyword.get(opts, :offset, 0))
     |> all([])
     |> Enum.map(fn row -> %{row | label: row.label || default_label} end)
     |> Enum.reject(&is_nil(&1.label))
@@ -957,9 +1070,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
       fallback
   end
 
-  defp row_limit(opts, default \\ @default_limit) do
+  defp row_limit(opts, default \\ @default_limit, max \\ 1_000) do
     case Keyword.get(opts, :limit, default) do
-      value when is_integer(value) and value > 0 and value <= 1_000 -> value
+      value when is_integer(value) and value > 0 and value <= max -> value
       _ -> default
     end
   end

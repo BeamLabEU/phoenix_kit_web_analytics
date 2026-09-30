@@ -395,6 +395,77 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     """
   end
 
+  @doc """
+  "Newer" / "Older" paging under a list, with an optional summary between.
+  Either `phx-click` events (`newer_event` / `older_event`) or links
+  (`newer_path` / `older_path`, patched) move between pages.
+  """
+  attr :newer?, :boolean, required: true
+  attr :older?, :boolean, required: true
+  attr :newer_event, :string, default: nil
+  attr :older_event, :string, default: nil
+  attr :newer_path, :string, default: nil
+  attr :older_path, :string, default: nil
+  attr :summary, :string, default: nil
+
+  def pager(assigns) do
+    ~H"""
+    <div
+      :if={@newer? or @older? or @summary}
+      class="flex items-center justify-between gap-2 border-t border-base-200 px-4 py-2"
+    >
+      <.pager_button
+        enabled={@newer?}
+        event={@newer_event}
+        path={@newer_path}
+        icon="hero-chevron-left"
+        label={gettext("Newer")}
+      />
+      <span class="text-xs text-base-content/50">{@summary}</span>
+      <.pager_button
+        enabled={@older?}
+        event={@older_event}
+        path={@older_path}
+        icon="hero-chevron-right"
+        label={gettext("Older")}
+        icon_after
+      />
+    </div>
+    """
+  end
+
+  attr :enabled, :boolean, required: true
+  attr :event, :string, default: nil
+  attr :path, :string, default: nil
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :icon_after, :boolean, default: false
+
+  defp pager_button(assigns) do
+    ~H"""
+    <span :if={not @enabled} class="w-20"></span>
+    <.link :if={@enabled and @path} patch={@path} class="btn btn-ghost btn-xs gap-1">
+      <.icon :if={not @icon_after} name={@icon} class="h-3 w-3" />{@label}<.icon
+        :if={@icon_after}
+        name={@icon}
+        class="h-3 w-3"
+      />
+    </.link>
+    <button
+      :if={@enabled and is_nil(@path)}
+      type="button"
+      phx-click={@event}
+      class="btn btn-ghost btn-xs gap-1"
+    >
+      <.icon :if={not @icon_after} name={@icon} class="h-3 w-3" />{@label}<.icon
+        :if={@icon_after}
+        name={@icon}
+        class="h-3 w-3"
+      />
+    </button>
+    """
+  end
+
   @doc "The standard explanation of a breakdown card's Visitors / Views columns."
   def columns_explained(assigns) do
     ~H"""
@@ -514,6 +585,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       id={@id}
       size="sm"
       toggleable
+      show_toggle={false}
       items={@sessions}
       item_id={& &1.session_id}
       card_title={&visitor_name(&1, @names)}

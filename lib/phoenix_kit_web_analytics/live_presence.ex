@@ -48,6 +48,11 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   alias PhoenixKitWebAnalytics.UserAgent
 
   @table :phoenix_kit_web_analytics_live_presence
+  # Newest first: keys are {-since_in_microseconds, pid}, so an ordered walk
+  # from the start is "most recently opened" without sorting anything.
+  @index :phoenix_kit_web_analytics_live_presence_index
+  # {path, open page count} — the "by page" view without scanning every page.
+  @paths :phoenix_kit_web_analytics_live_presence_paths
   # Four hours: longer than any real reading session, short enough that a tab
   # abandoned overnight doesn't turn "average time on page" into nonsense.
   @max_engaged_ms 4 * 60 * 60 * 1000
@@ -95,7 +100,51 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   end
 
   @doc """
+  One page of the open pages, newest first — for a site with thousands of
+  people online, the Right now list reads `limit` rows from an ordered index
+  instead of the whole table.
+
+  Returns `{visits, next_cursor}`; pass `next_cursor` as `:after` for the
+  following page (`nil` when there is none).
+  """
+  @spec page(keyword()) :: {[visit()], term() | nil}
+  def page(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    keys = index_keys(Keyword.get(opts, :after), limit + 1)
+    {page_keys, rest} = Enum.split(keys, limit)
+
+    visits =
+      Enum.flat_map(page_keys, fn {_since, pid} = _key ->
+        case :ets.lookup(@table, pid) do
+          [{^pid, visit}] -> [visit]
+          [] -> []
+        end
+      end)
+
+    {visits, if(rest == [], do: nil, else: List.last(page_keys))}
+  rescue
+    ArgumentError -> {[], nil}
+  end
+
+  @doc """
+  Open pages counted per path, most open first — `{path, count}` pairs,
+  read from counters kept as pages open and close. `limit` caps the list.
+  """
+  @spec by_path(pos_integer()) :: [{String.t(), pos_integer()}]
+  def by_path(limit \\ 50) do
+    @paths
+    |> :ets.tab2list()
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.take(limit)
+  rescue
+    ArgumentError -> []
+  end
+
+  @doc """
   Pages open right now, newest first. `site` restricts to one host.
+
+  Reads every open page — fine for a test or a small site; the admin page
+  uses `page/1` and `by_path/1`, which stay cheap at any size.
   """
   @spec list(String.t() | nil) :: [visit()]
   def list(site \\ nil) do
@@ -134,6 +183,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @impl GenServer
   def init(_opts) do
     table = :ets.new(@table, [:named_table, :protected, :set, read_concurrency: true])
+    :ets.new(@index, [:named_table, :protected, :ordered_set, read_concurrency: true])
+    :ets.new(@paths, [:named_table, :protected, :set, read_concurrency: true])
     {:ok, %{table: table, clients: %{}, pending: %{}}}
   end
 
@@ -162,7 +213,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
       [{^pid, visit}] ->
         record_leave(visit, state.clients[pid], now)
-        :ets.insert(@table, {pid, %{visit | path: path, since: now}})
+        remove_visit(pid, visit)
+        insert_visit(pid, %{visit | path: path, since: now})
         {:noreply, state}
 
       [] ->
@@ -184,7 +236,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
     case :ets.lookup(@table, pid) do
       [{^pid, visit}] ->
-        :ets.delete(@table, pid)
+        remove_visit(pid, visit)
         {:noreply, hold_leave(state, visit, client, DateTime.utc_now())}
 
       [] ->
@@ -219,9 +271,33 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
   defp start_watching(state, pid, client, visit) do
     Process.monitor(pid)
-    :ets.insert(@table, {pid, visit})
+    insert_visit(pid, visit)
     put_in(state.clients[pid], client)
   end
+
+  # The three tables change together, only here, in the server process.
+  defp insert_visit(pid, visit) do
+    :ets.insert(@table, {pid, visit})
+    :ets.insert(@index, {index_key(pid, visit)})
+    :ets.update_counter(@paths, visit.path, {2, 1}, {visit.path, 0})
+  end
+
+  defp remove_visit(pid, visit) do
+    :ets.delete(@table, pid)
+    :ets.delete(@index, index_key(pid, visit))
+
+    if :ets.update_counter(@paths, visit.path, {2, -1}, {visit.path, 1}) <= 0,
+      do: :ets.delete(@paths, visit.path)
+  end
+
+  defp index_key(pid, visit), do: {-DateTime.to_unix(visit.since, :microsecond), pid}
+
+  defp index_keys(nil, count), do: walk(:ets.first(@index), count, [])
+  defp index_keys(after_key, count), do: walk(:ets.next(@index, after_key), count, [])
+
+  defp walk(:"$end_of_table", _count, acc), do: Enum.reverse(acc)
+  defp walk(_key, 0, acc), do: Enum.reverse(acc)
+  defp walk(key, count, acc), do: walk(:ets.next(@index, key), count - 1, [key | acc])
 
   # The leave is recorded when the grace period ends, unless the same visitor
   # rejoins the same page first. It keeps the time it actually happened.

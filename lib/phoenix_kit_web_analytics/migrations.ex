@@ -23,6 +23,10 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `2` — engagement columns on events (`engaged_ms`, `scroll_depth`,
       `target`) for the `"interaction"` and `"leave"` event types, and a
       `(session_id, inserted_at)` index for session timelines
+    * `3` — `session_start` on events (the first hit of each visit) with a
+      partial index on `inserted_at`, so the visits list pages through visit
+      starts instead of grouping every event in the period; existing rows are
+      backfilled
 
   ## Prefix safety
 
@@ -37,7 +41,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 2
+  @current_version 3
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -262,6 +266,49 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # ── v3 ────────────────────────────────────────────────────────────────────
+
+  defp up_v3(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      add_if_not_exists(:session_start, :boolean, null: false, default: false)
+    end
+
+    # Only visit starts are indexed — a small slice of the table, read newest
+    # first by the visits list.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:inserted_at],
+        prefix: prefix,
+        name: :phoenix_kit_web_analytics_events_session_starts_index,
+        where: "session_start"
+      )
+    )
+
+    # Mark the earliest hit of every existing session.
+    execute("""
+    UPDATE #{Helpers.qualify_table("phoenix_kit_web_analytics_events", prefix)} AS e
+    SET session_start = true
+    FROM (
+      SELECT DISTINCT ON (session_id) uuid
+      FROM #{Helpers.qualify_table("phoenix_kit_web_analytics_events", prefix)}
+      ORDER BY session_id, inserted_at, uuid
+    ) AS firsts
+    WHERE e.uuid = firsts.uuid
+    """)
+  end
+
+  defp down_v3(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:inserted_at],
+        prefix: prefix,
+        name: :phoenix_kit_web_analytics_events_session_starts_index
+      )
+    )
+
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:session_start, :boolean)
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -282,6 +329,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 1, prefix), do: down_v1(prefix)
   defp apply_step(:up, 2, prefix), do: up_v2(prefix)
   defp apply_step(:down, 2, prefix), do: down_v2(prefix)
+  defp apply_step(:up, 3, prefix), do: up_v3(prefix)
+  defp apply_step(:down, 3, prefix), do: down_v3(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

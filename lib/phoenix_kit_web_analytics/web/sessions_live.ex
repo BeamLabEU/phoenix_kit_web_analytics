@@ -53,8 +53,8 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
   end
 
   defp load(socket) do
-    sessions =
-      Reports.sessions(socket.assigns.filter,
+    {sessions, next_before} =
+      Reports.sessions_page(socket.assigns.filter,
         limit: @page_size,
         user_uuid: socket.assigns.user_uuid,
         before: socket.assigns.before
@@ -65,7 +65,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
     socket
     |> assign(:sessions, sessions)
     |> assign(:names, names)
-    |> assign(:more?, length(sessions) == @page_size)
+    |> assign(:next_before, next_before)
   end
 
   @impl true
@@ -120,32 +120,21 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
           names={@names}
           empty_message={gettext("No visits in this period.")}
         />
-      </.report_card>
-
-      <div :if={@more? or @before} class="flex justify-between">
-        <.link
-          :if={@before}
-          patch={patch_path(%{"period" => @period, "site" => @site, "user" => @user_uuid})}
-          class="btn btn-ghost btn-sm"
-        >
-          <.icon name="hero-arrow-left" class="h-4 w-4" /> {gettext("Newest")}
-        </.link>
-        <span :if={is_nil(@before)}></span>
-        <.link
-          :if={@more?}
-          patch={
-            patch_path(%{
-              "period" => @period,
-              "site" => @site,
-              "user" => @user_uuid,
-              "before" => @sessions |> List.last() |> Map.fetch!(:started_at) |> to_iso()
-            })
+        <.pager
+          newer?={not is_nil(@before)}
+          older?={not is_nil(@next_before)}
+          newer_path={patch_path(%{"period" => @period, "site" => @site, "user" => @user_uuid})}
+          older_path={
+            @next_before &&
+              patch_path(%{
+                "period" => @period,
+                "site" => @site,
+                "user" => @user_uuid,
+                "before" => to_iso(@next_before)
+              })
           }
-          class="btn btn-ghost btn-sm"
-        >
-          {gettext("Older visits")} <.icon name="hero-arrow-right" class="h-4 w-4" />
-        </.link>
-      </div>
+        />
+      </.report_card>
     </div>
     """
   end

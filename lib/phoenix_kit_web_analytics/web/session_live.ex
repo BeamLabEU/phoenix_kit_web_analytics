@@ -23,8 +23,10 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   end
 
   @impl true
-  def handle_params(%{"session_id" => session_id}, _uri, socket) do
-    events = Reports.session_timeline(session_id)
+  def handle_params(%{"session_id" => session_id} = params, _uri, socket) do
+    show = show_param(params["show"])
+    rows = Reports.session_timeline(session_id, limit: show + 1)
+    {events, rest} = Enum.split(rows, show)
     user_uuid = Enum.find_value(events, & &1.user_uuid)
 
     {:noreply,
@@ -37,7 +39,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      )
      |> assign(:user_uuid, user_uuid)
      |> assign(:user_name, user_uuid && Map.get(UserNames.for_uuids([user_uuid]), user_uuid))
-     |> assign(:summary, summarize(events))}
+     |> assign(:show, show)
+     |> assign(:more?, rest != [])
+     |> assign(:summary, Reports.session_summary(session_id))}
   end
 
   @impl true
@@ -46,21 +50,18 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
     {:noreply, socket}
   end
 
-  defp summarize([]), do: nil
+  # Long visits (a bot, a tab left on an auto-refreshing page) can hold
+  # thousands of events; the timeline shows them 500 at a time.
+  @page 500
 
-  defp summarize(events) do
-    started = List.first(events).inserted_at
-    ended = List.last(events).inserted_at
-
-    %{
-      started: started,
-      seconds: max(DateTime.diff(ended, started), 0),
-      pageviews: Enum.count(events, &(&1.event_type == "pageview")),
-      actions: Enum.count(events, &(&1.event_type in ["interaction", "event"])),
-      max_scroll:
-        events |> Enum.map(& &1.scroll_depth) |> Enum.reject(&is_nil/1) |> Enum.max(fn -> nil end)
-    }
+  defp show_param(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n > 0 and n <= 100_000 -> n
+      _ -> @page
+    end
   end
+
+  defp show_param(_value), do: @page
 
   @impl true
   def render(assigns) do
@@ -159,6 +160,15 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
           </div>
         </li>
       </ol>
+
+      <div :if={@more?} class="flex justify-center">
+        <.link
+          patch={Paths.session(@session_id) <> "?show=#{@show + 500}"}
+          class="btn btn-ghost btn-sm"
+        >
+          {gettext("Show more")}
+        </.link>
+      </div>
     </div>
     """
   end
