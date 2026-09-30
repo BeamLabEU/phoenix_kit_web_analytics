@@ -55,6 +55,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.SessionStats
 
   @type filter :: %{
           from: DateTime.t(),
@@ -543,15 +544,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
   # Bounce rate and session length both need per-session facts first, so they
   # share one grouped subquery rather than scanning the window twice.
   defp session_totals(filter) do
-    per_session =
-      filter
-      |> pageview_query()
-      |> group_by([e], e.session_id)
-      |> select([e], %{
-        session_id: e.session_id,
-        hits: count(e.uuid),
-        seconds: fragment("EXTRACT(EPOCH FROM (MAX(?) - MIN(?)))", e.inserted_at, e.inserted_at)
-      })
+    per_session = filter |> base_query() |> SessionStats.per_session()
 
     from(s in subquery(per_session),
       select: %{

@@ -6,9 +6,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
   rather than with content, so it needs a story for old data from day one.
   Once an hour this process:
 
-  1. **Rolls up** every completed day that doesn't have a
-     `PhoenixKitWebAnalytics.Schemas.DailyStat` row yet — page views, visitors,
-     sessions, bounces, and total session seconds, per site.
+  1. **Rolls up** completed days into `PhoenixKitWebAnalytics.Schemas.DailyStat`
+     rows — page views, visitors, sessions, bounces, and total session
+     seconds, per site.
   2. **Prunes** raw events older than `web_analytics_retention_days`
      (365 by default; `0` disables pruning), in batches, and only for days that
      were rolled up first.
@@ -18,15 +18,29 @@ defmodule PhoenixKitWebAnalytics.Retention do
   down by page or referrer — see `PhoenixKitWebAnalytics.Reports` for how
   reports handle the boundary.
 
+  ## The watermark
+
+  Progress is a single date — "every day up to and including this one is
+  rolled up" — kept in the `web_analytics_rolled_through` setting. Each pass
+  walks forward from it (at most #{60} days at a time, so a first run against a
+  large backlog spreads over several hours), and advances it only past days
+  whose rollup committed. Prune never deletes past the watermark, and does
+  nothing at all if the watermark can't be read: a database hiccup must cost
+  an hour of compaction, never a day of history.
+
+  The two most recent completed days are re-rolled on every pass. A hit that
+  was being written as midnight passed lands in "yesterday" after that day's
+  first rollup; re-rolling picks it up, and the upsert makes it idempotent.
+
+  Days are UTC days, bounded with `inserted_at` ranges — never with a
+  `DATE(...)` cast, which would depend on the database session's time zone.
+
   ## Scheduling
 
   The first run is deliberately a couple of minutes after boot: a host restart
   should not spend its first seconds deleting rows while it is also serving the
   post-deploy traffic spike. Runs are skipped entirely while the module is
   disabled.
-
-  Rollup is idempotent — a day is aggregated once, and the upsert makes a
-  repeat run a no-op — so a crash or a restart mid-pass costs nothing.
   """
 
   use GenServer
@@ -35,15 +49,19 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   import Ecto.Query
 
+  alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.SessionStats
 
   @interval_ms :timer.hours(1)
   @boot_delay_ms :timer.minutes(2)
   @max_days_per_run 60
   @delete_batch 5_000
   @max_delete_batches 200
+  @reroll_days 2
+  @watermark_key "web_analytics_rolled_through"
 
   @doc false
   def start_link(opts \\ []) do
@@ -75,37 +93,69 @@ defmodule PhoenixKitWebAnalytics.Retention do
   @impl GenServer
   def init(_opts) do
     schedule(@boot_delay_ms)
-    {:ok, %{last_run: nil}}
+    {:ok, %{}}
   end
 
   @impl GenServer
   def handle_info(:run, state) do
-    state = maybe_run(state)
+    maybe_run()
     schedule(@interval_ms)
     {:noreply, state}
   end
 
-  def handle_info(_message, state), do: {:noreply, state}
+  def handle_info(message, state) do
+    Logger.debug("[WebAnalytics] Retention ignored #{inspect(message)}")
+    {:noreply, state}
+  end
 
   # ── rollup ────────────────────────────────────────────────────────────────
 
   @doc """
-  Writes `DailyStat` rows for completed days that don't have one yet.
+  Rolls up the completed days past the watermark, and re-rolls the last
+  #{@reroll_days}.
 
-  Returns the number of days rolled up. At most #{@max_days_per_run} days are
-  handled per pass, so a first run against a large backlog spreads its work
-  over several hours instead of locking up the database in one go.
+  Returns the number of newly rolled-up days that had traffic. At most
+  #{@max_days_per_run} days are handled per pass. Stops at the first day whose
+  rollup fails, so the watermark never skips a day.
   """
   @spec rollup_pending_days() :: non_neg_integer()
   def rollup_pending_days do
-    dates = pending_dates()
+    yesterday = Date.add(Date.utc_today(), -1)
 
-    Enum.reduce(dates, 0, fn date, count ->
-      case rollup_day(date) do
-        :ok -> count + 1
-        _ -> count
-      end
-    end)
+    case first_pending_date(yesterday) do
+      {:ok, nil} ->
+        reroll_recent(yesterday, nil)
+        0
+
+      {:ok, first} ->
+        last = Enum.min([Date.add(first, @max_days_per_run - 1), yesterday], Date)
+        count = roll_forward(Date.range(first, last))
+        reroll_recent(yesterday, first)
+        count
+
+      :error ->
+        0
+    end
+  end
+
+  @doc """
+  The last day known to be fully rolled up, or `nil` when nothing has been
+  rolled up yet. `:error` when the setting can't be read.
+  """
+  @spec rolled_through() :: {:ok, Date.t() | nil} | :error
+  def rolled_through do
+    case Settings.get_setting(@watermark_key, nil) do
+      nil -> {:ok, nil}
+      value -> {:ok, parse_date(value)}
+    end
+  rescue
+    error ->
+      Logger.warning("[WebAnalytics] could not read the rollup watermark: #{inspect(error)}")
+      :error
+  catch
+    :exit, reason ->
+      Logger.warning("[WebAnalytics] could not read the rollup watermark: #{inspect(reason)}")
+      :error
   end
 
   @doc "Aggregates one day into `DailyStat` rows, one per site."
@@ -117,8 +167,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
     totals = day_totals(from, to)
     sessions = day_sessions(from, to)
 
-    totals
-    |> Enum.map(fn {site, counts} ->
+    rows =
+      Enum.map(totals, fn {site, counts} ->
       session_facts = Map.get(sessions, site, %{sessions: 0, bounces: 0, seconds: 0})
 
       %{
@@ -132,23 +182,42 @@ defmodule PhoenixKitWebAnalytics.Retention do
         total_session_seconds: round(session_facts.seconds)
       }
     end)
-    |> Enum.each(&upsert_daily_stat/1)
 
-    :ok
+    # One transaction per day: a site whose row fails must not leave the day
+    # looking rolled up while its raw rows become eligible for pruning.
+    result =
+      repo().transaction(fn ->
+        Enum.each(rows, fn row ->
+          case upsert_daily_stat(row) do
+            {:ok, _} -> :ok
+            {:error, changeset} -> repo().rollback(changeset)
+          end
+        end)
+      end)
+
+    case result do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[WebAnalytics] rollup failed for #{date}: #{inspect(reason)}")
+        :error
+    end
   rescue
     error ->
       Logger.warning("[WebAnalytics] rollup failed for #{date}: #{Exception.message(error)}")
       :error
   end
 
+
   # ── prune ─────────────────────────────────────────────────────────────────
 
   @doc """
   Deletes raw events past the retention horizon, in batches.
 
-  Returns the number of rows deleted. Days that have not been rolled up yet are
-  left alone — pruning never runs ahead of the aggregation that preserves the
-  trend line.
+  Returns the number of rows deleted. Days past the rollup watermark are left
+  alone — pruning never runs ahead of the aggregation that preserves the trend
+  line — and nothing is deleted when the watermark can't be read.
   """
   @spec prune_old_events() :: non_neg_integer()
   def prune_old_events do
@@ -160,7 +229,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   # ── internals ─────────────────────────────────────────────────────────────
 
-  defp maybe_run(state) do
+  defp maybe_run do
     if Config.enabled?() do
       result = run()
 
@@ -170,48 +239,77 @@ defmodule PhoenixKitWebAnalytics.Retention do
             "pruned #{result.pruned} event(s)"
         )
       end
-
-      %{state | last_run: DateTime.utc_now()}
-    else
-      state
     end
+
+    :ok
   rescue
     error ->
       Logger.warning("[WebAnalytics] retention pass failed: #{Exception.message(error)}")
-      state
+      :ok
   catch
     :exit, reason ->
-      Logger.debug("[WebAnalytics] retention pass exited: #{inspect(reason)}")
-      state
+      Logger.warning("[WebAnalytics] retention pass exited: #{inspect(reason)}")
+      :ok
   end
 
   defp schedule(delay), do: Process.send_after(self(), :run, delay)
 
-  defp pending_dates do
-    today = Date.utc_today()
-    horizon = DateTime.new!(today, ~T[00:00:00], "Etc/UTC")
+  # The first day after the watermark — or, before anything was rolled up,
+  # the day of the oldest event (an indexed MIN). nil when there's nothing to
+  # do.
+  defp first_pending_date(yesterday) do
+    with {:ok, watermark} <- rolled_through() do
+      first =
+        case watermark do
+          nil -> oldest_event_date()
+          date -> Date.add(date, 1)
+        end
 
-    event_dates =
-      from(e in Event,
-        where: e.inserted_at < ^horizon,
-        select: fragment("DISTINCT DATE(? AT TIME ZONE 'UTC')", e.inserted_at),
-        order_by: fragment("1"),
-        limit: ^(@max_days_per_run * 2)
-      )
-      |> repo().all()
-      |> Enum.map(&to_date/1)
-      |> Enum.reject(&is_nil/1)
+      if first && Date.compare(first, yesterday) != :gt, do: {:ok, first}, else: {:ok, nil}
+    end
+  end
 
-    rolled_up =
-      from(s in DailyStat, where: s.date in ^event_dates, select: s.date)
-      |> repo().all()
-      |> MapSet.new()
+  defp oldest_event_date do
+    case Event |> select([e], min(e.inserted_at)) |> repo().one() do
+      nil -> nil
+      %DateTime{} = at -> DateTime.to_date(at)
+      %NaiveDateTime{} = at -> NaiveDateTime.to_date(at)
+    end
+  end
 
-    event_dates
-    |> Enum.reject(&MapSet.member?(rolled_up, &1))
-    |> Enum.take(@max_days_per_run)
-  rescue
-    _ -> []
+  defp roll_forward(dates) do
+    Enum.reduce_while(dates, 0, fn date, count ->
+      with :ok <- rollup_day(date), :ok <- advance_watermark(date) do
+        {:cont, if(day_has_rows?(date), do: count + 1, else: count)}
+      else
+        _ -> {:halt, count}
+      end
+    end)
+  end
+
+  # Re-roll the most recent completed days that this pass didn't just roll.
+  defp reroll_recent(yesterday, first_new) do
+    Date.add(yesterday, 1 - @reroll_days)
+    |> Date.range(yesterday)
+    |> Enum.reject(&(first_new && Date.compare(&1, first_new) != :lt))
+    |> Enum.each(fn date -> if day_has_rows?(date), do: rollup_day(date) end)
+  end
+
+  defp day_has_rows?(date) do
+    from(s in DailyStat, where: s.date == ^date, select: 1, limit: 1)
+    |> repo().one()
+    |> Kernel.==(1)
+  end
+
+  defp advance_watermark(date) do
+    case Settings.update_setting_with_module(
+           @watermark_key,
+           Date.to_iso8601(date),
+           Config.module_key()
+         ) do
+      {:ok, _} -> :ok
+      error -> {:error, error}
+    end
   end
 
   defp day_totals(from, to) do
@@ -222,7 +320,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
         site: fragment("COALESCE(?, '')", e.site),
         pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
         events: fragment("COUNT(*) FILTER (WHERE ? = 'event')", e.event_type),
-        visitors: count(e.visitor_id, :distinct)
+        visitors:
+          fragment("COUNT(DISTINCT ?) FILTER (WHERE ? = 'pageview')", e.visitor_id, e.event_type)
       }
     )
     |> repo().all()
@@ -231,17 +330,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   defp day_sessions(from, to) do
     per_session =
-      from(e in Event,
-        where: e.inserted_at >= ^from and e.inserted_at < ^to,
-        where: e.event_type == "pageview",
-        group_by: [fragment("COALESCE(?, '')", e.site), e.session_id],
-        select: %{
-          site: fragment("COALESCE(?, '')", e.site),
-          session_id: e.session_id,
-          hits: count(e.uuid),
-          seconds: fragment("EXTRACT(EPOCH FROM (MAX(?) - MIN(?)))", e.inserted_at, e.inserted_at)
-        }
-      )
+      from(e in Event, where: e.inserted_at >= ^from and e.inserted_at < ^to)
+      |> SessionStats.per_session(by_site: true)
 
     from(s in subquery(per_session),
       group_by: s.site,
@@ -287,22 +377,16 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   defp prune_before(cutoff) do
     # Never delete a day that hasn't been aggregated — otherwise a misconfigured
-    # retention window silently destroys history instead of compacting it.
-    case oldest_unrolled_date() do
-      nil ->
-        delete_batches(cutoff, 0, 0)
-
-      date ->
+    # retention window silently destroys history instead of compacting it. An
+    # unreadable watermark means "don't know", which means "don't delete".
+    case rolled_through() do
+      {:ok, %Date{} = date} ->
         cutoff
-        |> min_datetime(DateTime.new!(date, ~T[00:00:00], "Etc/UTC"))
+        |> min_datetime(DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC"))
         |> delete_batches(0, 0)
-    end
-  end
 
-  defp oldest_unrolled_date do
-    case pending_dates() do
-      [] -> nil
-      dates -> Enum.min(dates, Date)
+      _ ->
+        0
     end
   end
 
@@ -328,19 +412,22 @@ defmodule PhoenixKitWebAnalytics.Retention do
       delete_batches(cutoff, deleted + count, batches + 1)
     end
   rescue
-    _ -> deleted
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning(
+        "[WebAnalytics] prune stopped after #{deleted} row(s): #{Exception.message(error)}"
+      )
+
+      deleted
   end
 
-  defp to_date(%Date{} = date), do: date
-
-  defp to_date(value) when is_binary(value) do
+  defp parse_date(value) when is_binary(value) do
     case Date.from_iso8601(value) do
       {:ok, date} -> date
       _ -> nil
     end
   end
 
-  defp to_date(_value), do: nil
+  defp parse_date(_value), do: nil
 
   defp to_number(nil), do: 0
   defp to_number(%Decimal{} = decimal), do: Decimal.to_float(decimal)

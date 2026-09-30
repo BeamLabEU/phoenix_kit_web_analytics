@@ -30,7 +30,9 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert stat.date == date
       assert stat.site == "example.com"
       assert stat.pageviews == 3
-      assert stat.visitors == 3
+      # A visitor is someone who viewed a page; the custom event's own
+      # visitor hash doesn't count as a visit.
+      assert stat.visitors == 2
       assert stat.sessions == 2
       assert stat.bounces == 1
       assert stat.events == 1
