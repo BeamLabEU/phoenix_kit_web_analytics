@@ -51,9 +51,12 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Dimensions
+  alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.SessionStats
+  alias PhoenixKitWebAnalytics.Tracking
 
   @interval_ms :timer.hours(1)
   @boot_delay_ms :timer.minutes(2)
@@ -61,6 +64,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
   @delete_batch 5_000
   @max_delete_batches 200
   @reroll_days 2
+  @stat_fields ~w(pageviews visitors events exits engaged_ms_sum engaged_count scroll_sum
+                  scroll_count duration_ms_sum duration_count)a
   @watermark_key "web_analytics_rolled_through"
 
   @doc false
@@ -164,28 +169,51 @@ defmodule PhoenixKitWebAnalytics.Retention do
     from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
     to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
 
-    totals = day_totals(from, to)
-    sessions = day_sessions(from, to)
+    # Bot traffic (stored only with track_bots on) stays out of the rollups,
+    # as it stays out of every report unless asked for.
+    day = from(e in Event, where: e.inserted_at >= ^from and e.inserted_at < ^to and not e.is_bot)
 
-    rows =
+    totals = day |> Dimensions.totals() |> repo().all() |> Map.new(&{&1.site, &1})
+    sessions = day_sessions(day)
+    now = DateTime.utc_now()
+
+    stats =
       Enum.map(totals, fn {site, counts} ->
         session_facts = Map.get(sessions, site, %{sessions: 0, bounces: 0, seconds: 0})
 
-        %{
+        counts
+        |> Map.take(@stat_fields)
+        |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
+        |> Map.merge(%{
           date: date,
           site: site,
-          pageviews: counts.pageviews,
-          visitors: counts.visitors,
-          events: counts.events,
           sessions: session_facts.sessions,
           bounces: session_facts.bounces,
           total_session_seconds: round(session_facts.seconds)
-        }
+        })
       end)
 
-    # One transaction per day: a site whose row fails must not leave the day
-    # looking rolled up while its raw rows become eligible for pruning.
-    result = repo().transaction(fn -> Enum.each(rows, &upsert_or_rollback/1) end)
+    dims =
+      Enum.flat_map(Dimensions.names(), fn dimension ->
+        day
+        |> Dimensions.aggregate(dimension)
+        |> repo().all()
+        |> Enum.reject(&(is_nil(&1.value) or (&1.hits == 0 and &1.exits == 0)))
+        |> Enum.map(&dim_row(&1, date, dimension, now))
+      end)
+
+    # One transaction per day: a day is replaced whole or not at all, so a
+    # failure can't leave it looking rolled up while its raw rows become
+    # eligible for pruning.
+    result =
+      repo().transaction(fn ->
+        Enum.each(stats, &upsert_or_rollback/1)
+        from(d in DailyDim, where: d.date == ^date) |> repo().delete_all()
+
+        dims
+        |> Enum.chunk_every(1_000)
+        |> Enum.each(&repo().insert_all(DailyDim, &1))
+      end)
 
     case result do
       {:ok, _} ->
@@ -200,6 +228,22 @@ defmodule PhoenixKitWebAnalytics.Retention do
       Logger.warning("[WebAnalytics] rollup failed for #{date}: #{Exception.message(error)}")
       :error
   end
+
+  defp dim_row(row, date, dimension, now) do
+    row
+    |> Map.update!(:value, &Tracking.truncate_utf8(to_string(&1), 2048))
+    |> Map.update!(:detail, &Tracking.truncate_utf8(to_string(&1), 512))
+    |> Map.merge(%{
+      uuid: UUIDv7.generate(),
+      date: date,
+      dimension: dimension,
+      inserted_at: now
+    })
+    |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
+  end
+
+  defp to_integer_if_decimal(%Decimal{} = value), do: Decimal.to_integer(Decimal.round(value))
+  defp to_integer_if_decimal(value), do: value
 
   # ── prune ─────────────────────────────────────────────────────────────────
 
@@ -305,26 +349,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
     end
   end
 
-  defp day_totals(from, to) do
-    from(e in Event,
-      where: e.inserted_at >= ^from and e.inserted_at < ^to,
-      group_by: fragment("COALESCE(?, '')", e.site),
-      select: %{
-        site: fragment("COALESCE(?, '')", e.site),
-        pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
-        events: fragment("COUNT(*) FILTER (WHERE ? = 'event')", e.event_type),
-        visitors:
-          fragment("COUNT(DISTINCT ?) FILTER (WHERE ? = 'pageview')", e.visitor_id, e.event_type)
-      }
-    )
-    |> repo().all()
-    |> Map.new(fn row -> {row.site, row} end)
-  end
-
-  defp day_sessions(from, to) do
-    per_session =
-      from(e in Event, where: e.inserted_at >= ^from and e.inserted_at < ^to)
-      |> SessionStats.per_session(by_site: true)
+  defp day_sessions(day) do
+    per_session = SessionStats.per_session(day, by_site: true)
 
     from(s in subquery(per_session),
       group_by: s.site,
@@ -363,6 +389,13 @@ defmodule PhoenixKitWebAnalytics.Retention do
            :bounces,
            :events,
            :total_session_seconds,
+           :exits,
+           :engaged_ms_sum,
+           :engaged_count,
+           :scroll_sum,
+           :scroll_count,
+           :duration_ms_sum,
+           :duration_count,
            :updated_at
          ]},
       conflict_target: [:date, :site]

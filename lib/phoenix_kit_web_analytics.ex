@@ -231,6 +231,7 @@ defmodule PhoenixKitWebAnalytics do
     [
       Collector.task_supervisor_spec(),
       PhoenixKitWebAnalytics.LivePresence,
+      PhoenixKitWebAnalytics.ReportCache,
       PhoenixKitWebAnalytics.Alerts,
       PhoenixKitWebAnalytics.Retention
     ]

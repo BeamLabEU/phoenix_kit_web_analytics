@@ -233,14 +233,17 @@ No IP database ships with this package.
 This is the one PhoenixKit table that grows with traffic rather than content.
 An hourly background pass:
 
-1. **rolls up** each completed day into per-site totals (tracked with a
-   "rolled up through" date, re-rolling the last two days to catch late
-   hits), then
+1. **rolls up** each completed day into per-site totals and per-day
+   breakdowns (pages, sources, devices, events … — tracked with a "rolled up
+   through" date, re-rolling the last two days to catch late hits), then
 2. **prunes** raw events past the retention window (365 days by default; `0`
    disables pruning), in batches, and never past the last rolled-up day.
 
-So the long-range trend line is permanent while the raw row count stays
-bounded.
+Reports read finished days from those rollups and only today from raw events,
+so a year's report costs about what a day's does, and pruned days keep their
+breakdowns. Every list pages (visits, pages, open pages, a visit's timeline),
+and report results are cached for 30 seconds so a busy day's raw slice is
+aggregated at most once per interval.
 
 ## Performance
 

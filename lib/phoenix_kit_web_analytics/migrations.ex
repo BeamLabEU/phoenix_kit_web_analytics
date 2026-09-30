@@ -27,6 +27,10 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       partial index on `inserted_at`, so the visits list pages through visit
       starts instead of grouping every event in the period; existing rows are
       backfilled
+    * `4` — engagement totals on `daily_stats` and the `daily_dims` table
+      (one row per day, site and breakdown value), so every report reads
+      finished days from rollups; the rollup watermark is reset so the days
+      still in raw events are rolled up again with the new detail
 
   ## Prefix safety
 
@@ -41,7 +45,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 3
+  @current_version 4
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -309,6 +313,87 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # ── v4 ────────────────────────────────────────────────────────────────────
+
+  defp up_v4(prefix) do
+    alter table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix) do
+      add_if_not_exists(:exits, :integer, null: false, default: 0)
+      add_if_not_exists(:engaged_ms_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:engaged_count, :integer, null: false, default: 0)
+      add_if_not_exists(:scroll_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:scroll_count, :integer, null: false, default: 0)
+      add_if_not_exists(:duration_ms_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:duration_count, :integer, null: false, default: 0)
+    end
+
+    create_if_not_exists table(:phoenix_kit_web_analytics_daily_dims,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:date, :date, null: false)
+      add(:site, :string, size: 255, null: false, default: "")
+      # page, referrer, channel, campaign, utm_source, browser, os, device,
+      # language, country, event, interaction
+      add(:dimension, :string, size: 20, null: false)
+      add(:value, :text, null: false)
+      # A second key where a value isn't enough: an interaction's target.
+      add(:detail, :text, null: false, default: "")
+
+      add(:hits, :integer, null: false, default: 0)
+      add(:visitors, :integer, null: false, default: 0)
+      add(:exits, :integer, null: false, default: 0)
+      add(:exit_visitors, :integer, null: false, default: 0)
+      add(:engaged_ms_sum, :bigint, null: false, default: 0)
+      add(:engaged_count, :integer, null: false, default: 0)
+      add(:scroll_sum, :bigint, null: false, default: 0)
+      add(:scroll_count, :integer, null: false, default: 0)
+      add(:duration_ms_sum, :bigint, null: false, default: 0)
+      add(:duration_count, :integer, null: false, default: 0)
+      add(:duration_max, :integer, null: false, default: 0)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(
+        :phoenix_kit_web_analytics_daily_dims,
+        [:date, :site, :dimension, :value, :detail],
+        prefix: prefix
+      )
+    )
+
+    # Reports read one dimension over a date range.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_daily_dims, [:dimension, :date], prefix: prefix)
+    )
+
+    # Roll every day still in raw events up again, now with the breakdowns.
+    execute("""
+    DELETE FROM #{Helpers.qualify_table("phoenix_kit_settings", prefix)}
+    WHERE key = 'web_analytics_rolled_through'
+    """)
+  end
+
+  defp down_v4(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_daily_dims, prefix: prefix))
+
+    alter table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix) do
+      remove_if_exists(:exits, :integer)
+      remove_if_exists(:engaged_ms_sum, :bigint)
+      remove_if_exists(:engaged_count, :integer)
+      remove_if_exists(:scroll_sum, :bigint)
+      remove_if_exists(:scroll_count, :integer)
+      remove_if_exists(:duration_ms_sum, :bigint)
+      remove_if_exists(:duration_count, :integer)
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -331,6 +416,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 2, prefix), do: down_v2(prefix)
   defp apply_step(:up, 3, prefix), do: up_v3(prefix)
   defp apply_step(:down, 3, prefix), do: down_v3(prefix)
+  defp apply_step(:up, 4, prefix), do: up_v4(prefix)
+  defp apply_step(:down, 4, prefix), do: down_v4(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

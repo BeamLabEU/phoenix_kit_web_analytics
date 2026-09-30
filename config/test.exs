@@ -36,6 +36,9 @@ config :phoenix_kit_web_analytics, async_tracking: false
 # period is exercised by setting it explicitly.
 config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 0
 
+# Reports read fresh data in tests (no 30 s cache).
+config :phoenix_kit_web_analytics, report_cache_ms: 0
+
 config :phoenix, :json_library, Jason
 
 config :logger, level: :warning
