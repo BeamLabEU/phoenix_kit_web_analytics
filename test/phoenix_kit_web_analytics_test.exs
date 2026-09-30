@@ -109,10 +109,12 @@ defmodule PhoenixKitWebAnalyticsTest do
       assert PhoenixKitWebAnalytics.css_sources() == [:phoenix_kit_web_analytics]
     end
 
-    test "children/0 supervises the write pool and the retention worker" do
+    test "children/0 supervises the write pool, presence, alerts and retention" do
       children = PhoenixKitWebAnalytics.children()
 
-      assert length(children) == 2
+      assert length(children) == 4
+      assert PhoenixKitWebAnalytics.LivePresence in children
+      assert PhoenixKitWebAnalytics.Alerts in children
       assert PhoenixKitWebAnalytics.Retention in children
     end
   end

@@ -194,15 +194,41 @@ defmodule PhoenixKitWebAnalytics do
 
   @impl PhoenixKit.Module
   @doc """
+  The optional client script (clicks the server can't see, scroll depth, exits
+  from non-LiveView pages), folded into the host's `phoenix_kit_modules.js`.
+  It sends nothing the server accepts until **Client script** is switched on
+  in settings.
+  """
+  def js_sources do
+    [
+      %{
+        app: :phoenix_kit_web_analytics,
+        file: "static/assets/phoenix_kit_web_analytics.js",
+        global: "PhoenixKitWebAnalyticsHooks"
+      }
+    ]
+  end
+
+  @impl PhoenixKit.Module
+  @doc """
   Background workers: the task supervisor that absorbs writes off the request
   path, and the hourly rollup/prune pass.
   """
   def children do
     [
       Collector.task_supervisor_spec(),
+      PhoenixKitWebAnalytics.LivePresence,
+      PhoenixKitWebAnalytics.Alerts,
       PhoenixKitWebAnalytics.Retention
     ]
   end
+
+  @impl PhoenixKit.Module
+  @doc """
+  The **Website activity** notification type — new visitors, sign-ups and
+  tracked events. See `PhoenixKitWebAnalytics.Alerts`.
+  """
+  def notification_types, do: PhoenixKitWebAnalytics.Alerts.notification_types()
 
   @impl PhoenixKit.Module
   @doc "Summary shown on the admin Modules page."
