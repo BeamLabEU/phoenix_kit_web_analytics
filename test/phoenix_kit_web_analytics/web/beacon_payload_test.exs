@@ -151,7 +151,9 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
       assert BeaconPayload.kind(%{"n" => "signup"}) == :event
     end
 
-    test "anything else is a page view" do
+    # Unknown shapes used to fall through to :pageview, so `{"e":"purchase"}`
+    # or a nameless event was stored as a view of the page.
+    test "anything else is unknown (and not stored)" do
       for params <- [
             %{},
             %{"e" => "event"},
@@ -161,7 +163,7 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
             %{"n" => 42},
             %{"e" => nil}
           ] do
-        assert BeaconPayload.kind(params) == :pageview, inspect(params)
+        assert BeaconPayload.kind(params) == :unknown, inspect(params)
       end
     end
 

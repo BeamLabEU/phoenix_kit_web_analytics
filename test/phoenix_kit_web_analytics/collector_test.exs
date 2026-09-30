@@ -299,6 +299,44 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       :ok
     end
 
+    # Found in review: the stitch looked back from the anchor but not only up
+    # to it, so the leave of a page opened at t0 joined a newer session the
+    # visitor had started since — the latest hit in the window won.
+    test "a late leave joins its own page's session, not a newer one" do
+      now = DateTime.utc_now()
+      t0 = DateTime.add(now, -60 * 60, :second)
+
+      assert {:ok, first} =
+               Collector.track(hit(%{inserted_at: t0}))
+
+      # 40 minutes later, past the 30-minute window: a new session.
+      assert {:ok, second} =
+               Collector.track(
+                 hit(%{path: "/blog", inserted_at: DateTime.add(t0, 40 * 60, :second)})
+               )
+
+      refute second.session_id == first.session_id
+
+      assert {:ok, leave} =
+               Collector.track(
+                 hit(%{
+                   event_type: "leave",
+                   engaged_ms: 3_600_000,
+                   session_anchor: t0,
+                   inserted_at: now
+                 })
+               )
+
+      assert leave.session_id == first.session_id
+    end
+  end
+
+  describe "session_anchor (continued)" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
     test "a late hit anchored at its page view joins that page view's session" do
       opened = hours_ago(2)
       assert {:ok, page} = Collector.track(hit(%{inserted_at: opened}))

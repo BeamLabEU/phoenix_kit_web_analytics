@@ -175,7 +175,9 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     assigns = assign(assigns, :max, max_value(assigns.rows, :pageviews))
 
     ~H"""
-    <div class="rounded-xl border border-base-300 bg-base-100">
+    <%!-- min-w-0: as a grid item the card would otherwise size to its longest
+         label and push the page wider than a phone screen. --%>
+    <div class="min-w-0 rounded-xl border border-base-300 bg-base-100">
       <div class="flex items-center justify-between border-b border-base-300 px-4 py-3">
         <h2 class="flex items-center gap-2 text-sm font-semibold">
           <.icon :if={@icon} name={@icon} class="h-4 w-4 text-base-content/50" />

@@ -76,16 +76,24 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
 
   @doc """
   What the payload reports: `:pageview`, `:event`, `:click`, `:scroll` or
-  `:leave`. A payload with a non-empty `n` and no other type is an event;
-  anything unrecognised is a page view.
+  `:leave` — or `:unknown` for anything else, which is not stored. An
+  `"event"` needs a non-empty name `n`; a payload with only a name is an
+  event too (the 0.2 snippet's shape).
   """
-  @spec kind(map()) :: :pageview | :event | :click | :scroll | :leave
+  @spec kind(map()) :: :pageview | :event | :click | :scroll | :leave | :unknown
   def kind(%{"e" => "pageview"}), do: :pageview
   def kind(%{"e" => "click"}), do: :click
   def kind(%{"e" => "scroll"}), do: :scroll
   def kind(%{"e" => "leave"}), do: :leave
-  def kind(%{"n" => name}) when is_binary(name) and name != "", do: :event
-  def kind(_params), do: :pageview
+
+  def kind(%{"e" => e, "n" => name}) when e in ["event", nil] and is_binary(name) and name != "",
+    do: :event
+
+  def kind(%{"n" => name} = params)
+      when is_binary(name) and name != "" and not is_map_key(params, "e"),
+      do: :event
+
+  def kind(_params), do: :unknown
 
   @doc """
   Whether the payload is one of the client script's hits (clicks, scroll,
@@ -164,6 +172,10 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
       metadata: %{"source" => "beacon"}
     }
   end
+
+  # `to_hit/2` called directly with a shapeless payload (the controller drops
+  # those before this point) describes it as a page view, as 0.2 did.
+  defp kind_attrs(:unknown, params), do: kind_attrs(:pageview, params)
 
   defp kind_attrs(:event, params) do
     %{

@@ -25,6 +25,15 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   which bounds it. `max_engaged_ms/0` caps a single reading so one tab
   forgotten over a weekend can't skew an average.
 
+  ## Reconnects are not exits
+
+  A LiveView process also ends when the connection drops for a moment (a
+  deploy, a flaky network) and the client rejoins with a new process. So a
+  leave is held for a short grace period (10 s by default,
+  `config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: ms`); if the
+  same visitor rejoins the same page within it, the page continues — one
+  view, one leave, time counted from the original start.
+
   ## Scope
 
   The table is per node. On a multi-node deployment each node reports the
@@ -79,9 +88,10 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   (`push_patch` / `<.link patch>`): a leave for the old path, and the clock
   restarts for the new one.
   """
-  @spec navigate(pid(), String.t()) :: :ok
-  def navigate(pid, path) when is_pid(pid) and is_binary(path) do
-    cast({:navigate, pid, path, DateTime.utc_now()})
+  @spec navigate(pid(), String.t(), map(), map()) :: :ok
+  def navigate(pid, path, client \\ %{}, attrs \\ %{})
+      when is_pid(pid) and is_binary(path) do
+    cast({:navigate, pid, path, client, attrs, DateTime.utc_now()})
   end
 
   @doc """
@@ -124,7 +134,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @impl GenServer
   def init(_opts) do
     table = :ets.new(@table, [:named_table, :protected, :set, read_concurrency: true])
-    {:ok, %{table: table, clients: %{}}}
+    {:ok, %{table: table, clients: %{}, pending: %{}}}
   end
 
   @impl GenServer
@@ -132,13 +142,20 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     if :ets.member(@table, pid) do
       {:noreply, state}
     else
-      Process.monitor(pid)
-      :ets.insert(@table, {pid, build_visit(pid, client, attrs, now)})
-      {:noreply, put_in(state.clients[pid], client)}
+      visit = build_visit(pid, client, attrs, now)
+
+      # A rejoin of a page whose process just went down continues that view.
+      {visit, state} =
+        case Map.pop(state.pending, pending_key(client, visit)) do
+          {nil, _pending} -> {visit, state}
+          {left, pending} -> {%{visit | since: left.visit.since}, %{state | pending: pending}}
+        end
+
+      {:noreply, start_watching(state, pid, client, visit)}
     end
   end
 
-  def handle_cast({:navigate, pid, path, now}, state) do
+  def handle_cast({:navigate, pid, path, client, attrs, now}, state) do
     case :ets.lookup(@table, pid) do
       [{^pid, %{path: ^path}}] ->
         {:noreply, state}
@@ -149,22 +166,41 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
         {:noreply, state}
 
       [] ->
-        {:noreply, state}
+        # Not watched: this server restarted while the page stayed open. Start
+        # watching from here rather than losing the page for good.
+        if client == %{} do
+          {:noreply, state}
+        else
+          visit = build_visit(pid, client, Map.put(attrs, :path, path), now)
+          {:noreply, start_watching(state, pid, client, visit)}
+        end
     end
   end
 
   @impl GenServer
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    {client, clients} = Map.pop(state.clients, pid)
+    state = %{state | clients: clients}
+
     case :ets.lookup(@table, pid) do
       [{^pid, visit}] ->
-        record_leave(visit, state.clients[pid], DateTime.utc_now())
         :ets.delete(@table, pid)
+        {:noreply, hold_leave(state, visit, client, DateTime.utc_now())}
 
       [] ->
-        :ok
+        {:noreply, state}
     end
+  end
 
-    {:noreply, %{state | clients: Map.delete(state.clients, pid)}}
+  def handle_info({:finalize_leave, key, ref}, state) do
+    case Map.get(state.pending, key) do
+      %{ref: ^ref, visit: visit, client: client, left_at: left_at} ->
+        record_leave(visit, client, left_at)
+        {:noreply, %{state | pending: Map.delete(state.pending, key)}}
+
+      _superseded ->
+        {:noreply, state}
+    end
   end
 
   def handle_info(message, state) do
@@ -180,6 +216,30 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       server -> GenServer.cast(server, message)
     end
   end
+
+  defp start_watching(state, pid, client, visit) do
+    Process.monitor(pid)
+    :ets.insert(@table, {pid, visit})
+    put_in(state.clients[pid], client)
+  end
+
+  # The leave is recorded when the grace period ends, unless the same visitor
+  # rejoins the same page first. It keeps the time it actually happened.
+  defp hold_leave(state, _visit, nil, _left_at), do: state
+
+  defp hold_leave(state, visit, client, left_at) do
+    key = pending_key(client, visit)
+    ref = make_ref()
+    Process.send_after(self(), {:finalize_leave, key, ref}, reconnect_grace_ms())
+
+    entry = %{ref: ref, visit: visit, client: client, left_at: left_at}
+    put_in(state.pending[key], entry)
+  end
+
+  defp pending_key(client, visit), do: {client[:ip], client[:user_agent], visit.site, visit.path}
+
+  defp reconnect_grace_ms,
+    do: Application.get_env(:phoenix_kit_web_analytics, :presence_reconnect_grace_ms, 10_000)
 
   defp build_visit(pid, client, attrs, now) do
     ua = UserAgent.parse(client[:user_agent])

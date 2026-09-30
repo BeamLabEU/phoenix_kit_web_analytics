@@ -225,7 +225,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               type="number"
               id="session_timeout"
               name="session_timeout"
-              label={gettext("Session timeout (minutes)")}
+              label={gettext("Session timeout, minutes")}
               value={@config.session_timeout_minutes}
               min="1"
               max="1440"
@@ -234,12 +234,15 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               type="number"
               id="retention_days"
               name="retention_days"
-              label={gettext("Keep raw events (days, 0 = forever)")}
+              label={gettext("Keep raw events, days")}
               value={@retention_days}
               min="0"
               max="3650"
             />
           </div>
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext("0 keeps raw events forever. Daily totals are always kept.")}
+          </p>
         </section>
 
         <section class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4">
@@ -355,10 +358,13 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             <.input
               id="alert_paths"
               name="alert_paths"
-              label={gettext("Only when landing on (blank = any page)")}
+              label={gettext("Landing pages")}
               value={Enum.join(@alerts.paths, ", ")}
               placeholder="/pricing, /blog*"
             />
+            <p class="-mt-2 text-xs text-base-content/50">
+              {gettext("Only visits that start on these pages. Blank means any page.")}
+            </p>
 
             <.checkbox
               name="alert_skip_users"
@@ -370,11 +376,14 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               type="number"
               id="alert_max_per_hour"
               name="alert_max_per_hour"
-              label={gettext("At most this many visitor alerts per hour (0 = no limit)")}
+              label={gettext("Alerts per hour, at most")}
               value={@alerts.max_per_hour}
               min="0"
               max="10000"
             />
+            <p class="-mt-2 text-xs text-base-content/50">
+              {gettext("Beyond this, the next alert says how many were held back. 0 means no limit.")}
+            </p>
           </div>
 
           <.input

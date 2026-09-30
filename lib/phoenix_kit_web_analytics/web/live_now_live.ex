@@ -111,7 +111,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
-        <div class="rounded-xl border border-base-300 bg-base-100 lg:col-span-2">
+        <div class="min-w-0 rounded-xl border border-base-300 bg-base-100 lg:col-span-2">
           <div class="border-b border-base-300 px-4 py-3">
             <h2 class="text-sm font-semibold">{gettext("Open pages")}</h2>
             <p class="text-xs text-base-content/50">

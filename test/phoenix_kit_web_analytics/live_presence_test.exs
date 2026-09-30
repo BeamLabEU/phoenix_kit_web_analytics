@@ -150,6 +150,81 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
     end
   end
 
+  describe "reconnects (found in review)" do
+    setup do
+      enable_tracking()
+      Application.put_env(:phoenix_kit_web_analytics, :presence_reconnect_grace_ms, 300)
+
+      on_exit(fn ->
+        Application.put_env(:phoenix_kit_web_analytics, :presence_reconnect_grace_ms, 0)
+      end)
+
+      start_supervised!(LivePresence)
+      :ok
+    end
+
+    # A dropped connection ends the LiveView process and the client rejoins
+    # with a new one. That used to record a leave for the old process and,
+    # later, another for the new one — two exits for one view.
+    test "a rejoin of the same page within the grace period is one view, one leave" do
+      first = spawn_page()
+      LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+      [%{since: since}] = LivePresence.list()
+
+      Process.exit(first, :kill)
+      wait_until(fn -> LivePresence.count(nil) == 0 end)
+
+      second = spawn_page()
+      LivePresence.watch(second, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+
+      # The grace period passes with the page still open: no leave yet, and
+      # the view keeps its original start.
+      Process.sleep(400)
+      assert leaves() == []
+      assert [%{since: ^since}] = LivePresence.list()
+
+      Process.exit(second, :kill)
+      assert [%{path: "/pricing"}] = wait_for_leave_list(1)
+      Process.sleep(400)
+      assert length(leaves()) == 1
+    end
+
+    test "a page left for good records its leave once the grace period ends" do
+      pid = spawn_page()
+      LivePresence.watch(pid, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+
+      Process.exit(pid, :kill)
+      Process.sleep(100)
+      assert leaves() == []
+
+      assert [%{path: "/pricing"}] = wait_for_leave_list(1)
+    end
+  end
+
+  describe "a presence server that restarted while pages stayed open" do
+    setup do
+      enable_tracking()
+      start_supervised!(LivePresence)
+      :ok
+    end
+
+    # Found in review: navigate/2 for a page the server no longer knew was
+    # ignored, so the page vanished from presence and never recorded a leave.
+    test "navigate/4 starts watching an unknown page instead of losing it" do
+      pid = spawn_page()
+      LivePresence.navigate(pid, "/after-restart", @client, %{site: "example.com"})
+
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+      assert [%{path: "/after-restart"}] = LivePresence.list()
+
+      Process.exit(pid, :kill)
+      assert wait_for_leave("/after-restart")
+    end
+  end
+
   describe "without the server running" do
     test "list/1 and a site count are empty, and running?/0 is false" do
       refute LivePresence.running?()
@@ -184,6 +259,11 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
 
   defp wait_for_leave(path) do
     wait_until(fn -> Enum.find(leaves(), &(&1.path == path)) end)
+  end
+
+  defp wait_for_leave_list(count) do
+    wait_until(fn -> length(leaves()) == count end)
+    leaves()
   end
 
   defp wait_until(fun, attempts \\ 100) do

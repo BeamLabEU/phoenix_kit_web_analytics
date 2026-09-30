@@ -78,9 +78,10 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     :ok
   end
 
-  # A payload says what it reports (`e`, or a custom event's `n`). An empty or
-  # undecodable body says nothing, and must not become a page view of "/".
-  defp reported?(params), do: Map.has_key?(params, "e") or is_binary(params["n"])
+  # A payload must say what it reports in a shape we know. An empty or
+  # undecodable body, an unknown type, or an event without a name is dropped —
+  # never stored as a page view of "/".
+  defp reported?(params), do: BeaconPayload.kind(params) != :unknown
 
   # Page views ride on the beacon switch; clicks, scroll and leaves on the
   # client-script switch; custom events (`phoenixKitAnalytics(...)`, which

@@ -162,7 +162,11 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
 
       true ->
         track_pageview(socket, parsed, state.uri)
-        LivePresence.navigate(self(), path)
+
+        LivePresence.navigate(self(), path, socket.assigns[@client_key], %{
+          site: Referrer.normalize_host(parsed.host),
+          user_uuid: Tracking.current_user_uuid(socket.assigns)
+        })
     end
 
     {:cont, assign(socket, @state_key, %{state | first?: false, uri: uri, last_event: nil})}

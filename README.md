@@ -247,7 +247,7 @@ bounded.
 The request process does a method/path check, one ETS read for settings, and
 `register_before_send/2`. Enrichment, session stitching and the insert happen
 in a supervised task after the response is on its way out. The task
-supervisor is capped (200 concurrent writes by default,
+supervisor is capped (20 concurrent writes by default,
 `config :phoenix_kit_web_analytics, max_concurrent_writes: n`); under a flood
 hits are dropped rather than queued, so analytics never exhausts your database
 pool. LiveView interactions cost one `attach_hook` call and a message.
@@ -289,7 +289,7 @@ config :phoenix_kit_web_analytics, geo_resolver: MyApp.GeoIP
 config :phoenix_kit_web_analytics, trust_x_forwarded_for: true
 
 # Concurrent background writes before hits are dropped.
-config :phoenix_kit_web_analytics, max_concurrent_writes: 200
+config :phoenix_kit_web_analytics, max_concurrent_writes: 20
 ```
 
 ## Excluding specific requests

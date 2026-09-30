@@ -41,7 +41,8 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
   Everyone who can open Web Analytics: Owners, and every active user whose
   role grants the `web_analytics` permission (or the `*` wildcard). The list is
-  cached for five minutes.
+  cached for five minutes, so a revoked permission or a deactivated account
+  can keep receiving alerts for up to five minutes.
 
   ## Delivery
 
@@ -224,18 +225,18 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   @doc "Sends the sign-up alert for a newly created user. Never raises."
   @spec user_registered(map()) :: :ok
   def user_registered(%{uuid: uuid} = user) when is_binary(uuid) do
-    if Config.enabled?() and config().signups? and first_signup_alert?(uuid) do
-      name = display_name(user)
-
-      deliver(@signup_action,
-        resource_type: "user",
-        resource_uuid: uuid,
-        actor_uuid: uuid,
-        text: gettext("New sign-up: %{name}", name: name),
-        icon: "hero-user-plus",
-        link: Routes.path("/admin/users/view/#{uuid}"),
-        metadata: %{"user_uuid" => uuid}
-      )
+    if Config.enabled?() and config().signups? do
+      once_per_signup(uuid, fn ->
+        deliver(@signup_action,
+          resource_type: "user",
+          resource_uuid: uuid,
+          actor_uuid: uuid,
+          text: gettext("New sign-up: %{name}", name: display_name(user)),
+          icon: "hero-user-plus",
+          link: Routes.path("/admin/users/view/#{uuid}"),
+          metadata: %{"user_uuid" => uuid}
+        )
+      end)
     end
 
     :ok
@@ -384,9 +385,19 @@ defmodule PhoenixKitWebAnalytics.Alerts do
     hour = System.os_time(:second) |> div(3600)
     sent = :ets.update_counter(@table, {:sent, hour}, {2, 1}, {{:sent, hour}, 0})
 
+    # The first alert of an hour clears the counters of hours gone by.
+    if sent == 1,
+      do: :ets.select_delete(@table, [{{{:sent, :"$1"}, :_}, [{:<, :"$1", hour}], [true]}])
+
     if sent <= max do
-      held = :ets.update_counter(@table, :held_back, {2, 0}, {:held_back, 0})
-      :ets.insert(@table, {:held_back, 0})
+      # `take` reads and removes in one step, so two alerts going out at once
+      # can't both report the same held-back count.
+      held =
+        case :ets.take(@table, :held_back) do
+          [{:held_back, count}] -> count
+          [] -> 0
+        end
+
       {:ok, held}
     else
       :ets.update_counter(@table, :held_back, {2, 1}, {:held_back, 0})
@@ -424,27 +435,29 @@ defmodule PhoenixKitWebAnalytics.Alerts do
     end
   end
 
-  # PubSub reaches every node of a cluster, so each would alert. The first
-  # node to take the lock and find no earlier entry sends it.
-  defp first_signup_alert?(user_uuid) do
+  # PubSub reaches every node of a cluster, so each would alert. The check
+  # and the delivery run in one transaction under an advisory lock on the
+  # user: the first node writes the entries while holding it, and the next
+  # one, once it gets the lock, finds them and sends nothing.
+  defp once_per_signup(user_uuid, send_fun) do
     repo = PhoenixKit.RepoHelper.repo()
 
-    {:ok, first?} =
-      repo.transaction(fn ->
-        repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", ["wa_signup:" <> user_uuid],
-          log: false
-        )
+    repo.transaction(fn ->
+      repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", ["wa_signup:" <> user_uuid],
+        log: false
+      )
 
-        not repo.exists?(
+      already_sent? =
+        repo.exists?(
           from(a in "phoenix_kit_activities",
             where:
               a.action == ^@signup_action and
                 a.resource_uuid == type(^user_uuid, Ecto.UUID)
           )
         )
-      end)
 
-    first?
+      unless already_sent?, do: send_fun.()
+    end)
   end
 
   defp load_recipients do

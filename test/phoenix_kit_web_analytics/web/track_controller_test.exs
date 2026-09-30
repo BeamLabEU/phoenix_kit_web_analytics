@@ -122,6 +122,20 @@ defmodule PhoenixKitWebAnalytics.Web.TrackControllerTest do
 
       assert events() == []
     end
+
+    # Found in review: an unknown type or a nameless event used to be stored
+    # as a page view of its path.
+    test "an unknown type or a nameless event stores nothing", %{conn: conn} do
+      for payload <- [
+            %{"e" => "purchase", "p" => "/checkout"},
+            %{"n" => "", "p" => "/checkout"},
+            %{"e" => "event", "p" => "/checkout"}
+          ] do
+        assert beacon_text(conn, Jason.encode!(payload)).status == 204
+      end
+
+      assert events() == []
+    end
   end
 
   defp oversized_body do

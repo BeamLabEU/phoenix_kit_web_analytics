@@ -32,6 +32,10 @@ config :phoenix_kit_web_analytics, PhoenixKitWebAnalytics.Test.Endpoint,
 # test's end.
 config :phoenix_kit_web_analytics, async_tracking: false
 
+# A closed page's leave is recorded at once in tests; the reconnect grace
+# period is exercised by setting it explicitly.
+config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 0
+
 config :phoenix, :json_library, Jason
 
 config :logger, level: :warning

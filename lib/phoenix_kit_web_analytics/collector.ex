@@ -10,7 +10,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   the insert) happens after the response is on its way out. The request process
   spends microseconds building a map.
 
-  The task supervisor is started with a `max_children` cap (200 by default,
+  The task supervisor is started with a `max_children` cap (20 by default,
   `config :phoenix_kit_web_analytics, max_concurrent_writes: n`). Under a
   flood, once the cap is reached, further hits are **dropped** rather than
   queued — an analytics backlog must not become the reason a host runs out of
@@ -77,7 +77,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Visitor
 
   @task_supervisor PhoenixKitWebAnalytics.TaskSupervisor
-  @default_max_writes 200
+  # Near a default Ecto pool (10) rather than far above it: each write holds a
+  # connection for its transaction, and the host's own requests share the pool.
+  @default_max_writes 20
+  # A late hit (a leave) may land up to this long after its anchor and still
+  # see the page view that opened it.
+  @anchor_slack_seconds 5
   @warned_key {__MODULE__, :no_supervisor_warned}
 
   @doc """
@@ -255,7 +260,11 @@ defmodule PhoenixKitWebAnalytics.Collector do
   defp insert_stitched(hit, config, ua, visitor_id, site, now, anchor) do
     repo().transaction(fn ->
       lock_visitor(visitor_id)
-      stitch = stitch(visitor_id, config.session_timeout_minutes, anchor, site)
+
+      stitch =
+        stitch(visitor_id, config.session_timeout_minutes, anchor, site,
+          anchored?: is_struct(hit[:session_anchor], DateTime)
+        )
 
       attrs =
         hit
@@ -292,14 +301,21 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  # Bounded wait: a flood of hits for one visitor must not park connections
+  # behind the lock. A hit that can't get it in time fails and is dropped.
   defp lock_visitor(visitor_id) do
+    repo().query!("SET LOCAL lock_timeout = '2s'", [], log: false)
     repo().query!("SELECT pg_advisory_xact_lock(hashtext($1))", [visitor_id], log: false)
   end
 
   # The visitor's latest hit on this site inside the window decides the
   # session; its language fills in for hits that can't see the
   # Accept-Language header (LiveView navigations, leaves).
-  defp stitch(visitor_id, timeout_minutes, now, site) do
+  #
+  # An anchored (late) hit looks only up to its anchor: a leave for a page
+  # opened at t0 must join t0's session, not a newer one the visitor started
+  # since.
+  defp stitch(visitor_id, timeout_minutes, now, site, opts \\ []) do
     cutoff = DateTime.add(now, -timeout_minutes * 60, :second)
 
     query =
@@ -310,6 +326,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         select: %{session_id: e.session_id, language: e.language}
       )
       |> where_site(site)
+      |> until_anchor(now, Keyword.get(opts, :anchored?, false))
 
     case repo().one(query) do
       nil -> %{session_id: UUIDv7.generate(), language: nil, new?: true}
@@ -320,6 +337,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
     error in [DBConnection.ConnectionError, Postgrex.Error] ->
       Logger.debug("[WebAnalytics] session stitch failed: #{Exception.message(error)}")
       %{session_id: UUIDv7.generate(), language: nil, new?: true}
+  end
+
+  defp until_anchor(query, _anchor, false), do: query
+
+  defp until_anchor(query, anchor, true) do
+    upper = DateTime.add(anchor, @anchor_slack_seconds, :second)
+    where(query, [e], e.inserted_at <= ^upper)
   end
 
   defp where_site(query, :any), do: query
