@@ -25,6 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Reports
+  alias PhoenixKitWebAnalytics.Web.Filters
   alias PhoenixKitWebAnalytics.Web.UserNames
 
   @refresh_ms 5_000
@@ -71,7 +72,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
       UserNames.for_uuids(Enum.map(open, & &1.user_uuid) ++ Enum.map(recent, & &1.user_uuid))
 
     socket
-    |> assign(:online, PhoenixKitWebAnalytics.Web.Filters.online(nil))
+    |> assign(:online, Filters.online(nil))
     |> assign(:now, now)
     |> assign(:open, open)
     |> assign(:recent, recent)
