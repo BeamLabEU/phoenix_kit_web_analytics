@@ -40,11 +40,15 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   hook does nothing unless the endpoint provides them:
 
       socket "/live", Phoenix.LiveView.Socket,
-        websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+        websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
+        longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
 
-  Both keys must be listed. If either is missing the hook stays inert and only
-  full page loads are counted — check this first if LiveView activity isn't
-  showing up.
+  Both keys must be listed, **on both transports**: LiveView falls back to
+  long polling when a websocket can't be opened (a corporate proxy, a flaky
+  network), and a visitor on the fallback transport is invisible to this hook
+  if only `websocket:` carries them. If either is missing the hook stays inert
+  and only full page loads are counted — check this first if LiveView activity
+  isn't showing up.
 
   ## Not double-counted
 

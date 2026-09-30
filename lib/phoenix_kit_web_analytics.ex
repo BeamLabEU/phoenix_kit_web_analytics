@@ -64,6 +64,7 @@ defmodule PhoenixKitWebAnalytics do
   """
 
   use PhoenixKit.Module
+  use Gettext, backend: PhoenixKitWebAnalytics.Gettext
 
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Settings
@@ -79,7 +80,7 @@ defmodule PhoenixKitWebAnalytics do
   def module_key, do: "web_analytics"
 
   @impl PhoenixKit.Module
-  def module_name, do: "Web Analytics"
+  def module_name, do: gettext("Web Analytics")
 
   @impl PhoenixKit.Module
   @doc """
@@ -120,9 +121,9 @@ defmodule PhoenixKitWebAnalytics do
   def permission_metadata do
     %{
       key: module_key(),
-      label: "Web Analytics",
+      label: gettext("Web Analytics"),
       icon: "hero-chart-bar",
-      description: "Cookieless, server-side traffic analytics"
+      description: gettext("Cookieless, server-side traffic analytics")
     }
   end
 
@@ -135,7 +136,7 @@ defmodule PhoenixKitWebAnalytics do
     [
       %Tab{
         id: :admin_web_analytics,
-        label: "Web Analytics",
+        label: gettext_noop("Web Analytics"),
         icon: "hero-chart-bar",
         path: "web-analytics",
         priority: 650,
@@ -144,45 +145,71 @@ defmodule PhoenixKitWebAnalytics do
         match: :prefix,
         group: :admin_modules,
         subtab_display: :when_active,
-        highlight_with_subtabs: false
+        highlight_with_subtabs: false,
+        gettext_backend: PhoenixKitWebAnalytics.Gettext
       },
-      subtab(:admin_web_analytics_overview, "Overview", "hero-chart-bar", "web-analytics", 651,
+      subtab(
+        :admin_web_analytics_overview,
+        gettext_noop("Overview"),
+        "hero-chart-bar",
+        "web-analytics",
+        651,
         match: :exact
       ),
       subtab(
-        :admin_web_analytics_pages,
-        "Pages",
-        "hero-document-text",
-        "web-analytics/pages",
+        :admin_web_analytics_live,
+        gettext_noop("Right now"),
+        "hero-signal",
+        "web-analytics/live",
         652
       ),
       subtab(
-        :admin_web_analytics_sources,
-        "Acquisition",
-        "hero-arrow-trending-up",
-        "web-analytics/sources",
+        :admin_web_analytics_sessions,
+        gettext_noop("Sessions"),
+        "hero-users",
+        "web-analytics/sessions",
         653
       ),
       subtab(
-        :admin_web_analytics_technology,
-        "Technology",
-        "hero-device-phone-mobile",
-        "web-analytics/technology",
+        :admin_web_analytics_pages,
+        gettext_noop("Pages"),
+        "hero-document-text",
+        "web-analytics/pages",
         654
       ),
-      subtab(:admin_web_analytics_events, "Events", "hero-bolt", "web-analytics/events", 655),
+      subtab(
+        :admin_web_analytics_sources,
+        gettext_noop("Acquisition"),
+        "hero-arrow-trending-up",
+        "web-analytics/sources",
+        655
+      ),
+      subtab(
+        :admin_web_analytics_technology,
+        gettext_noop("Technology"),
+        "hero-device-phone-mobile",
+        "web-analytics/technology",
+        656
+      ),
+      subtab(
+        :admin_web_analytics_events,
+        gettext_noop("Events"),
+        "hero-bolt",
+        "web-analytics/events",
+        657
+      ),
       subtab(
         :admin_web_analytics_settings,
-        "Settings",
+        gettext_noop("Settings"),
         "hero-cog-6-tooth",
         "web-analytics/settings",
-        656
+        658
       )
     ]
   end
 
   @impl PhoenixKit.Module
-  @doc "Six admin pages plus the public collection endpoints."
+  @doc "The admin pages plus the public collection endpoints."
   def route_module, do: PhoenixKitWebAnalytics.Routes
 
   @impl PhoenixKit.Module
@@ -302,7 +329,8 @@ defmodule PhoenixKitWebAnalytics do
       level: :admin,
       permission: module_key(),
       parent: :admin_web_analytics,
-      match: Keyword.get(opts, :match, :prefix)
+      match: Keyword.get(opts, :match, :prefix),
+      gettext_backend: PhoenixKitWebAnalytics.Gettext
     }
   end
 end

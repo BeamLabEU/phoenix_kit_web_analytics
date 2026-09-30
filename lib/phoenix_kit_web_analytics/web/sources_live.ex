@@ -10,6 +10,9 @@ defmodule PhoenixKitWebAnalytics.Web.SourcesLive do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWebAnalytics.Gettext
+
+  require Logger
 
   import PhoenixKitWebAnalytics.Web.Components
 
@@ -19,7 +22,7 @@ defmodule PhoenixKitWebAnalytics.Web.SourcesLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, "Acquisition · Web Analytics")}
+    {:ok, assign(socket, :page_title, gettext("Acquisition"))}
   end
 
   @impl true
@@ -30,6 +33,12 @@ defmodule PhoenixKitWebAnalytics.Web.SourcesLive do
   @impl true
   def handle_event("filter", params, socket) do
     {:noreply, push_patch(socket, to: Filters.patch_to(Paths.sources(), params))}
+  end
+
+  @impl true
+  def handle_info(message, socket) do
+    Logger.debug("[WebAnalytics] SourcesLive ignored #{inspect(message)}")
+    {:noreply, socket}
   end
 
   defp load(socket) do
@@ -47,43 +56,48 @@ defmodule PhoenixKitWebAnalytics.Web.SourcesLive do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p class="text-sm text-base-content/60">Referrers, channels, and campaigns.</p>
-        </div>
-        <.filter_bar period={@period} site={@site} sites={@sites} />
+        <p class="text-sm text-base-content/60">{gettext("Referrers, channels, and campaigns.")}</p>
+        <.filter_bar
+          period={@period}
+          site={@site}
+          sites={@sites}
+          path={@path}
+          base_path={Paths.sources()}
+        />
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
         <.breakdown_card
-          title="Channels"
+          title={gettext("Channels")}
           icon="hero-share"
           rows={@channels}
-          empty_message="No traffic recorded in this period."
+          labels={:channel}
+          empty_message={gettext("No traffic recorded in this period.")}
         />
         <.breakdown_card
-          title="Referring sites"
+          title={gettext("Referring sites")}
           icon="hero-arrow-trending-up"
           rows={@referrers}
-          empty_message="All traffic in this period was direct."
+          empty_message={gettext("All traffic in this period was direct.")}
         />
         <.breakdown_card
-          title="Campaigns"
+          title={gettext("Campaigns")}
           icon="hero-megaphone"
           rows={@campaigns}
-          empty_message="No utm_campaign parameters seen in this period."
+          empty_message={gettext("No utm_campaign parameters seen in this period.")}
         />
         <.breakdown_card
-          title="Campaign sources"
+          title={gettext("Campaign sources")}
           icon="hero-link"
           rows={@utm_sources}
-          empty_message="No utm_source parameters seen in this period."
+          empty_message={gettext("No utm_source parameters seen in this period.")}
         />
       </div>
 
       <p class="text-xs text-base-content/50">
-        Campaign parameters (<code>utm_source</code>, <code>utm_medium</code>, <code>utm_campaign</code>, <code>utm_term</code>, <code>utm_content</code>)
-        are read from the query string and stored in their own columns. The rest of the
-        query string is never stored.
+        {gettext(
+          "Campaign parameters (utm_source, utm_medium, utm_campaign, utm_term, utm_content) are read from the query string and stored in their own columns. The rest of the query string is never stored."
+        )}
       </p>
     </div>
     """

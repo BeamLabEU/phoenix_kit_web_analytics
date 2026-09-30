@@ -13,6 +13,9 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWebAnalytics.Gettext
+
+  require Logger
 
   import PhoenixKitWebAnalytics.Web.Components
 
@@ -22,7 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :page_title, "Technology · Web Analytics")}
+    {:ok, assign(socket, :page_title, gettext("Technology"))}
   end
 
   @impl true
@@ -33,6 +36,12 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
   @impl true
   def handle_event("filter", params, socket) do
     {:noreply, push_patch(socket, to: Filters.patch_to(Paths.technology(), params))}
+  end
+
+  @impl true
+  def handle_info(message, socket) do
+    Logger.debug("[WebAnalytics] TechnologyLive ignored #{inspect(message)}")
+    {:noreply, socket}
   end
 
   defp load(socket) do
@@ -51,28 +60,41 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p class="text-sm text-base-content/60">
-            Derived from request headers — nothing is measured in the browser.
-          </p>
-        </div>
-        <.filter_bar period={@period} site={@site} sites={@sites} />
+        <p class="text-sm text-base-content/60">
+          {gettext("Derived from request headers — nothing is measured in the browser.")}
+        </p>
+        <.filter_bar
+          period={@period}
+          site={@site}
+          sites={@sites}
+          path={@path}
+          base_path={Paths.technology()}
+        />
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
-        <.breakdown_card title="Browsers" icon="hero-globe-alt" rows={@browsers} />
+        <.breakdown_card title={gettext("Browsers")} icon="hero-globe-alt" rows={@browsers} />
         <.breakdown_card
-          title="Operating systems"
+          title={gettext("Operating systems")}
           icon="hero-computer-desktop"
           rows={@operating_systems}
         />
-        <.breakdown_card title="Devices" icon="hero-device-phone-mobile" rows={@devices} />
-        <.breakdown_card title="Languages" icon="hero-language" rows={@languages} />
         <.breakdown_card
-          title="Countries"
+          title={gettext("Devices")}
+          icon="hero-device-phone-mobile"
+          rows={@devices}
+          labels={:device}
+        />
+        <.breakdown_card title={gettext("Languages")} icon="hero-language" rows={@languages} />
+        <.breakdown_card
+          title={gettext("Countries")}
           icon="hero-map"
           rows={@countries}
-          empty_message="No location data. Configure a geo resolver, or run behind a CDN that sets a country header."
+          empty_message={
+            gettext(
+              "No location data. Configure a geo resolver, or run behind a CDN that sets a country header."
+            )
+          }
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 defmodule PhoenixKitWebAnalytics.Routes do
   @moduledoc """
-  Route macros for the module's six admin pages and two public collection
+  Route macros for the module's admin pages and two public collection
   endpoints. Returned from `PhoenixKitWebAnalytics.route_module/0`; PhoenixKit
   splices the admin routes inside its own `live_session :phoenix_kit_admin`
   (auth + admin layout applied automatically) and the public ones near the top
@@ -24,6 +24,21 @@ defmodule PhoenixKitWebAnalytics.Routes do
     quote do
       live("/admin/web-analytics", PhoenixKitWebAnalytics.Web.DashboardLive, :index,
         as: :phoenix_kit_web_analytics_localized
+      )
+
+      live("/admin/web-analytics/live", PhoenixKitWebAnalytics.Web.LiveNowLive, :index,
+        as: :phoenix_kit_web_analytics_live_localized
+      )
+
+      live("/admin/web-analytics/sessions", PhoenixKitWebAnalytics.Web.SessionsLive, :index,
+        as: :phoenix_kit_web_analytics_sessions_localized
+      )
+
+      live(
+        "/admin/web-analytics/sessions/:session_id",
+        PhoenixKitWebAnalytics.Web.SessionLive,
+        :show,
+        as: :phoenix_kit_web_analytics_session_localized
       )
 
       live("/admin/web-analytics/pages", PhoenixKitWebAnalytics.Web.PagesLive, :index,
@@ -53,6 +68,21 @@ defmodule PhoenixKitWebAnalytics.Routes do
     quote do
       live("/admin/web-analytics", PhoenixKitWebAnalytics.Web.DashboardLive, :index,
         as: :phoenix_kit_web_analytics
+      )
+
+      live("/admin/web-analytics/live", PhoenixKitWebAnalytics.Web.LiveNowLive, :index,
+        as: :phoenix_kit_web_analytics_live
+      )
+
+      live("/admin/web-analytics/sessions", PhoenixKitWebAnalytics.Web.SessionsLive, :index,
+        as: :phoenix_kit_web_analytics_sessions
+      )
+
+      live(
+        "/admin/web-analytics/sessions/:session_id",
+        PhoenixKitWebAnalytics.Web.SessionLive,
+        :show,
+        as: :phoenix_kit_web_analytics_session
       )
 
       live("/admin/web-analytics/pages", PhoenixKitWebAnalytics.Web.PagesLive, :index,

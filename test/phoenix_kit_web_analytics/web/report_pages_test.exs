@@ -85,12 +85,12 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       html = view |> element("form[phx-change='filter']") |> render_change(%{"period" => "30d"})
 
       assert_patch(view, Paths.dashboard() <> "?period=30d")
-      assert html =~ "last 30 days"
+      assert html =~ "Last 30 days"
     end
 
     test "an unknown period in the URL falls back instead of crashing", %{conn: conn} do
       assert {:ok, _view, html} = live(conn, @base <> "?period=nonsense")
-      assert html =~ "last 7 days"
+      assert html =~ "Last 7 days"
     end
   end
 
@@ -152,13 +152,16 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
 
       before = PhoenixKitWebAnalytics.Config.retention_days()
 
-      view
-      |> element("form[phx-submit='save']")
-      |> render_submit(%{"retention_days" => "-5", "session_timeout" => "0"})
+      html =
+        view
+        |> element("form[phx-submit='save']")
+        |> render_submit(%{"retention_days" => "-5", "session_timeout" => "0"})
 
       clear_settings_cache()
 
       assert PhoenixKitWebAnalytics.Config.retention_days() == before
+      assert html =~ "Nothing was saved"
+      refute html =~ "Settings saved."
     end
 
     test "the tracking toggle flips the module switch", %{conn: conn} do
@@ -178,9 +181,10 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
 
       {:ok, view, _html} = live(conn, "#{@base}/settings")
 
-      html = view |> element("button[phx-click='run_retention']") |> render_click()
+      view |> element("button[phx-click='run_retention']") |> render_click()
 
-      assert html =~ "Rolled up 1 day(s)"
+      # The pass runs in start_async, off the LiveView's own process.
+      assert render_async(view) =~ "Rolled up 1 day(s)"
     end
   end
 end

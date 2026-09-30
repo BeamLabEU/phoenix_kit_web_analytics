@@ -170,11 +170,7 @@ defmodule PhoenixKitWebAnalytics.Alerts do
     %{
       visitors?: values[@visitors_key] in ["true", true],
       signups?: values[@signups_key] not in ["false", false],
-      channels:
-        case parse_list(values[@channels_key]) do
-          [] -> @channels
-          list -> Enum.filter(list, &(&1 in @channels))
-        end,
+      channels: parse_channels(values[@channels_key]),
       paths: parse_list(values[@paths_key]),
       skip_users?: values[@skip_users_key] not in ["false", false],
       max_per_hour: non_negative(values[@max_per_hour_key], @default_max_per_hour),
@@ -508,6 +504,11 @@ defmodule PhoenixKitWebAnalytics.Alerts do
       events: []
     }
   end
+
+  # Unset means every channel; "-" is an explicit empty choice.
+  defp parse_channels(nil), do: @channels
+  defp parse_channels("-"), do: []
+  defp parse_channels(value), do: value |> parse_list() |> Enum.filter(&(&1 in @channels))
 
   defp parse_list(value) when is_binary(value) do
     value

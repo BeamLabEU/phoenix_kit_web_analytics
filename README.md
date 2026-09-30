@@ -77,7 +77,8 @@ expose them:
 
 ```elixir
 socket "/live", Phoenix.LiveView.Socket,
-  websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+  websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
+  longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
 ```
 
 Without both keys the hook stays inert rather than recording visits under a
