@@ -34,6 +34,14 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   same visitor rejoins the same page within it, the page continues — one
   view, one leave, time counted from the original start.
 
+  The rejoin can also come first: on a reload Firefox opens the new page's
+  connection before closing the old one, which can linger for seconds. So a
+  page that opens while the same visitor already has the same page open takes
+  that view over, and the older one is hidden for up to 30 s
+  (`presence_supersede_ms`). If the older one goes down in that time it was a
+  reload — one view, one leave, as above. If it is still open after that, it
+  is a real second tab and is shown again.
+
   ## Scope
 
   The table is per node. On a multi-node deployment each node reports the
@@ -205,7 +213,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     table = :ets.new(@table, [:named_table, :protected, :set, read_concurrency: true])
     :ets.new(@index, [:named_table, :protected, :ordered_set, read_concurrency: true])
     :ets.new(@paths, [:named_table, :protected, :set, read_concurrency: true])
-    {:ok, %{table: table, clients: %{}, pending: %{}}}
+    {:ok, %{table: table, clients: %{}, pending: %{}, by_key: %{}, shadowed: %{}}}
   end
 
   @impl GenServer
@@ -215,27 +223,29 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     else
       visit = build_visit(pid, client, attrs, now)
 
-      # A rejoin of a page whose process just went down continues that view.
-      {visit, state} =
-        case Map.pop(state.pending, pending_key(client, visit)) do
-          {nil, _pending} -> {visit, state}
-          {left, pending} -> {%{visit | since: left.visit.since}, %{state | pending: pending}}
-        end
-
-      {:noreply, start_watching(state, pid, client, visit)}
+      {:noreply, join(state, pid, client, visit)}
     end
   end
 
   def handle_cast({:navigate, pid, path, client, attrs, now}, state) do
+    # A hidden page that navigates is a real tab, not a reload's leftover.
+    state = if Map.has_key?(state.shadowed, pid), do: restore(state, pid), else: state
+
     case :ets.lookup(@table, pid) do
       [{^pid, %{path: ^path}}] ->
         {:noreply, state}
 
       [{^pid, visit}] ->
-        record_leave(visit, state.clients[pid], now)
+        client = state.clients[pid]
+        moved = %{visit | path: path, since: now}
+        record_leave(visit, client, now)
         remove_visit(pid, visit)
-        insert_visit(pid, %{visit | path: path, since: now})
-        {:noreply, state}
+        insert_visit(pid, moved)
+
+        {:noreply,
+         state
+         |> drop_key(pending_key(client, visit), pid)
+         |> add_key(pending_key(client, moved), pid)}
 
       [] ->
         # Not watched: this server restarted while the page stayed open. Start
@@ -252,15 +262,28 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @impl GenServer
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     {client, clients} = Map.pop(state.clients, pid)
-    state = %{state | clients: clients}
+    {hidden, shadowed} = Map.pop(state.shadowed, pid)
+    state = %{state | clients: clients, shadowed: shadowed}
 
-    case :ets.lookup(@table, pid) do
-      [{^pid, visit}] ->
+    case {hidden, :ets.lookup(@table, pid)} do
+      # A reload's old page closing: the new page already carries the view.
+      {%{}, _} ->
+        {:noreply, state}
+
+      {nil, [{^pid, visit}]} ->
         remove_visit(pid, visit)
+        state = drop_key(state, pending_key(client, visit), pid)
         {:noreply, hold_leave(state, visit, client, DateTime.utc_now())}
 
-      [] ->
+      {nil, []} ->
         {:noreply, state}
+    end
+  end
+
+  def handle_info({:unshadow, pid, ref}, state) do
+    case state.shadowed do
+      %{^pid => %{ref: ^ref}} -> {:noreply, restore(state, pid)}
+      _ -> {:noreply, state}
     end
   end
 
@@ -289,10 +312,108 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     end
   end
 
+  defp join(state, pid, client, visit) do
+    key = pending_key(client, visit)
+
+    case Map.pop(state.pending, key) do
+      # A rejoin of a page whose process just went down continues that view.
+      {%{} = left, pending} ->
+        start_watching(%{state | pending: pending}, pid, client, %{
+          visit
+          | since: left.visit.since
+        })
+
+      # Or the same page is still open: a reload whose old connection hasn't
+      # closed yet — or a second tab, which time will tell.
+      {nil, _pending} ->
+        case open_with_key(state, key) do
+          nil -> start_watching(state, pid, client, visit)
+          older -> supersede(state, older, pid, client, visit)
+        end
+    end
+  end
+
   defp start_watching(state, pid, client, visit) do
     Process.monitor(pid)
     insert_visit(pid, visit)
-    put_in(state.clients[pid], client)
+
+    state
+    |> put_in([:clients, pid], client)
+    |> add_key(pending_key(client, visit), pid)
+  end
+
+  # The newest open page with this visitor/site/path key, if superseding is on.
+  defp open_with_key(state, key) do
+    with true <- supersede_ms() > 0,
+         %MapSet{} = pids <- state.by_key[key] do
+      pids
+      |> Enum.flat_map(&:ets.lookup(@table, &1))
+      |> Enum.max_by(fn {_pid, visit} -> DateTime.to_unix(visit.since, :microsecond) end, fn ->
+        nil
+      end)
+    else
+      _ -> nil
+    end
+  end
+
+  # The new page takes the older one's view (and start); the older one is
+  # hidden — still monitored — until it closes or proves to be a real tab.
+  defp supersede(state, {older_pid, older}, pid, client, visit) do
+    remove_visit(older_pid, older)
+    ref = make_ref()
+    Process.send_after(self(), {:unshadow, older_pid, ref}, supersede_ms())
+
+    hidden = %{ref: ref, visit: older, new_pid: pid, new_since: visit.since}
+
+    state
+    |> drop_key(pending_key(client, older), older_pid)
+    |> put_in([:shadowed, older_pid], hidden)
+    |> start_watching(pid, client, %{visit | since: older.since})
+  end
+
+  # A hidden page still open: it's a second tab. Show it again, and give the
+  # newer page back its own start.
+  defp restore(state, pid) do
+    {hidden, shadowed} = Map.pop(state.shadowed, pid)
+    state = %{state | shadowed: shadowed}
+    client = state.clients[pid]
+    new_pid = hidden.new_pid
+
+    case :ets.lookup(@table, new_pid) do
+      [{^new_pid, %{since: since} = newer}] when since == hidden.visit.since ->
+        remove_visit(new_pid, newer)
+        insert_visit(new_pid, %{newer | since: hidden.new_since})
+
+      _ ->
+        :ok
+    end
+
+    insert_visit(pid, hidden.visit)
+    add_key(state, pending_key(client, hidden.visit), pid)
+  end
+
+  defp add_key(state, key, pid),
+    do:
+      update_in(
+        state.by_key,
+        &Map.update(&1, key, MapSet.new([pid]), fn s -> MapSet.put(s, pid) end)
+      )
+
+  defp drop_key(state, key, pid) do
+    case state.by_key do
+      %{^key => pids} ->
+        rest = MapSet.delete(pids, pid)
+
+        by_key =
+          if MapSet.size(rest) == 0,
+            do: Map.delete(state.by_key, key),
+            else: Map.put(state.by_key, key, rest)
+
+        %{state | by_key: by_key}
+
+      _ ->
+        state
+    end
   end
 
   # The three tables change together, only here, in the server process.
@@ -333,6 +454,9 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   end
 
   defp pending_key(client, visit), do: {client[:ip], client[:user_agent], visit.site, visit.path}
+
+  defp supersede_ms,
+    do: Application.get_env(:phoenix_kit_web_analytics, :presence_supersede_ms, 30_000)
 
   defp reconnect_grace_ms,
     do: Application.get_env(:phoenix_kit_web_analytics, :presence_reconnect_grace_ms, 10_000)

@@ -273,6 +273,81 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
     end
   end
 
+  describe "a reload whose old connection closes after the new page opens" do
+    setup do
+      enable_tracking()
+      Application.put_env(:phoenix_kit_web_analytics, :presence_supersede_ms, 300)
+
+      on_exit(fn ->
+        Application.put_env(:phoenix_kit_web_analytics, :presence_supersede_ms, 0)
+      end)
+
+      start_supervised!(LivePresence)
+      :ok
+    end
+
+    # Firefox opens the reloaded page's connection before closing the old
+    # one, so for a few seconds the same visitor had the same page open twice.
+    test "is one page and one view, with no leave for the old connection" do
+      old = spawn_page()
+      LivePresence.watch(old, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+      [%{since: since}] = LivePresence.list()
+
+      new = spawn_page()
+      LivePresence.watch(new, @client, %{path: "/pricing", site: "example.com"})
+
+      # Straight away: one page, the new one, keeping the view's start.
+      wait_until(fn -> match?([%{pid: ^new}], LivePresence.list()) end)
+      assert [%{since: ^since}] = LivePresence.list()
+      assert LivePresence.by_path(10) == [{"/pricing", 1}]
+
+      Process.exit(old, :kill)
+      Process.sleep(400)
+
+      assert [%{pid: ^new, since: ^since}] = LivePresence.list()
+      assert leaves() == []
+
+      Process.exit(new, :kill)
+      assert [%{path: "/pricing"}] = wait_for_leave_list(1)
+    end
+
+    test "a second tab that stays open is shown again, with its own start" do
+      first = spawn_page()
+      LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+
+      second = spawn_page()
+      LivePresence.watch(second, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> match?([%{pid: ^second}], LivePresence.list()) end)
+
+      wait_until(fn -> LivePresence.count(nil) == 2 end)
+      [newer, older] = LivePresence.list()
+      assert newer.pid == second and older.pid == first
+      assert DateTime.compare(newer.since, older.since) == :gt
+      assert LivePresence.by_path(10) == [{"/pricing", 2}]
+
+      Enum.each([first, second], &Process.exit(&1, :kill))
+    end
+
+    test "a hidden page that navigates is a real tab, shown again" do
+      first = spawn_page()
+      LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+
+      second = spawn_page()
+      LivePresence.watch(second, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> match?([%{pid: ^second}], LivePresence.list()) end)
+
+      LivePresence.navigate(first, "/blog", @client, %{site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 2 end)
+
+      assert Enum.sort(LivePresence.by_path(10)) == [{"/blog", 1}, {"/pricing", 1}]
+
+      Enum.each([first, second], &Process.exit(&1, :kill))
+    end
+  end
+
   describe "a presence server that restarted while pages stayed open" do
     setup do
       enable_tracking()

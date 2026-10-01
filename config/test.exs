@@ -36,6 +36,10 @@ config :phoenix_kit_web_analytics, async_tracking: false
 # period is exercised by setting it explicitly.
 config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 0
 
+# Two pages of one visitor's same path are two pages in tests; superseding
+# (a reload whose old connection lingers) is exercised by setting it.
+config :phoenix_kit_web_analytics, presence_supersede_ms: 0
+
 # Reports read fresh data in tests (no 30 s cache).
 config :phoenix_kit_web_analytics, report_cache_ms: 0
 
