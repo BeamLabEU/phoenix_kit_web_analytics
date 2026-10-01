@@ -162,15 +162,32 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   # `navigator.sendBeacon(url, string)` posts `text/plain`, which the JSON
   # parser leaves alone — so the body is read and decoded here. A JSON body
   # was already parsed into `params`.
+  #
+  # The size limits hold for every content type. A JSON body is parsed by the
+  # host endpoint's `Plug.Parsers` long before this (whose own limit is
+  # megabytes), so a declared length over the cap is dropped here too, before
+  # anything is validated or inspected.
   defp with_body_params(conn, params, max \\ @max_body) do
-    if params_empty?(params) do
-      case read_body(conn, length: max) do
-        {:ok, body, conn} -> {conn, decode(body)}
-        {_other, _body, conn} -> {conn, %{}}
-        {:error, _reason} -> {conn, %{}}
-      end
-    else
-      {conn, params}
+    cond do
+      too_large?(conn, max) ->
+        {conn, %{}}
+
+      params_empty?(params) ->
+        case read_body(conn, length: max) do
+          {:ok, body, conn} -> {conn, decode(body)}
+          {_other, _body, conn} -> {conn, %{}}
+          {:error, _reason} -> {conn, %{}}
+        end
+
+      true ->
+        {conn, params}
+    end
+  end
+
+  defp too_large?(conn, max) do
+    case get_req_header(conn, "content-length") do
+      [length] -> match?({n, ""} when n > max, Integer.parse(length))
+      _ -> false
     end
   end
 

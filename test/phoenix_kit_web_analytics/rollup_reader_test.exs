@@ -178,4 +178,63 @@ defmodule PhoenixKitWebAnalytics.RollupReaderTest do
     assert Reports.overview(filter).pageviews ==
              Reports.overview(%{filter | bots: true}).pageviews - 1
   end
+
+  describe "robustness" do
+    import ExUnit.CaptureLog
+
+    # Each test here builds the one thing it needs, not the shared data set.
+    setup do
+      Repo.delete_all(Event)
+      :ok
+    end
+
+    test "a rolled-up month still shows when the database session time zone is east of UTC" do
+      insert_event(%{inserted_at: days_ago(40)})
+      Retention.rollup_pending_days()
+
+      # `date_trunc` on a date yields midnight in the session's zone, which
+      # reads back as the previous evening in UTC when the zone is east of it.
+      Repo.query!("SET LOCAL timezone = 'Europe/Tallinn'")
+
+      series = Reports.timeseries(Reports.filter(period: "12m"), :month)
+      assert Enum.sum(Enum.map(series, & &1.pageviews)) == 1
+    end
+
+    test "a path that only saw interactions isn't a top page, rolled up or not" do
+      insert_event(%{path: "/real", inserted_at: days_ago(2)})
+
+      insert_event(%{
+        event_type: "interaction",
+        event_name: "click",
+        path: "/only-interaction",
+        inserted_at: days_ago(2)
+      })
+
+      filter = Reports.filter(period: "7d")
+      raw = filter |> Reports.top_paths() |> Enum.map(& &1.label)
+
+      Retention.rollup_pending_days()
+      rolled = filter |> Reports.top_paths() |> Enum.map(& &1.label)
+
+      assert raw == ["/real"]
+      assert rolled == raw
+    end
+
+    test "a failing rollup read degrades to empty numbers instead of raising" do
+      insert_event(%{inserted_at: days_ago(3)})
+      Retention.rollup_pending_days()
+      filter = Reports.filter(period: "30d")
+
+      Repo.query!("ALTER TABLE phoenix_kit_web_analytics_daily_stats RENAME TO gone_for_the_test")
+
+      log =
+        capture_log(fn ->
+          assert %{pageviews: 0, visitors: 0} = Reports.overview(filter)
+          assert Enum.all?(Reports.timeseries(filter, :day), &(&1.pageviews == 0))
+          assert Reports.sites(filter) == []
+        end)
+
+      assert log =~ "report query failed"
+    end
+  end
 end

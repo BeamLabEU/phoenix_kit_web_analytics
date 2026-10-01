@@ -88,6 +88,45 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert trailing.path == "/docs"
     end
 
+    test "a one-time token in the path of core's own routes is never stored" do
+      for {given, stored} <- [
+            {"/users/reset-password/SeCrEt123", "/users/reset-password/:token"},
+            {"/users/confirm/SeCrEt123", "/users/confirm/:token"},
+            {"/users/confirm/change-email/SeCrEt123", "/users/confirm/change-email/:token"},
+            {"/users/magic-link/SeCrEt123", "/users/magic-link/:token"},
+            {"/et/users/register/verify/SeCrEt123", "/et/users/register/verify/:token"},
+            {"/phoenix_kit/users/qr-login/scan/SeCrEt123",
+             "/phoenix_kit/users/qr-login/scan/:token"},
+            {"/profile/settings/confirm-email/SeCrEt123",
+             "/profile/settings/confirm-email/:token"},
+            {"/access/link/SeCrEt123", "/access/link/:token"}
+          ] do
+        assert {:ok, event} = Collector.track(hit(%{path: given}))
+        assert event.path == stored
+      end
+
+      # An ordinary page under a similar name is left alone.
+      assert {:ok, event} = Collector.track(hit(%{path: "/users/confirm"}))
+      assert event.path == "/users/confirm"
+      assert {:ok, event} = Collector.track(hit(%{path: "/blog/confirm/order"}))
+      assert event.path == "/blog/confirm/order"
+    end
+
+    test "a NUL byte in a field costs nothing — the hit is still stored, without it" do
+      assert {:ok, event} =
+               Collector.track(
+                 hit(%{
+                   path: "/pri\0cing",
+                   query_params: %{"utm_source" => "a\0b"},
+                   metadata: %{"params" => %{"tab" => "x\0y"}}
+                 })
+               )
+
+      assert event.path == "/pricing"
+      assert event.utm_source == "ab"
+      assert event.metadata == %{"params" => %{"tab" => "xy"}}
+    end
+
     test "campaign parameters are stored in their own columns" do
       assert {:ok, event} =
                Collector.track(

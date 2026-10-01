@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
   import Ecto.Query
 
   alias PhoenixKitWebAnalytics.LiveHook
+  alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Test.Repo
   alias PhoenixKitWebAnalytics.Tracking
@@ -183,6 +184,30 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       view |> element("#add") |> render_click()
 
       assert events("interaction") == []
+    end
+
+    test "an excluded path isn't listed as open, and closing it leaves no leave", %{conn: conn} do
+      start_supervised!(LivePresence)
+      enable_tracking(%{"web_analytics_exclude_paths" => "/shop*"})
+      {:ok, view, _html} = conn |> with_client() |> live("/shop")
+      :sys.get_state(LivePresence)
+
+      assert LivePresence.list() == []
+
+      GenServer.stop(view.pid)
+      :sys.get_state(LivePresence)
+      assert events("leave") == []
+    end
+
+    test "an automated visitor isn't listed as open unless bots are recorded", %{conn: conn} do
+      start_supervised!(LivePresence)
+      enable_tracking()
+      bot = put_connect_info(conn, peer_data: @peer, user_agent: "Googlebot/2.1")
+
+      {:ok, _view, _html} = live(bot, "/shop")
+      :sys.get_state(LivePresence)
+
+      assert LivePresence.list() == []
     end
 
     test "a signed-in visitor's rows carry their user uuid", %{conn: conn} do

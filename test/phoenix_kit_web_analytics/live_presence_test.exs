@@ -66,6 +66,22 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       assert LivePresence.count(nil) == 0
     end
 
+    test "unwatch/1 records the leave for the page it was on and drops the row" do
+      pid = spawn_page()
+      LivePresence.watch(pid, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+
+      LivePresence.unwatch(pid)
+
+      assert wait_for_leave("/pricing").site == "example.com"
+      wait_until(fn -> LivePresence.list() == [] end)
+
+      # Ending afterwards adds no second leave for a page that was let go.
+      Process.exit(pid, :kill)
+      :sys.get_state(LivePresence)
+      assert Repo.aggregate(Event, :count) == 1
+    end
+
     test "navigate/2 to a new path records a leave for the old one and moves the row" do
       pid = spawn_page()
       LivePresence.watch(pid, @client, %{path: "/a", site: "example.com"})

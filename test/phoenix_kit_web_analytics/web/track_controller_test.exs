@@ -112,6 +112,20 @@ defmodule PhoenixKitWebAnalytics.Web.TrackControllerTest do
       refute Enum.any?(events(), &(&1.event_name == "oversized"))
     end
 
+    test "the size limit holds for a JSON body the endpoint already parsed", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("content-length", "20000")
+        |> post(@beacon_path, %{"n" => "toolarge", "p" => "/pricing"})
+
+      assert conn.status == 204
+      refute Enum.any?(events(), &(&1.event_name == "toolarge"))
+
+      conn = post(build_conn(), @beacon_path, %{"n" => "justright", "p" => "/pricing"})
+      assert conn.status == 204
+      assert Enum.any?(events(), &(&1.event_name == "justright"))
+    end
+
     # Regression: an empty or undecodable body used to fall back to params %{},
     # which BeaconPayload.kind/1 reads as a page view — junk POSTs counted as
     # views of "/".

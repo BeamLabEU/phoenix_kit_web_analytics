@@ -427,14 +427,23 @@ defmodule PhoenixKitWebAnalytics.Retention do
     end
   end
 
+  # The watermark moves once, to the last day that rolled up — not once per
+  # day: every core setting write is a permanent `setting.changed` activity
+  # entry, and a catch-up over a long backlog would write one per day. Days
+  # past a failure stay un-rolled (the watermark stops before them), and a
+  # pass that dies half way simply rolls the same days again — a roll-up is
+  # idempotent.
   defp roll_forward(dates) do
-    Enum.reduce_while(dates, 0, fn date, count ->
-      with :ok <- rollup_day(date), :ok <- advance_watermark(date) do
-        {:cont, if(day_has_rows?(date), do: count + 1, else: count)}
-      else
-        _ -> {:halt, count}
-      end
-    end)
+    {count, last_rolled} =
+      Enum.reduce_while(dates, {0, nil}, fn date, {count, _last} = acc ->
+        case rollup_day(date) do
+          :ok -> {:cont, {if(day_has_rows?(date), do: count + 1, else: count), date}}
+          _ -> {:halt, acc}
+        end
+      end)
+
+    # The tuple's last date is the one before a failure when it halted.
+    if last_rolled && advance_watermark(last_rolled) != :ok, do: 0, else: count
   end
 
   # Re-roll the recent completed days this pass didn't just roll, while

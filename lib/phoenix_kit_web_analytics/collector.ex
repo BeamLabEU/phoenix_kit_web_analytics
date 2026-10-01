@@ -578,6 +578,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # parameters are extracted into their own columns before this point.
   defp normalize_path(path) when is_binary(path) do
     path
+    |> redact_tokens()
     |> String.split("?")
     |> List.first()
     |> String.split("#")
@@ -596,6 +597,17 @@ defmodule PhoenixKitWebAnalytics.Collector do
   end
 
   defp normalize_path(_path), do: "/"
+
+  # Core's own routes that carry a one-time secret in the path itself (a
+  # password reset, an email confirmation, a magic or QR login link, a
+  # private-access link). The token is a live credential until it is used, and
+  # a report reader or an alert recipient must not be able to read it. The
+  # route keeps its name — "/users/reset-password/:token" is still a page worth
+  # counting — and wherever the host mounts the prefix or the locale, the rest
+  # of the path is whatever it was.
+  @token_routes ~r{(/(?:users/(?:confirm/change-email|magic-link|reset-password|confirm|register/verify|register/complete|qr-login/finish|qr-login/scan)|confirm-email|access/link)/)[^/?#]+}
+
+  defp redact_tokens(path), do: Regex.replace(@token_routes, path, "\\1:token")
 
   # "en-US,en;q=0.9" -> "en-US"
   defp normalize_language(nil), do: nil

@@ -64,6 +64,22 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert Date.add(Date.utc_today(), -1) in dates
     end
 
+    test "catching up over a backlog writes the watermark setting once, not once per day" do
+      for days <- 2..6, do: insert_event(%{inserted_at: days_ago(days)})
+
+      assert Retention.rollup_pending_days() == 5
+
+      writes =
+        Enum.count(list_activities(), fn row ->
+          row.action == "setting.changed" and
+            inspect(row) =~ "web_analytics_rolled_through"
+        end)
+
+      assert writes == 1
+      assert {:ok, %Date{} = through} = Retention.rolled_through()
+      assert through == Date.add(Date.utc_today(), -1)
+    end
+
     test "a day already rolled up is not processed twice" do
       insert_event(%{inserted_at: days_ago(2)})
 

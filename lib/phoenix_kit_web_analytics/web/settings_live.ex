@@ -157,6 +157,12 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:recording_sample), do: gettext("Visitors recorded")
   defp field_label(:recording_retention_days), do: gettext("Keep recordings")
   defp field_label(:alert_max_per_hour), do: gettext("Alerts per hour")
+  defp field_label(:exclude_paths), do: gettext("Excluded paths")
+  defp field_label(:ignore_events), do: gettext("Events not to record")
+  defp field_label(:event_params), do: gettext("Event values to keep")
+  defp field_label(:alert_paths), do: gettext("Landing pages")
+  defp field_label(:alert_events), do: gettext("Alert on these events")
+  defp field_label(:alert_channels), do: gettext("Only from these channels")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
   @impl true

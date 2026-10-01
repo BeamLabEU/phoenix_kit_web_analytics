@@ -102,6 +102,14 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     do: Map.put_new_lazy(client, :ua, fn -> UserAgent.parse(client[:user_agent]) end)
 
   @doc """
+  Stops watching a LiveView that patched to a page that isn't tracked (an
+  excluded path): a leave for the page it was on, and it drops off the live
+  list. Watching starts again if it patches back to a tracked page.
+  """
+  @spec unwatch(pid(), DateTime.t()) :: :ok
+  def unwatch(pid, now \\ DateTime.utc_now()) when is_pid(pid), do: cast({:unwatch, pid, now})
+
+  @doc """
   Records that a watched LiveView moved to a new URL without a remount
   (`push_patch` / `<.link patch>`): a leave for the old path, and the clock
   restarts for the new one.
@@ -229,6 +237,21 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       visit = build_visit(pid, client, attrs, now)
 
       {:noreply, join(state, pid, client, visit)}
+    end
+  end
+
+  def handle_cast({:unwatch, pid, now}, state) do
+    state = if Map.has_key?(state.shadowed, pid), do: restore(state, pid), else: state
+
+    case :ets.lookup(@table, pid) do
+      [{^pid, visit}] ->
+        client = state.clients[pid]
+        record_leave(visit, client, now)
+        remove_visit(pid, visit)
+        {:noreply, drop_key(state, pending_key(client, visit), pid)}
+
+      [] ->
+        {:noreply, state}
     end
   end
 

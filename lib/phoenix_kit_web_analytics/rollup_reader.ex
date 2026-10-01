@@ -18,6 +18,8 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
 
   import Ecto.Query
 
+  require Logger
+
   alias PhoenixKitWebAnalytics.Dimensions
   alias PhoenixKitWebAnalytics.ReportCache
   alias PhoenixKitWebAnalytics.Retention
@@ -133,8 +135,11 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   defp raw_part(filter, dimension, values) do
     aggregated = filter |> events() |> Dimensions.aggregate(dimension)
 
+    # The rollup drops a row with neither a hit nor an exit (a path that only
+    # saw interactions); the raw side must too, or the same day would list a
+    # zero-view page while it is today and not once it is rolled up.
     from(r in subquery(aggregated),
-      where: not is_nil(r.value),
+      where: not is_nil(r.value) and (r.hits > 0 or r.exits > 0),
       select: %{
         value: r.value,
         detail: r.detail,
@@ -192,12 +197,12 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
       }
     )
     |> where_rollup_site(site)
-    |> repo().one()
+    |> one(empty_totals())
     |> numbers()
   end
 
   defp raw_totals(filter, session_totals_fun) do
-    per_site = filter |> events() |> Dimensions.totals() |> repo().all()
+    per_site = filter |> events() |> Dimensions.totals() |> all([])
 
     sums =
       Enum.reduce(per_site, empty_totals(), fn row, acc ->
@@ -248,7 +253,7 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
           from(s in DailyStat, where: s.date >= ^first and s.date <= ^last)
           |> where_rollup_site(filter.site)
           |> group_rollup(bucket)
-          |> repo().all()
+          |> all([])
           |> Map.new(fn row ->
             {to_date(row.bucket),
              %{pageviews: to_int(row.pageviews), visitors: to_int(row.visitors)}}
@@ -265,11 +270,15 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
     )
   end
 
+  # `date_trunc` on a `date` answers a `timestamptz` — midnight in the
+  # *session's* time zone — which reads back as the previous day's evening
+  # wherever that zone is east of UTC, and the month then matches no bucket.
+  # Casting to `timestamp` first keeps it a plain calendar value.
   defp group_rollup(query, :month) do
     from(s in query,
-      group_by: fragment("date_trunc('month', ?)", s.date),
+      group_by: fragment("date_trunc('month', ?::timestamp)", s.date),
       select: %{
-        bucket: fragment("date_trunc('month', ?)", s.date),
+        bucket: fragment("date_trunc('month', ?::timestamp)", s.date),
         pageviews: sum(s.pageviews),
         visitors: sum(s.visitors)
       }
@@ -296,7 +305,7 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
             distinct: true,
             select: s.site
           )
-          |> repo().all()
+          |> all([])
       end
 
     raw =
@@ -311,7 +320,7 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
             select: e.site,
             limit: 50
           )
-          |> repo().all()
+          |> all([])
       end
 
     (rolled ++ raw) |> Enum.uniq() |> Enum.take(50)
@@ -357,4 +366,33 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   defp to_date(%DateTime{} = at), do: DateTime.to_date(at)
 
   defp repo, do: PhoenixKit.RepoHelper.repo()
+
+  # A broken read costs an empty result, never a failed page — the same rule
+  # `Reports` keeps for its own queries.
+  defp all(query, fallback) do
+    repo().all(query)
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("[WebAnalytics] report query failed: #{Exception.message(error)}")
+      fallback
+  catch
+    :exit, reason ->
+      Logger.warning("[WebAnalytics] report query exited: #{inspect(reason)}")
+      fallback
+  end
+
+  defp one(query, fallback) do
+    case repo().one(query) do
+      nil -> fallback
+      result -> result
+    end
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("[WebAnalytics] report query failed: #{Exception.message(error)}")
+      fallback
+  catch
+    :exit, reason ->
+      Logger.warning("[WebAnalytics] report query exited: #{inspect(reason)}")
+      fallback
+  end
 end

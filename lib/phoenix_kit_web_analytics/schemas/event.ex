@@ -124,6 +124,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
   def changeset(event, attrs) do
     event
     |> cast(attrs, @castable)
+    |> strip_nul_bytes()
     |> validate_required([:event_type, :path, :visitor_id, :session_id])
     |> validate_inclusion(:event_type, @event_types)
     |> validate_inclusion(:device_type, @device_types)
@@ -165,6 +166,26 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
 
   # Never on a byte boundary inside a character: Postgres rejects the invalid
   # UTF-8 and the whole hit is lost.
+  # PostgreSQL refuses a NUL byte in text and in a JSON string even though it
+  # is valid UTF-8, and a hit is one insert: a `?utm_source=%00` would cost the
+  # whole event. Nothing a NUL belongs in is a name or a path anyone reads.
+  defp strip_nul_bytes(changeset) do
+    Enum.reduce(changeset.changes, changeset, fn {field, value}, acc ->
+      case scrub_nul(value) do
+        ^value -> acc
+        scrubbed -> put_change(acc, field, scrubbed)
+      end
+    end)
+  end
+
+  defp scrub_nul(value) when is_binary(value), do: String.replace(value, <<0>>, "")
+
+  defp scrub_nul(value) when is_map(value) and not is_struct(value),
+    do: Map.new(value, fn {key, inner} -> {scrub_nul(key), scrub_nul(inner)} end)
+
+  defp scrub_nul(value) when is_list(value), do: Enum.map(value, &scrub_nul/1)
+  defp scrub_nul(value), do: value
+
   defp truncate(changeset, field, max) do
     case get_change(changeset, field) do
       value when is_binary(value) and byte_size(value) > max ->

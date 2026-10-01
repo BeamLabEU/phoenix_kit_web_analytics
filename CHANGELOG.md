@@ -3,6 +3,68 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.3.0 - 2026-10-01
+
+### ⚠️ Upgrade
+
+- **Run `mix phoenix_kit.update` in the host** — migrations V02–V06 add the
+  session, rollup and recording columns/tables (each step is lock-light; the
+  session-start backfill runs in batches from the retention pass, never in the
+  migration). Requires `phoenix_kit ~> 2.38`.
+- **The visitor-hash secret moved to `web_analytics_hash_secret`** (see Fixed).
+  A new one is generated on first use, so visitor IDs restart once. The old
+  `web_analytics_hash_salt` row is no longer read and can be deleted; earlier
+  `setting.changed` activity entries for it hold the old value in plaintext —
+  purge them.
+
+### Added
+
+- **Server-side tracking**: a LiveView `on_mount` hook records live navigations,
+  interactions (allow-listed params only) and exits straight from the socket;
+  `LivePresence` powers the new **Right now** page.
+- **Sessions** and a per-session timeline; Pages, Acquisition, Technology and
+  Events reports rebuilt on shared dimensions.
+- **Optional client script** (via `js_sources/0`): outbound/download clicks,
+  scroll depth, exits from non-LiveView pages. No cookies or storage.
+- **Optional session recordings** with a replay player on the visit page
+  (coordinates and element positions only — never text or form values).
+- **Behavioural bot signals** (automation flag, page-view speed, no JavaScript).
+- **Daily rollups** (`daily_stats`, `daily_dims`) read together with raw events,
+  a single-flight report cache, and hourly retention that never prunes past the
+  rollup watermark.
+- **Website activity alerts** (new visitors, tracked events, sign-ups) routed
+  through core's notifications.
+- `Admin` module: every operator mutation is logged to `PhoenixKit.Activity`.
+- Estonian and Russian translations.
+
+### Fixed
+
+- **The visitor-hash salt was written in plaintext to the permanent activity
+  log** (and again on every rotation), because core only withholds values of
+  keys whose name marks a secret. The key is now `web_analytics_hash_secret`.
+- Rollup-backed reports (`overview`, `timeseries`, `sites`) raised on a database
+  error instead of degrading to empty results.
+- Monthly chart buckets vanished when the database session time zone was east
+  of UTC.
+- One-time tokens in core's route paths (`/users/reset-password/:token`,
+  `/users/confirm/:token`, magic-link, QR-login, confirm-email, access links)
+  were stored, shown in the Pages report and put into alert text; they are now
+  stored as `:token`.
+- Excluded paths and declared bots appeared under "Right now" and wrote leave
+  events.
+- "Tracked events" alerts were forgeable and uncapped; alert text could carry a
+  visitor-crafted `utm_source` sentence; crawlers alerted with bot tracking on.
+  Event alerts now have their own hourly cap, visitor-side text is cleaned, and
+  bots never alert.
+- A page that only saw interactions listed as a zero-view top page until its
+  day was rolled up.
+- The rollup watermark was written once per rolled day (one permanent
+  `setting.changed` entry each); it is now written once per pass.
+- A NUL byte in a path, campaign parameter or event value lost the whole hit.
+- The body-size limits on the beacon and recording endpoints only applied to
+  `text/plain`; a JSON body over the limit is now dropped too.
+- Settings errors named six fields in English only; 23 empty `en` strings filled.
+
 ## 0.2.3 - 2026-09-07
 
 ### Fixed

@@ -98,6 +98,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Tracking
+  alias PhoenixKitWebAnalytics.UserAgent
 
   @hook_name :phoenix_kit_web_analytics
   @client_key :__phoenix_kit_web_analytics_client
@@ -161,12 +162,14 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         # recorded by the plug during the dead render.
         if state.live_navigation?, do: track_pageview(socket, parsed, state.live_referer)
 
-        LivePresence.watch(self(), socket.assigns[@client_key], %{
-          path: path,
-          site: Referrer.normalize_host(parsed.host),
-          user_uuid: Tracking.current_user_uuid(socket.assigns),
-          referrer: state.live_referer
-        })
+        if watchable?(path, socket.assigns[@client_key]) do
+          LivePresence.watch(self(), socket.assigns[@client_key], %{
+            path: path,
+            site: Referrer.normalize_host(parsed.host),
+            user_uuid: Tracking.current_user_uuid(socket.assigns),
+            referrer: state.live_referer
+          })
+        end
 
       same_path?(state.uri, parsed) ->
         # A patch that only changed the query string (a filter, a page of
@@ -176,10 +179,14 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
       true ->
         track_pageview(socket, parsed, state.uri)
 
-        LivePresence.navigate(self(), path, socket.assigns[@client_key], %{
-          site: Referrer.normalize_host(parsed.host),
-          user_uuid: Tracking.current_user_uuid(socket.assigns)
-        })
+        if watchable?(path, socket.assigns[@client_key]) do
+          LivePresence.navigate(self(), path, socket.assigns[@client_key], %{
+            site: Referrer.normalize_host(parsed.host),
+            user_uuid: Tracking.current_user_uuid(socket.assigns)
+          })
+        else
+          LivePresence.unwatch(self())
+        end
     end
 
     {:cont, assign(socket, @state_key, %{state | first?: false, uri: uri, last_event: nil})}
@@ -289,6 +296,16 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp trackable_path?(path) do
     config = Config.collection_config()
     config.enabled? and not Config.excluded?(path, config.exclusions)
+  end
+
+  # What "Right now" lists, and so what a leave is recorded for, follows the
+  # same rules as a page view: tracking on, the path not excluded, and no
+  # automated visitor unless bots are being recorded.
+  defp watchable?(path, client) do
+    config = Config.collection_config()
+
+    config.enabled? and not Config.excluded?(path, config.exclusions) and
+      (config.track_bots? or not UserAgent.bot?(client && client[:user_agent]))
   end
 
   defp same_path?(nil, _parsed), do: false

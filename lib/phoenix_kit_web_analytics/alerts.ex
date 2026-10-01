@@ -304,6 +304,10 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
   # ── internals ─────────────────────────────────────────────────────────────
 
+  # A crawler's hit (stored only with `track_bots` on) isn't a visitor: it
+  # would alert once per crawl session.
+  defp maybe_alert(%Event{is_bot: true}, _new?, _config), do: :ok
+
   defp maybe_alert(%Event{event_type: "pageview"} = event, true, config) do
     if visitor_alert?(event, config) do
       case take_hourly_slot(config.max_per_hour) do
@@ -315,11 +319,15 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
   defp maybe_alert(%Event{event_type: type, event_name: name} = event, _new?, config)
        when type in ["event", "interaction"] and is_binary(name) do
-    if config.events != [] and Config.excluded?(name, config.events) do
+    # The name is whatever the client sent (a LiveView event or a beacon), so
+    # it is cleaned for the text and the cap keeps a flood of forged ones from
+    # becoming a flood of notifications.
+    if config.events != [] and Config.excluded?(name, config.events) and
+         match?({:ok, _}, take_hourly_slot(config.max_per_hour, :event)) do
       deliver(@event_action,
         resource_type: "web_analytics_session",
         resource_uuid: event.session_id,
-        text: gettext("%{event} on %{path}", event: name, path: event.path),
+        text: gettext("%{event} on %{path}", event: clean(name), path: clean(event.path)),
         icon: "hero-bolt",
         link: Paths.session(event.session_id),
         metadata: %{"event" => name, "path" => event.path}
@@ -334,7 +342,7 @@ defmodule PhoenixKitWebAnalytics.Alerts do
       [
         gettext("New visitor from %{source} on %{path}",
           source: source_label(event),
-          path: event.path
+          path: clean(event.path)
         ),
         client_label(event),
         held_back > 0 &&
@@ -387,28 +395,33 @@ defmodule PhoenixKitWebAnalytics.Alerts do
 
   # Fixed hourly window. Returns how many alerts were held back since the last
   # one that went out, so that one can say so.
-  defp take_hourly_slot(0), do: {:ok, 0}
+  #
+  # Visitor alerts and event alerts have a window each, so a burst of one
+  # can't use up the other's.
+  defp take_hourly_slot(max, bucket \\ :visitor)
+  defp take_hourly_slot(0, _bucket), do: {:ok, 0}
 
-  defp take_hourly_slot(max) do
+  defp take_hourly_slot(max, bucket) do
+    {sent_tag, held_key} = bucket_keys(bucket)
     hour = System.os_time(:second) |> div(3600)
-    sent = :ets.update_counter(@table, {:sent, hour}, {2, 1}, {{:sent, hour}, 0})
+    sent = :ets.update_counter(@table, {sent_tag, hour}, {2, 1}, {{sent_tag, hour}, 0})
 
     # The first alert of an hour clears the counters of hours gone by.
     if sent == 1,
-      do: :ets.select_delete(@table, [{{{:sent, :"$1"}, :_}, [{:<, :"$1", hour}], [true]}])
+      do: :ets.select_delete(@table, [{{{sent_tag, :"$1"}, :_}, [{:<, :"$1", hour}], [true]}])
 
     if sent <= max do
       # `take` reads and removes in one step, so two alerts going out at once
       # can't both report the same held-back count.
       held =
-        case :ets.take(@table, :held_back) do
-          [{:held_back, count}] -> count
+        case :ets.take(@table, held_key) do
+          [{^held_key, count}] -> count
           [] -> 0
         end
 
       {:ok, held}
     else
-      :ets.update_counter(@table, :held_back, {2, 1}, {:held_back, 0})
+      :ets.update_counter(@table, held_key, {2, 1}, {held_key, 0})
       :full
     end
   rescue
@@ -416,7 +429,20 @@ defmodule PhoenixKitWebAnalytics.Alerts do
     ArgumentError -> {:ok, 0}
   end
 
-  defp source_label(%Event{referrer_source: source}) when is_binary(source), do: source
+  defp bucket_keys(:visitor), do: {:sent, :held_back}
+  defp bucket_keys(:event), do: {:sent_event, :held_back_event}
+
+  # A name a person can read in a sentence. `referrer_source` is a known
+  # site's name ("Google") or, with a campaign, the visitor's own `utm_source`
+  # — so anything that isn't a short plain name is not quoted: a link anyone
+  # can craft must not be able to put its own sentence into a notification.
+  @plain_name ~r/\A[\p{L}\p{N} ._-]{1,40}\z/u
+
+  defp source_label(%Event{referrer_source: source} = event) when is_binary(source) do
+    if Regex.match?(@plain_name, source),
+      do: source,
+      else: source_label(%{event | referrer_source: nil})
+  end
 
   defp source_label(%Event{referrer_medium: medium}) do
     case medium do
@@ -426,6 +452,15 @@ defmodule PhoenixKitWebAnalytics.Alerts do
       "paid" -> gettext("an ad")
       _ -> gettext("a direct visit")
     end
+  end
+
+  # Text from the visitor's side (a path, an event name) shown in a
+  # notification: no control characters or line breaks, bounded.
+  defp clean(text) when is_binary(text) do
+    text
+    |> String.replace(~r/[\p{C}\p{Z}]+/u, " ")
+    |> String.trim()
+    |> String.slice(0, 80)
   end
 
   defp client_label(%Event{} = event) do

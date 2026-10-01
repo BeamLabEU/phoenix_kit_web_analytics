@@ -12,7 +12,7 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
   @dnt_key "web_analytics_respect_dnt"
   @bots_key "web_analytics_track_bots"
   @channels_key "web_analytics_alert_channels"
-  @salt_key "web_analytics_hash_salt"
+  @salt_key "web_analytics_hash_secret"
 
   setup do
     # activities.actor_uuid carries no foreign key, so any UUID identifies the
@@ -329,6 +329,19 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       refute logged =~ new
       refute logged =~ old
       refute Map.has_key?(row.metadata || %{}, "db_pending")
+    end
+
+    test "no activity row, core's own setting history included, holds a salt", %{actor: actor} do
+      old = PhoenixKitWebAnalytics.Config.generate_salt()
+      assert :ok = Admin.rotate_salt(actor_uuid: actor)
+      new = read(@salt_key)
+
+      # Core writes a `setting.changed` row per setting write, and withholds
+      # the value only for a key whose name marks it as a secret.
+      assert Enum.any?(list_activities(), &(&1.action == "setting.changed"))
+      logged = inspect(list_activities(), limit: :infinity, printable_limit: :infinity)
+      refute logged =~ old
+      refute logged =~ new
     end
   end
 end

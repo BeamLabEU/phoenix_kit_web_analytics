@@ -216,6 +216,26 @@ defmodule PhoenixKitWebAnalytics.AlertsTest do
       assert row.metadata["notification_link"] =~ event.session_id
     end
 
+    test "a crawler's first page view alerts nobody" do
+      Alerts.event_recorded(%{pageview() | is_bot: true}, true)
+      refute_activity_logged("web_analytics.visitor_arrived")
+    end
+
+    test "a campaign source that isn't a plain name is never quoted in the text" do
+      source = "URGENT: your account is locked, visit evil.example"
+      Alerts.event_recorded(%{pageview() | referrer_source: source}, true)
+      Alerts.event_recorded(%{pageview() | referrer_source: "newsletter"}, true)
+
+      texts =
+        "web_analytics.visitor_arrived"
+        |> activities()
+        |> Enum.map(& &1.metadata["notification_text"])
+
+      assert length(texts) == 2
+      refute Enum.any?(texts, &(&1 =~ "URGENT"))
+      assert Enum.any?(texts, &(&1 =~ "from newsletter"))
+    end
+
     test "a page view in an existing session alerts nobody" do
       assert Alerts.event_recorded(pageview(), false) == :ok
       refute_activity_logged("web_analytics.visitor_arrived")
@@ -308,6 +328,46 @@ defmodule PhoenixKitWebAnalytics.AlertsTest do
 
       assert [row] = activities("web_analytics.event_alert")
       assert row.metadata["event"] == "contact_submit"
+    end
+
+    test "a flood of listed events is held to the hourly cap, apart from the visitor alerts" do
+      enable_tracking(%{
+        "web_analytics_alert_events" => "contact*",
+        "web_analytics_alert_max_per_hour" => "2"
+      })
+
+      start_supervised!(Alerts)
+
+      for _ <- 1..5 do
+        Alerts.event_recorded(
+          %Event{
+            event_type: "interaction",
+            event_name: "contact_forged",
+            path: "/",
+            session_id: UUIDv7.generate()
+          },
+          false
+        )
+      end
+
+      assert length(activities("web_analytics.event_alert")) == 2
+    end
+
+    test "the text can't carry control characters or an unbounded name" do
+      Alerts.event_recorded(
+        %Event{
+          event_type: "interaction",
+          event_name: "contact\n" <> String.duplicate("x", 500),
+          path: "/a\r\nb",
+          session_id: UUIDv7.generate()
+        },
+        false
+      )
+
+      assert [row] = activities("web_analytics.event_alert")
+      text = row.metadata["notification_text"]
+      refute text =~ ~r/[\r\n]/
+      assert String.length(text) < 200
     end
 
     test "never raises, even on an event it can't format" do

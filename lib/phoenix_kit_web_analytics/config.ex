@@ -35,7 +35,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_recording` | `false` | Record pointer movement, clicks, hovers and scrolling (session recordings) |
   | `web_analytics_recording_sample` | `100` | Percent of visitors recorded while recording is on |
   | `web_analytics_recording_retention_days` | `30` | Age at which recordings are deleted |
-  | `web_analytics_hash_salt` | generated | Secret mixed into the daily visitor hash |
+  | `web_analytics_hash_secret` | generated | Secret mixed into the daily visitor hash |
   """
 
   require Logger
@@ -50,7 +50,12 @@ defmodule PhoenixKitWebAnalytics.Config do
   @session_timeout_key "web_analytics_session_timeout_minutes"
   @retention_days_key "web_analytics_retention_days"
   @beacon_key "web_analytics_beacon_enabled"
-  @salt_key "web_analytics_hash_salt"
+  # The name must keep the word "secret": core withholds the value of any key
+  # whose name marks it as one from its permanent `setting.changed` activity
+  # entries and change broadcast. The old `…_hash_salt` key matched nothing, so
+  # every salt (and every rotation) was written into the activity log in
+  # plaintext — a salt anyone with feed access could recompute visitor IDs from.
+  @salt_key "web_analytics_hash_secret"
   @track_interactions_key "web_analytics_track_interactions"
   @ignore_events_key "web_analytics_ignore_events"
   @event_params_key "web_analytics_event_params"
