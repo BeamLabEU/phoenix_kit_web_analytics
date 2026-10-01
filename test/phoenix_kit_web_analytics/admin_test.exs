@@ -194,6 +194,32 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
     end
   end
 
+  describe "save_settings/2 recording and bot settings" do
+    test "are saved, and out-of-range numbers refused by name" do
+      assert {:ok, changed} =
+               Admin.save_settings(%{
+                 "_form" => "settings",
+                 "recording" => "true",
+                 "detect_bots" => "true",
+                 "recording_sample" => "25",
+                 "recording_retention_days" => "14"
+               })
+
+      assert "web_analytics_recording" in changed
+      assert read("web_analytics_recording") == "true"
+      assert read("web_analytics_recording_sample") == "25"
+      assert read("web_analytics_recording_retention_days") == "14"
+
+      assert {:error, fields} =
+               Admin.save_settings(%{
+                 "recording_sample" => "0",
+                 "recording_retention_days" => "0"
+               })
+
+      assert Enum.sort(fields) == [:recording_retention_days, :recording_sample]
+    end
+  end
+
   describe "save_settings/2 alert channels" do
     test "a list is saved as a comma list of the known channels" do
       assert {:ok, [@channels_key]} =

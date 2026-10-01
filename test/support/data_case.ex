@@ -135,6 +135,17 @@ defmodule PhoenixKitWebAnalytics.DataCase do
   @doc "A `DateTime` the given number of hours in the past."
   def hours_ago(hours), do: DateTime.add(DateTime.utc_now(), -hours * 3600, :second)
 
+  @doc """
+  Waits for a fresh clock minute when the current one is nearly over — for
+  tests of the per-minute counters (`BotSignals`), which would otherwise
+  split their hits across two minutes now and then.
+  """
+  def await_fresh_minute do
+    second = rem(System.system_time(:second), 60)
+    if second >= 50, do: Process.sleep((60 - second) * 1000 + 50)
+    :ok
+  end
+
   @doc "A `DateTime` at midday, the given number of days in the past."
   def days_ago(days) do
     Date.utc_today()

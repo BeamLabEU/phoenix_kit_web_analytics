@@ -107,11 +107,11 @@ defmodule PhoenixKitWebAnalytics.Retention do
           backfill_session_starts()
           PhoenixKitWebAnalytics.BotSignals.judge_no_js()
           PhoenixKitWebAnalytics.Recordings.prune()
-          result = %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
-          # Reports (and the cached watermark) re-read what this pass changed.
-          PhoenixKitWebAnalytics.ReportCache.clear()
-          result
+          %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
         after
+          # Reports (and the cached watermark) re-read what this pass changed
+          # — even when a step failed after others had already changed it.
+          PhoenixKitWebAnalytics.ReportCache.clear()
           unlock()
         end
       else

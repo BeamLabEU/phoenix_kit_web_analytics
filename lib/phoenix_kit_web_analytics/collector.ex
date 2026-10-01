@@ -315,6 +315,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
           do: store(flag_attrs(attrs, reason), stitch),
           else: :bot
 
+      # A "no JavaScript" verdict can be wrong (a tab idle past the judging,
+      # a slow first connection), so its hits are kept, flagged, whatever
+      # track_bots says — lifting the flag brings them back.
+      {:flag_kept, reason} ->
+        store(flag_attrs(attrs, reason), stitch)
+
       :clear ->
         result = store(attrs, stitch)
         BotSignals.clear_no_js(stitch.session_id)
@@ -351,7 +357,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       speed in [:crossed, :over] -> {:flag, "rate"}
       stitch.bot in ["webdriver", "rate"] -> {:flag, stitch.bot}
       stitch.bot == "no_js" and BotSignals.js_evidence?(attrs) -> :clear
-      stitch.bot == "no_js" -> {:flag, "no_js"}
+      stitch.bot == "no_js" -> {:flag_kept, "no_js"}
       true -> :ok
     end
   end

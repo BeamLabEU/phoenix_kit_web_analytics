@@ -62,7 +62,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   @types ~w(m c h s r v)
   @max_frames 2_000
   @max_chunks_per_minute 30
-  # 30 minutes of chunks every ~5 s; a page open longer stops recording.
+  # About an hour of chunks every ~10 s; a page open longer stops recording.
   @max_seq 400
   @max_selector 200
   @max_coordinate 100_000
@@ -147,8 +147,11 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   end
 
   # A same-site path, and nothing more: the query string and fragment go (a
-  # path never keeps one), and anything a browser could read as another
-  # site — `//host`, `/\\host`, control characters — is refused.
+  # path never keeps one), a trailing slash goes (as the collector stores
+  # page views, so the two compare equal), and anything a browser would
+  # resolve to somewhere else is refused — `//host`, `/\\host`, control
+  # characters, and `.`/`..` segments, plain or %-encoded (`/blog/../admin`
+  # would load /admin).
   defp clean_path("/" <> _ = raw) do
     path = raw |> String.split(["?", "#"], parts: 2) |> hd()
 
@@ -156,11 +159,21 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       String.starts_with?(path, "//") -> :error
       String.contains?(path, "\\") -> :error
       String.match?(path, ~r/[\x00-\x1f\x7f]/) -> :error
-      true -> {:ok, PhoenixKitWebAnalytics.Tracking.truncate_utf8(path, 2048)}
+      dot_segment?(path) -> :error
+      true -> {:ok, path |> trim_slash() |> PhoenixKitWebAnalytics.Tracking.truncate_utf8(2048)}
     end
   end
 
   defp clean_path(_path), do: :error
+
+  defp dot_segment?(path) do
+    path
+    |> String.split("/")
+    |> Enum.any?(&(String.downcase(&1) in [".", "..", "%2e", "%2e%2e", ".%2e", "%2e."]))
+  end
+
+  defp trim_slash("/"), do: "/"
+  defp trim_slash(path), do: String.trim_trailing(path, "/")
 
   defp frame([t, type | rest]) when is_integer(t) and t >= 0 and type in @types do
     case args(type, rest) do

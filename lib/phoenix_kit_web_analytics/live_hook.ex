@@ -50,6 +50,12 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   and only full page loads are counted — check this first if LiveView activity
   isn't showing up.
 
+  Behind a proxy with `config :phoenix_kit_web_analytics,
+  trust_x_forwarded_for: true`, also list `:x_headers` on both transports, so
+  the hook reads the same forwarded address the plug does (and an
+  `x-accept-language` header, when a proxy sets one, for the visitor's
+  language).
+
   ## Not double-counted
 
   A page load is an ordinary HTTP response the plug already recorded, so the

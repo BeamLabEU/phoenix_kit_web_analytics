@@ -246,6 +246,7 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
       unless Process.whereis(PhoenixKitWebAnalytics.BotSignals),
         do: start_supervised!(PhoenixKitWebAnalytics.BotSignals)
 
+      await_fresh_minute()
       for seq <- 0..39, do: post_chunk(build_conn(), chunk(%{"s" => seq}))
 
       assert Repo.aggregate(Recording, :count) == 30
@@ -273,6 +274,57 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
       assert Repo.all(from(r in Recording, select: r.session_id)) |> Enum.uniq() == [
                first.session_id
              ]
+    end
+
+    test "an excluded path is never loaded behind a replay, even one the visit saw", %{conn: conn} do
+      enable_tracking(%{
+        "web_analytics_recording" => "true",
+        "web_analytics_exclude_paths" => "/private*"
+      })
+
+      {:ok, view} =
+        Collector.track(%{
+          path: "/shop",
+          site: "www.example.com",
+          ip: {127, 0, 0, 1},
+          user_agent: @ua
+        })
+
+      post_chunk(conn, chunk(%{"p" => "/shop"}))
+      assert [%{loadable: true}] = Recordings.replay(view.session_id)
+
+      # Excluded after the fact: the stored chunk stays, the page won't load.
+      enable_tracking(%{
+        "web_analytics_recording" => "true",
+        "web_analytics_exclude_paths" => "/shop*"
+      })
+
+      assert [%{loadable: false}] = Recordings.replay(view.session_id)
+    end
+
+    test "dot segments, plain or %-encoded, are refused (the browser would resolve them)" do
+      for {path, i} <-
+            Enum.with_index(["/blog/../admin", "/blog/%2e%2e/admin", "/./x", "/a/%2E/b"]) do
+        post_chunk(build_conn(), chunk(%{"k" => "dotSegment#{i}xx", "p" => path}))
+      end
+
+      assert Repo.aggregate(Recording, :count) == 0
+    end
+
+    test "a page with a trailing slash matches its page view, so it can be replayed", %{
+      conn: conn
+    } do
+      {:ok, view} =
+        Collector.track(%{
+          path: "/docs/",
+          site: "www.example.com",
+          ip: {127, 0, 0, 1},
+          user_agent: @ua
+        })
+
+      post_chunk(conn, chunk(%{"p" => "/docs/"}))
+
+      assert [%{path: "/docs", loadable: true}] = Recordings.replay(view.session_id)
     end
 
     test "the query string and fragment never reach the stored path", %{conn: conn} do

@@ -9,7 +9,8 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
     * **Automation flag** — the client script reports `navigator.webdriver`,
       which Selenium, Puppeteer and Playwright set. Needs the client script.
-    * **Speed** — more than #{30} page views a minute from one visitor; a
+    * **Speed** — more than 30 page views a minute from one visitor (by
+      default; `config :phoenix_kit_web_analytics, bot_pageviews_per_minute:`); a
       person can't read pages that fast.
     * **No JavaScript** — a LiveView page whose live connection never came:
       no exit, click, live navigation or client-script report from that
@@ -21,8 +22,10 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   A visit flagged this way has its events marked `is_bot` with the reason in
   `metadata["bot"]` (`"webdriver"`, `"rate"`, `"no_js"`), so every report
   drops it like any declared bot, and later hits of the visit inherit the
-  flag. A `"no_js"` flag undoes itself if the visit later shows it ran
-  JavaScript after all (a tab left open without a click until its exit).
+  flag (dropped, while bot traffic isn't kept). A `"no_js"` verdict can be
+  wrong, so its later hits are always kept, flagged, and the flag undoes
+  itself if the visit shows it ran JavaScript after all (a tab left open
+  without a click until its exit).
 
   On by default; `web_analytics_detect_bots` switches all three off.
   """
@@ -256,14 +259,13 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
     )
   end
 
-  # Anything only JavaScript sends, from the same visitor the same day.
+  # Anything only JavaScript sends, from the same visitor. The visitor ID is
+  # already one day's (the hash includes the date), so no time bounds: a
+  # visit that crosses midnight keeps its ID, and its exit after midnight
+  # still counts.
   defp js_report_that_day do
     from(h in Event,
       where: h.visitor_id == parent_as(:start).visitor_id,
-      where: h.inserted_at >= fragment("date_trunc('day', ?)", parent_as(:start).inserted_at),
-      where:
-        h.inserted_at <
-          fragment("date_trunc('day', ?) + interval '1 day'", parent_as(:start).inserted_at),
       where:
         h.event_type == "interaction" or
           fragment("?->>'source' = ANY(?)", h.metadata, type(^@js_sources, {:array, :string}))

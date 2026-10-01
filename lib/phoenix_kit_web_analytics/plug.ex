@@ -10,9 +10,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
         plug PhoenixKitWebAnalytics.Plug
       end
 
-  That's the entire installation. **No script tag, no client-side bundle, no
+  That's all page views need. **No script tag, no client-side bundle, no
   cookie**, and nothing added to the rendered page — pages stay byte-for-byte
-  what they were.
+  what they were. LiveView navigation, interactions and exits come from
+  `PhoenixKitWebAnalytics.LiveHook`, which has its own (small) setup.
 
   ## Cost to a request
 

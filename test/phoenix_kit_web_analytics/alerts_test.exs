@@ -19,6 +19,24 @@ defmodule PhoenixKitWebAnalytics.AlertsTest do
 
   # ── notification type ─────────────────────────────────────────────────────
 
+  describe "messages it doesn't handle" do
+    test "are logged by name only — core's user broadcasts carry the whole user" do
+      pid = start_supervised!(Alerts)
+      Logger.configure(level: :debug)
+      on_exit(fn -> Logger.configure(level: :warning) end)
+
+      log =
+        ExUnit.CaptureLog.capture_log([level: :debug], fn ->
+          send(pid, {:user_updated, %{email: "someone@example.com", first_name: "Secret"}})
+          :sys.get_state(pid)
+        end)
+
+      assert log =~ "Alerts ignored :user_updated"
+      refute log =~ "someone@example.com"
+      refute log =~ "Secret"
+    end
+  end
+
   describe "notification_types/0" do
     test "registers one web_analytics type with three sub-types and their actions" do
       assert [type] = Alerts.notification_types()

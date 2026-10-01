@@ -37,6 +37,14 @@ can't, stays optional, and never writes a cookie or storage.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
+- `bot_signals.ex` — behavioural bot detection (automation flag, speed, no
+  JavaScript) and the per-visitor-per-minute counters (page views, recording
+  chunks). The collector asks it per hit; the retention pass runs its
+  stateless no-JavaScript judgement.
+- `recordings.ex` + `schemas/recording.ex` — optional session recordings:
+  validation (the frame format is documented there), sampling, the
+  per-visitor rate, replay assembly, pruning. The player is the
+  `PhoenixKitWebAnalyticsReplay` hook in the client script.
 - `alerts.ex` — the "Website activity" notification type; turns stored hits
   and core's `{:user_created, user}` broadcast into activity entries per
   recipient (core routes them to inbox / email / Telegram / digests).
@@ -44,15 +52,24 @@ can't, stays optional, and never writes a cookie or storage.
 **Read path**
 
 - `reports.ex` — every aggregate the UI shows, including `sessions/2` and
-  `session_timeline/1`. Queries degrade to empty results and log.
+  `session_timeline/1`. Queries degrade to empty results and log. Results go
+  through `report_cache.ex` (single-flight, 30 s; cleared after a settings
+  save and every retention pass).
+- `rollup_reader.ex` + `dimensions.ex` — a period is read from the rollups
+  for finished days and from raw events for the rest, in one `UNION ALL`;
+  every breakdown is defined once in `Dimensions`, so the rollup and the raw
+  remainder can't count differently.
 - `session_stats.ex` — the per-session query shared by reports and rollup.
 - `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
   Acquisition, Technology, Events, Settings.
 - `web/{components,filters,user_names}.ex` — shared UI.
 - `admin.ex` — every operator mutation (settings, tracking switch, retention
   run, salt rotation), each logged to `PhoenixKit.Activity`.
-- `retention.ex` — hourly rollup (watermark `web_analytics_rolled_through`) +
-  prune (never past the watermark; fails closed).
+- `retention.ex` — the hourly pass, one at a time across nodes (a session
+  advisory lock): session-start backfill, the no-JavaScript bot judgement,
+  recording prune, rollup into `daily_stats` + `daily_dims` (watermark
+  `web_analytics_rolled_through`; a day is re-rolled for 3 hours after it
+  ends), event prune (never past the watermark; fails closed).
 
 ## Rules that are load-bearing
 
@@ -87,9 +104,21 @@ a `COMMENT ON TABLE` on `phoenix_kit_web_analytics_events`, and is returned from
 migration that calls it.
 
 Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
-`(session_id, inserted_at)` index. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
+`(session_id, inserted_at)` index; V03 `session_start` (backfilled in batches by
+the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
+V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
+`recordings`. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
 add the `apply_step/3` clauses, and keep every statement prefix-safe (pass
 `prefix:` through, bare index names, schema-anchored existence checks).
+
+**Never put a full-table `UPDATE` or a long backfill in a migration step** —
+the host's migration runs in one transaction holding its locks. Backfill in
+batches from the retention pass instead, as V03 does.
+
+**Never write a setting on a schedule.** Every core setting write is a
+permanent `setting.changed` activity entry; an hourly watermark would add 24 a
+day forever. Prefer stateless, idempotent passes (see
+`BotSignals.judge_no_js/2`).
 
 `test/support/test_migration.ex` is the checked-in equivalent of the generated
 host migration, so the suite runs against exactly the DDL an install gets.
@@ -155,8 +184,15 @@ reading it back, or it will see the stale value.
 **Hits are written inline in tests** (`config :phoenix_kit_web_analytics,
 async_tracking: false` in `config/test.exs`), so a plug request, a beacon POST
 or a LiveView click can be asserted on in the database directly.
-`LivePresence` and `Alerts` aren't started by the test helper — use
-`start_supervised!/1` where a test needs them.
+`LivePresence`, `Alerts`, `ReportCache` and `BotSignals` aren't started by the
+test helper — use `start_supervised!/1` where a test needs them. `config/test.exs`
+also turns the report cache off (`report_cache_ms: 0`), and the presence
+reconnect grace and supersede windows to 0; tests of those set them
+explicitly.
+
+**`mix.lock` reflects the Hex pin.** Running `mix deps.get` with
+`PHOENIX_KIT_PATH` set can rewrite it for local core's transitive deps — don't
+commit that.
 
 ## Critical Conventions
 
@@ -184,8 +220,9 @@ test in `test/phoenix_kit_web_analytics_test.exs`.
 3. `mix precommit` — zero warnings/errors
 4. Commit: `"Bump version to x.y.z"`
 5. Push to main and **verify the push succeeded** before tagging
-6. `git tag x.y.z && git push origin x.y.z` (bare version, no `v` prefix)
-7. `gh release create x.y.z --title "x.y.z - YYYY-MM-DD" --notes "…"`
+6. `git tag vx.y.z && git push origin vx.y.z` (`v`-prefixed; bare tags in the
+   history predate the switch)
+7. `gh release create vx.y.z --title "vx.y.z - YYYY-MM-DD" --notes "…"`
 
 Never tag before everything is committed and pushed — tags are immutable
 pointers.

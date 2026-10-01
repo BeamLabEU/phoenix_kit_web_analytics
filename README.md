@@ -33,8 +33,8 @@ scroll depth, and exits from pages without a LiveView.
   of IP + User-Agent + date. No IP address, no raw User-Agent and no query
   string is written to the database.
 - **Ad blockers can't remove it.** The numbers are your server's.
-- **The data is yours.** Two tables in your own database; nothing leaves your
-  infrastructure.
+- **The data is yours.** Four tables in your own database; nothing leaves
+  your infrastructure.
 
 ## What gets recorded
 
@@ -47,6 +47,7 @@ scroll depth, and exits from pages without a LiveView.
 | Outbound / download / contact clicks, plain buttons, `data-analytics` elements | Browser click listener | client script |
 | Scroll depth; exits from non-LiveView pages | Browser scroll and page-hide listeners | client script |
 | Custom events | `PhoenixKitWebAnalytics.track_event/2` on the server; `phoenixKitAnalytics(name, props)` in the browser | — / client script |
+| Session recordings (optional, off by default) | Pointer movement, clicks, hovers and scrolling per page view — coordinates and element positions only, never text, typing or form values; replayed on the visit page | client script + **Record visits** |
 
 Signed-in users are attributed by their account on every hit, so a person's
 visits can be followed across the site (Sessions → a user's visits).
@@ -59,12 +60,12 @@ Under **Web Analytics** in the PhoenixKit sidebar:
 |------|---------------|
 | Overview | Visitors, page views, sessions, bounce rate, session length and time on page, with change against the previous period; the trend; top pages, referrers, channels, devices, what visitors do, exit pages |
 | Right now | Every page open this moment, for how long, by whom (signed-in name or anonymous), on what; visits active in the last five minutes |
-| Sessions | Every visit: who, landing → exit page, pages, actions, duration, source, client. Opens a **visit timeline** — everything that visitor did, in order |
+| Sessions | Every visit: who, landing → exit page, pages, actions, duration, source, client. Opens a **visit timeline** — everything that visitor did, in order — with the **recording player** when the visit was recorded, and why it counts as a bot's when it does |
 | Pages | Every path with views, time on page and exits; a path opens the overview filtered to it; slowest pages by server response time |
 | Acquisition | Channels (direct / search / social / referral / email / paid), referring sites, UTM campaigns |
 | Technology | Browsers, operating systems, devices, languages, countries |
 | Events | What visitors do (interactions), custom events, and a live feed of every hit |
-| Settings | Collection rules, retention, interaction and client-script switches, alerts, stored-data stats, installation checklist |
+| Settings | Collection rules, bot detection, retention, interaction and client-script switches, session recordings, alerts, stored-data stats, installation checklist |
 
 Charts are core's server-rendered SVG components — no charting library, no
 JavaScript in the admin either.
@@ -146,7 +147,8 @@ PhoenixKitWebAnalytics.track_event("order.placed", %{
 ```
 
 From the browser, with the client script enabled (or the `<.beacon />`
-component):
+component — `import PhoenixKitWebAnalytics.Web.Beacon` in the layout that
+renders it):
 
 ```heex
 <button onclick="phoenixKitAnalytics('signup', {plan: 'pro'})">Sign up</button>
@@ -199,7 +201,27 @@ Stated explicitly, because it's what makes two analytics tools disagree:
 Non-`GET` requests, non-2xx responses, anything that isn't `text/html`, paths
 matching the exclusion patterns (`/admin*` by default), visitors sending
 `DNT: 1` or `Sec-GPC: 1` (on every path, LiveView and client script
-included), and automated User-Agents. All configurable in Settings.
+included), and bots. All configurable in Settings.
+
+### Bots
+
+A bot that names itself (Googlebot, link previews, uptime monitors, `curl`,
+headless browsers …) is recognised by its User-Agent. One posing as a normal
+browser is caught by what it does (`PhoenixKitWebAnalytics.BotSignals`, on by
+default — **Spot bots by behaviour**):
+
+- **automation** — the client script reports `navigator.webdriver`, which
+  Selenium, Puppeteer and Playwright set;
+- **speed** — more than 30 page views a minute from one visitor;
+- **no JavaScript** — a LiveView page whose live connection never came (no
+  exit, click or live navigation from that visitor all day), judged after
+  30 minutes. Only pages running the hook count.
+
+A flagged visit is marked as a bot's with the reason (shown on the visit
+page), so every report drops it; later hits of the visit inherit the flag. A
+"no JavaScript" verdict can be wrong, so that visit's later hits are kept
+(flagged) and the flag lifts itself if the visit's JavaScript shows up after
+all — a tab left open without a click until it closes.
 
 ## Privacy
 
@@ -224,6 +246,14 @@ event's name and the short values of parameters you allow-list (`tab`, `view`,
 A **signed-in** visitor's hits carry their account id, which is what lets you
 follow a user's visits; anonymous visitors stay anonymous.
 
+**Session recordings** are off unless switched on, and record coordinates and
+short element selectors (`main > form.signup > button`) — never text,
+keystrokes, form values or page content. Visitors asking not to be tracked,
+bots and excluded paths are never recorded. The player loads the recorded page
+as it looks today, in a sandboxed frame with scripts off, and only a page the
+server itself saw that visit request — never a path the visitor's browser
+merely claims. Recordings are deleted after 30 days by default.
+
 Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
 No IP database ships with this package.
@@ -234,10 +264,15 @@ This is the one PhoenixKit table that grows with traffic rather than content.
 An hourly background pass:
 
 1. **rolls up** each completed day into per-site totals and per-day
-   breakdowns (pages, sources, devices, events … — tracked with a "rolled up
-   through" date, re-rolling the last two days to catch late hits), then
+   breakdowns (pages, sources, devices, events … — the 5,000 most visited
+   values per breakdown and day; tracked with a "rolled up through" date, and
+   re-rolled in the three hours after the day ends to catch late hits), then
 2. **prunes** raw events past the retention window (365 days by default; `0`
-   disables pruning), in batches, and never past the last rolled-up day.
+   disables pruning), in batches, and never past the last rolled-up day, and
+   recordings past theirs (30 days by default).
+
+One pass runs at a time across all nodes (a database lock), "Run now" in
+Settings included.
 
 Reports read finished days from those rollups and only today from raw events,
 so a year's report costs about what a day's does, and pruned days keep their
@@ -264,6 +299,7 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_enabled` | `false` | Master switch (the module toggle) |
 | `web_analytics_respect_dnt` | `true` | Skip visitors sending `DNT` / `Sec-GPC` |
 | `web_analytics_track_bots` | `false` | Record automated traffic |
+| `web_analytics_detect_bots` | `true` | Also spot bots by behaviour (automation flag, speed, no JavaScript) |
 | `web_analytics_exclude_paths` | `/admin*` … | Path patterns to ignore (trailing `*` = prefix) |
 | `web_analytics_session_timeout_minutes` | `30` | Inactivity gap that ends a session |
 | `web_analytics_retention_days` | `365` | Age at which raw events are rolled up and deleted |
@@ -272,6 +308,9 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_event_params` | `tab, view, section, step, sort, filter, period` | Event parameters whose short values are kept |
 | `web_analytics_client_script` | `false` | Store the client script's clicks, scroll depth and exits |
 | `web_analytics_beacon_enabled` | `false` | Accept page views from the beacon / pixel endpoints |
+| `web_analytics_recording` | `false` | Record visits (pointer, clicks, hovers, scrolling) for replay |
+| `web_analytics_recording_sample` | `100` | Percent of visitors recorded, decided per visitor per day |
+| `web_analytics_recording_retention_days` | `30` | Age at which recordings are deleted |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -293,7 +332,28 @@ config :phoenix_kit_web_analytics, trust_x_forwarded_for: true
 
 # Concurrent background writes before hits are dropped.
 config :phoenix_kit_web_analytics, max_concurrent_writes: 20
+
+# How long report results are cached (ms); 0 turns the cache off.
+config :phoenix_kit_web_analytics, report_cache_ms: 30_000
+
+# Page views a minute from one visitor before it counts as a bot.
+config :phoenix_kit_web_analytics, bot_pageviews_per_minute: 30
+
+# Right now: how long a closed page waits for its reconnect before its exit
+# is recorded, and how long a reloaded page's late-closing old connection is
+# hidden before it counts as a second tab (ms).
+config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 10_000
+config :phoenix_kit_web_analytics, presence_supersede_ms: 30_000
 ```
+
+`trust_x_forwarded_for` reads the **first** address in `X-Forwarded-For`,
+which the client controls unless your proxy replaces the header rather than
+appending to it — with an appending proxy a visitor can pose as many.
+
+The collection endpoints read `text/plain` bodies (what `navigator.sendBeacon`
+sends) themselves, capped at 16 KB (128 KB for a recording chunk). A body sent
+as JSON is parsed by your endpoint's `Plug.Parsers` first, under its own
+`:length` limit — keep that limit modest on a public site.
 
 ## Excluding specific requests
 
@@ -307,16 +367,24 @@ or, at install time:
 plug PhoenixKitWebAnalytics.Plug, exclude: ["/healthz", "/internal*"]
 ```
 
+`exclude:` applies to the plug's page views. The LiveView hook can't see plug
+options, so a LiveView page to leave out entirely goes in the
+`web_analytics_exclude_paths` setting, which both honour.
+
 ## Database
 
-Two tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`), UUIDv7
-primary keys, prefix-safe for named-schema installs:
+Four tables, created by `mix phoenix_kit.update` through the module's own
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V06),
+UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
-  (V01; V02 adds `engaged_ms`, `scroll_depth`, `target` and a
-  `(session_id, inserted_at)` index)
-- `phoenix_kit_web_analytics_daily_stats` — per-day, per-site rollups
+- `phoenix_kit_web_analytics_daily_stats` — per-day, per-site totals
+- `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
+- `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
+
+On a busy install with a large events table, build V03's and V05's indexes
+`CONCURRENTLY` before upgrading — the migration then skips them; the
+statements are in the `PhoenixKitWebAnalytics.Migrations` docs.
 
 ## Translations
 

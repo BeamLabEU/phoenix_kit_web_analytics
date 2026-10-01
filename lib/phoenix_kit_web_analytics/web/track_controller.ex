@@ -4,8 +4,9 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
   Neither is needed for ordinary server-rendered traffic — that's
   `PhoenixKitWebAnalytics.Plug`, which needs no client cooperation at all.
-  Both are **off by default**: they only accept hits when
-  `web_analytics_beacon_enabled` is on.
+  Both are **off by default**: page views need `web_analytics_beacon_enabled`;
+  named custom events are accepted with it or `web_analytics_client_script`
+  on; the client script's clicks, scroll and exits need the latter.
 
     * `POST /phoenix-kit/analytics/event` — custom events (`"signup"`,
       `"add_to_cart"`) reported by `window.phoenixKitAnalytics(name, props)`,

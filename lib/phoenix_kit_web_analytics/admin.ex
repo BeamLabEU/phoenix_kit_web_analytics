@@ -45,8 +45,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
   fields that fail keep their previous value and are returned by name.
 
   Returns `{:ok, changed_keys}`, `{:error, invalid_fields}` (nothing saved
-  when any field is invalid), or `{:error, :not_saved}` when a write failed —
-  the writes are one transaction, so then nothing is saved either.
+  when any field is invalid), or `{:error, :not_saved}` when a write failed.
+  Writes stop at the first failure; the ones before it are saved. They are
+  not one transaction on purpose: core announces each setting change (cache,
+  history, broadcast) as its write returns, so wrapping them would announce
+  values that weren't committed yet.
   """
   @spec save_settings(map(), opts()) :: {:ok, [String.t()]} | {:error, [atom()] | :not_saved}
   def save_settings(params, opts \\ []) when is_map(params) do
@@ -66,7 +69,12 @@ defmodule PhoenixKitWebAnalytics.Admin do
     {:ok, changed}
   end
 
-  defp after_save({:error, key}, opts) do
+  defp after_save({:error, key, saved}, opts) do
+    if saved != [] do
+      log("settings.updated", opts, %{"changed" => saved})
+      PhoenixKitWebAnalytics.ReportCache.clear()
+    end
+
     log("settings.update_failed", opts, %{"key" => key, "db_pending" => true})
     {:error, :not_saved}
   end
@@ -74,13 +82,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
   defp write_all([], _opts), do: {:ok, []}
 
   defp write_all(changes, opts) do
-    PhoenixKit.RepoHelper.repo().transaction(fn ->
-      Enum.map(changes, &write_or_roll_back(&1, opts))
+    Enum.reduce_while(changes, {:ok, []}, fn {key, value}, {:ok, saved} ->
+      if write(key, value, opts),
+        do: {:cont, {:ok, saved ++ [key]}},
+        else: {:halt, {:error, key, saved}}
     end)
-  end
-
-  defp write_or_roll_back({key, value}, opts) do
-    if write(key, value, opts), do: key, else: PhoenixKit.RepoHelper.repo().rollback(key)
   end
 
   @doc "Switches tracking on or off (the module toggle)."

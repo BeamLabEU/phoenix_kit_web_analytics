@@ -331,11 +331,13 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
     end
 
     test "when the newer page closes first, the hidden one comes back and each keeps its own time" do
+      # Long enough that the hide timer can't be what brings the first back.
+      Application.put_env(:phoenix_kit_web_analytics, :presence_supersede_ms, 10_000)
       first = spawn_page()
       LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})
       wait_until(fn -> LivePresence.count(nil) == 1 end)
       [%{since: first_since}] = LivePresence.list()
-      Process.sleep(300)
+      Process.sleep(1_000)
 
       second = spawn_page()
       LivePresence.watch(second, @client, %{path: "/pricing", site: "example.com"})
@@ -348,9 +350,9 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       assert [%{since: ^first_since}] = LivePresence.list()
 
       # The closed tab's leave counts from when it opened (moments ago), not
-      # from the first tab's start 300 ms earlier.
+      # from the first tab's start a second earlier.
       assert [leave] = wait_for_leave_list(1)
-      assert leave.engaged_ms < 250
+      assert leave.engaged_ms < 800
 
       Process.exit(first, :kill)
     end

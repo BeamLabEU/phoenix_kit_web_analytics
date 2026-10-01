@@ -255,7 +255,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       [] ->
         # Not watched: this server restarted while the page stayed open. Start
         # watching from here rather than losing the page for good.
-        if client == %{} do
+        # No identity to watch with (`:ua` alone is only what we parsed).
+        if is_nil(client[:ip]) and is_nil(client[:user_agent]) do
           {:noreply, state}
         else
           visit = build_visit(pid, client, Map.put(attrs, :path, path), now)

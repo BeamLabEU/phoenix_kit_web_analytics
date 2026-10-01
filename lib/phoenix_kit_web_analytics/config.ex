@@ -270,23 +270,24 @@ defmodule PhoenixKitWebAnalytics.Config do
   # The first salt, created once: concurrent first hits (the collector's
   # tasks, other nodes) wait on one lock and re-read inside it, so they all
   # end up with the same salt — two would give one visitor two IDs that day.
+  # A session lock on one checked-out connection, not a transaction: core
+  # announces a setting write (and drops it from the cache) as the write
+  # returns, which inside a transaction would come before the commit.
   defp create_salt do
     repo = PhoenixKit.RepoHelper.repo()
 
-    result =
-      repo.transaction(fn ->
-        repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [@salt_key])
+    repo.checkout(fn ->
+      repo.query!("SELECT pg_advisory_lock(hashtext($1))", [@salt_key])
 
+      try do
         case Settings.get_setting(@salt_key, nil) do
           salt when is_binary(salt) and byte_size(salt) >= 16 -> salt
           _ -> generate_salt()
         end
-      end)
-
-    case result do
-      {:ok, salt} -> salt
-      _ -> nil
-    end
+      after
+        repo.query!("SELECT pg_advisory_unlock(hashtext($1))", [@salt_key])
+      end
+    end)
   end
 
   @doc """

@@ -259,6 +259,27 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       assert page.frames == [[0, "m", 5, 5], [900, "c", 6, 6, "button"]]
     end
 
+    test "a visit flagged by behaviour says why it counts as a bot", %{conn: conn} do
+      id = UUIDv7.generate()
+
+      insert_event(%{
+        session_id: id,
+        visitor_id: "fast",
+        path: "/a",
+        is_bot: true,
+        metadata: %{"bot" => "rate"}
+      })
+
+      {:ok, _view, html} = live(conn, "#{@base}/sessions/#{id}")
+      assert html =~ "pages faster than a person reads"
+
+      plain = UUIDv7.generate()
+      insert_event(%{session_id: plain, visitor_id: "person", path: "/a"})
+
+      {:ok, _view, html} = live(conn, "#{@base}/sessions/#{plain}")
+      refute html =~ "faster than a person"
+    end
+
     test "an unknown or malformed id says the visit isn't here", %{conn: conn} do
       {:ok, _view, html} = live(conn, "#{@base}/sessions/#{UUIDv7.generate()}")
       assert html =~ "This visit isn"

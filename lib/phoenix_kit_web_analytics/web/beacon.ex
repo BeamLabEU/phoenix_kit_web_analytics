@@ -8,8 +8,11 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   events** from the browser (a signup completing, a video finishing) or when
   pages are served from a full-page cache that bypasses Elixir entirely.
 
-  Both components require `web_analytics_beacon_enabled` to be on; the
-  endpoints ignore hits otherwise.
+  Page views (`<.pixel />`, or `phoenixKitAnalytics()` with no name) need
+  `web_analytics_beacon_enabled`; named custom events are accepted with that
+  switch or `web_analytics_client_script` on. The endpoints ignore hits
+  otherwise. Import the components where you render them:
+  `import PhoenixKitWebAnalytics.Web.Beacon`.
 
   ## Custom events
 

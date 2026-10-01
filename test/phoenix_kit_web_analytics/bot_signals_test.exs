@@ -25,6 +25,7 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
   describe "speed" do
     setup do
       Application.put_env(:phoenix_kit_web_analytics, :bot_pageviews_per_minute, 3)
+      await_fresh_minute()
 
       on_exit(fn ->
         Application.delete_env(:phoenix_kit_web_analytics, :bot_pageviews_per_minute)
@@ -196,6 +197,34 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
 
       assert leave.session_id == view.session_id
       assert Enum.all?(reasons(), &(&1 == {false, nil}))
+    end
+
+    test "a visit that crosses midnight is cleared by its exit after midnight" do
+      midnight = DateTime.new!(Date.utc_today(), ~T[00:00:00], "Etc/UTC")
+      visit = page("night-owl", DateTime.add(midnight, -20 * 60, :second))
+
+      insert_event(%{
+        visitor_id: "night-owl",
+        session_id: visit.session_id,
+        event_type: "leave",
+        engaged_ms: 2_400_000,
+        metadata: %{"source" => "live_presence"},
+        inserted_at: DateTime.add(midnight, 20 * 60, :second)
+      })
+
+      assert BotSignals.judge_no_js(DateTime.add(midnight, 3600, :second)) == 0
+    end
+
+    test "a flagged visit's next page view is kept (flagged), not dropped, with bot traffic off" do
+      {:ok, _} = Collector.track(hit(%{inserted_at: hours_ago(2), metadata: %{"lv" => true}}))
+      assert BotSignals.judge_no_js() == 1
+
+      # The visitor is back within the visit's window: a plain page load,
+      # before its live connection reports in.
+      {:ok, next} = Collector.track(hit(%{inserted_at: DateTime.add(hours_ago(2), 600, :second)}))
+
+      assert next.is_bot and next.metadata["bot"] == "no_js"
+      assert Repo.aggregate(Event, :count) == 2
     end
 
     test "nothing is judged with detection off" do
