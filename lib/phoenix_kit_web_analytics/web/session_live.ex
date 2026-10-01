@@ -89,6 +89,14 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
 
   defp show_param(_value), do: @page
 
+  defp bot_reason("webdriver"), do: gettext("Yes — the browser was under automation")
+  defp bot_reason("rate"), do: gettext("Yes — pages faster than a person reads")
+
+  defp bot_reason("no_js"),
+    do: gettext("Yes — its LiveView pages never connected (no JavaScript)")
+
+  defp bot_reason(_reason), do: gettext("Yes — its browser says so")
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -171,6 +179,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             label={gettext("Furthest scroll")}
             value={@summary.max_scroll && "#{@summary.max_scroll}%"}
           />
+          <.fact :if={@summary.bot?} label={gettext("Bot")} value={bot_reason(@summary.bot_reason)} />
         </dl>
       </div>
 

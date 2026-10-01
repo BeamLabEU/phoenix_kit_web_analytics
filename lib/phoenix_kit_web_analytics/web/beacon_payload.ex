@@ -80,11 +80,13 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
   `"event"` needs a non-empty name `n`; a payload with only a name is an
   event too (the 0.2 snippet's shape).
   """
-  @spec kind(map()) :: :pageview | :event | :click | :scroll | :leave | :unknown
+  @spec kind(map()) :: :pageview | :event | :click | :scroll | :leave | :automation | :unknown
   def kind(%{"e" => "pageview"}), do: :pageview
   def kind(%{"e" => "click"}), do: :click
   def kind(%{"e" => "scroll"}), do: :scroll
   def kind(%{"e" => "leave"}), do: :leave
+  # The client script's report that the browser is under automation.
+  def kind(%{"e" => "automation"}), do: :automation
 
   def kind(%{"e" => e, "n" => name}) when e in ["event", nil] and is_binary(name) and name != "",
     do: :event

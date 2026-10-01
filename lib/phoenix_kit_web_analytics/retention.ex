@@ -105,6 +105,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
       if try_lock() do
         try do
           backfill_session_starts()
+          PhoenixKitWebAnalytics.BotSignals.judge_no_js()
           PhoenixKitWebAnalytics.Recordings.prune()
           %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
         after

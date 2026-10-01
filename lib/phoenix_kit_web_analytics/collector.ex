@@ -75,6 +75,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   import Ecto.Query
 
+  alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.Referrer
@@ -266,9 +267,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
           end)
 
         case result do
-          {:ok, {event, new_session?}} ->
+          {:ok, {%Event{} = event, new_session?}} ->
             PhoenixKitWebAnalytics.Alerts.event_recorded(event, new_session?)
             {:ok, event}
+
+          # Flagged as a bot by its behaviour, with bot traffic not kept.
+          {:ok, :bot} ->
+            {:error, :bot}
 
           {:error, _} = error ->
             error
@@ -277,6 +282,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
   end
 
   defp insert_stitched(hit, config, ua, visitor_id, site, now, anchor) do
+    speed = speed(hit, config, visitor_id)
+
     repo().transaction(fn ->
       lock_visitor(visitor_id)
 
@@ -294,11 +301,65 @@ defmodule PhoenixKitWebAnalytics.Collector do
         |> carry_language(stitch)
         |> Map.put(:session_start, stitch.new?)
 
-      case %Event{} |> Event.changeset(attrs) |> repo().insert() do
-        {:ok, event} -> {event, stitch.new?}
-        {:error, changeset} -> repo().rollback(changeset)
-      end
+      judge_and_store(attrs, stitch, speed, config)
     end)
+  end
+
+  defp judge_and_store(attrs, stitch, speed, config) do
+    case bot_verdict(attrs, stitch, speed, config) do
+      {:flag, reason} ->
+        # Going over the speed limit also flags the visit's earlier hits.
+        if speed == :crossed, do: BotSignals.flag_session(stitch.session_id, "rate")
+
+        if config.track_bots?,
+          do: store(flag_attrs(attrs, reason), stitch),
+          else: :bot
+
+      :clear ->
+        result = store(attrs, stitch)
+        BotSignals.clear_no_js(stitch.session_id)
+        result
+
+      :ok ->
+        store(attrs, stitch)
+    end
+  end
+
+  defp store(attrs, stitch) do
+    case %Event{} |> Event.changeset(attrs) |> repo().insert() do
+      {:ok, event} -> {event, stitch.new?}
+      {:error, changeset} -> repo().rollback(changeset)
+    end
+  end
+
+  # Page views per visitor per minute, for the speed signal.
+  defp speed(hit, %{detect_bots?: true}, visitor_id) do
+    if (hit[:event_type] || "pageview") == "pageview",
+      do: BotSignals.count_pageview(visitor_id),
+      else: :ok
+  end
+
+  defp speed(_hit, _config, _visitor_id), do: :ok
+
+  # Whether this hit is a bot's by behaviour — see BotSignals. A visit
+  # already flagged passes its flag on, except that a "no JavaScript" flag
+  # is lifted by a report only JavaScript could have sent.
+  defp bot_verdict(_attrs, _stitch, _speed, %{detect_bots?: false}), do: :ok
+
+  defp bot_verdict(attrs, stitch, speed, _config) do
+    cond do
+      speed in [:crossed, :over] -> {:flag, "rate"}
+      stitch.bot in ["webdriver", "rate"] -> {:flag, stitch.bot}
+      stitch.bot == "no_js" and BotSignals.js_evidence?(attrs) -> :clear
+      stitch.bot == "no_js" -> {:flag, "no_js"}
+      true -> :ok
+    end
+  end
+
+  defp flag_attrs(attrs, reason) do
+    attrs
+    |> Map.put(:is_bot, true)
+    |> Map.update(:metadata, %{"bot" => reason}, &Map.put(&1 || %{}, "bot", reason))
   end
 
   # Registered for the length of the write; the registry forgets a crashed
@@ -365,20 +426,24 @@ defmodule PhoenixKitWebAnalytics.Collector do
         where: e.visitor_id == ^visitor_id and e.inserted_at >= ^cutoff,
         order_by: [desc: e.inserted_at],
         limit: 1,
-        select: %{session_id: e.session_id, language: e.language}
+        select: %{
+          session_id: e.session_id,
+          language: e.language,
+          bot: fragment("?->>'bot'", e.metadata)
+        }
       )
       |> where_site(site)
       |> until_anchor(now, Keyword.get(opts, :anchored?, false))
 
     case repo().one(query) do
-      nil -> %{session_id: UUIDv7.generate(), language: nil, new?: true}
+      nil -> %{session_id: UUIDv7.generate(), language: nil, bot: nil, new?: true}
       previous -> Map.put(previous, :new?, false)
     end
   rescue
     # A failed stitch must not lose the event — start a new session instead.
     error in [DBConnection.ConnectionError, Postgrex.Error] ->
       Logger.debug("[WebAnalytics] session stitch failed: #{Exception.message(error)}")
-      %{session_id: UUIDv7.generate(), language: nil, new?: true}
+      %{session_id: UUIDv7.generate(), language: nil, bot: nil, new?: true}
   end
 
   defp until_anchor(query, _anchor, false), do: query

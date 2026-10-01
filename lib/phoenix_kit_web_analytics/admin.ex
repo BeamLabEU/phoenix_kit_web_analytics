@@ -20,7 +20,15 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   @type opts :: [actor_uuid: String.t() | nil]
 
-  @booleans [:respect_dnt, :track_bots, :beacon, :track_interactions, :client_script, :recording]
+  @booleans [
+    :respect_dnt,
+    :track_bots,
+    :detect_bots,
+    :beacon,
+    :track_interactions,
+    :client_script,
+    :recording
+  ]
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]
   @alert_lists [:paths, :events]

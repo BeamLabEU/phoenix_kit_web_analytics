@@ -192,8 +192,24 @@ defmodule PhoenixKitWebAnalytics.Plug do
       user_uuid: Tracking.current_user_uuid(conn.assigns),
       status: conn.status,
       duration_ms: duration_ms,
-      location: edge_location(conn)
+      location: edge_location(conn),
+      metadata: live_metadata(conn)
     }
+  end
+
+  # A page whose LiveView runs `PhoenixKitWebAnalytics.LiveHook` will report
+  # its live connection; one that never does ran no JavaScript (see
+  # `PhoenixKitWebAnalytics.BotSignals`). Read off the route's live_session.
+  defp live_metadata(conn) do
+    case conn.private[:phoenix_live_view] do
+      {_view, _opts, %{extra: %{on_mount: hooks}}} when is_list(hooks) ->
+        if Enum.any?(hooks, &match?(%{id: {PhoenixKitWebAnalytics.LiveHook, _}}, &1)),
+          do: %{"lv" => true},
+          else: %{}
+
+      _ ->
+        %{}
+    end
   end
 
   # Only the campaign parameters are read out; the rest of the query string is

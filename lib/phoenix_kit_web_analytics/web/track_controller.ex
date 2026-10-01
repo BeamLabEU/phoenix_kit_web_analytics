@@ -55,7 +55,11 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   @doc "Records a hit reported by the beacon or the client script."
   def event(conn, params) do
     {conn, params} = with_body_params(conn, params)
-    track(conn, params)
+
+    case BeaconPayload.kind(params) do
+      :automation -> flag_automation(conn)
+      _ -> track(conn, params)
+    end
 
     send_resp(conn, :no_content, "")
   end
@@ -95,6 +99,17 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     _ = Recordings.store(recording_client(conn), params)
 
     send_resp(conn, :no_content, "")
+  end
+
+  # `navigator.webdriver` was set: the visitor's hits today are a bot's (see
+  # BotSignals). Needs the client script and behavioural detection on.
+  defp flag_automation(conn) do
+    config = Config.collection_config()
+
+    if config.enabled? and config.client_script? and config.detect_bots?,
+      do: PhoenixKitWebAnalytics.BotSignals.flag_client(recording_client(conn), "webdriver")
+
+    :ok
   end
 
   defp recording_client(conn) do

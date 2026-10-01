@@ -159,6 +159,31 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert Repo.all(Event) == []
     end
 
+    test "a LiveView page running the hook is marked, so a missing connection can be spotted" do
+      hook = %{id: {PhoenixKitWebAnalytics.LiveHook, :track_navigation}}
+      other = %{id: {SomeAuth, :default}}
+
+      "/dashboard-page"
+      |> request()
+      |> Plug.Conn.put_private(
+        :phoenix_live_view,
+        {SomeLive, [], %{extra: %{on_mount: [other, hook]}}}
+      )
+      |> respond()
+
+      "/other-page"
+      |> request()
+      |> Plug.Conn.put_private(:phoenix_live_view, {SomeLive, [], %{extra: %{on_mount: [other]}}})
+      |> respond()
+
+      "/plain" |> request() |> respond()
+
+      marks = Map.new(Repo.all(Event), &{&1.path, &1.metadata})
+      assert marks["/dashboard-page"] == %{"lv" => true}
+      assert marks["/other-page"] == %{}
+      assert marks["/plain"] == %{}
+    end
+
     test "skip/1 after the plug ran still drops the hit" do
       "/preview"
       |> request()

@@ -22,6 +22,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   |-----|---------|--------------|
   | `web_analytics_enabled` | `false` | Master switch (the module toggle) |
   | `web_analytics_track_bots` | `false` | Store hits whose User-Agent looks automated |
+  | `web_analytics_detect_bots` | `true` | Also flag bots by behaviour — see `PhoenixKitWebAnalytics.BotSignals` |
   | `web_analytics_respect_dnt` | `true` | Skip requests sending `DNT: 1` |
   | `web_analytics_exclude_paths` | `/admin*` … | Newline/comma separated path patterns to ignore |
   | `web_analytics_session_timeout_minutes` | `30` | Inactivity gap that ends a session |
@@ -43,6 +44,7 @@ defmodule PhoenixKitWebAnalytics.Config do
 
   @enabled_key "web_analytics_enabled"
   @track_bots_key "web_analytics_track_bots"
+  @detect_bots_key "web_analytics_detect_bots"
   @respect_dnt_key "web_analytics_respect_dnt"
   @exclude_paths_key "web_analytics_exclude_paths"
   @session_timeout_key "web_analytics_session_timeout_minutes"
@@ -69,6 +71,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   @hot_keys [
     @enabled_key,
     @track_bots_key,
+    @detect_bots_key,
     @respect_dnt_key,
     @exclude_paths_key,
     @session_timeout_key,
@@ -84,6 +87,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   @type collection_config :: %{
           enabled?: boolean(),
           track_bots?: boolean(),
+          detect_bots?: boolean(),
           respect_dnt?: boolean(),
           beacon_enabled?: boolean(),
           exclusions: [String.t()],
@@ -117,6 +121,7 @@ defmodule PhoenixKitWebAnalytics.Config do
     %{
       enabled?: truthy?(values[@enabled_key], false),
       track_bots?: truthy?(values[@track_bots_key], false),
+      detect_bots?: truthy?(values[@detect_bots_key], true),
       respect_dnt?: truthy?(values[@respect_dnt_key], true),
       beacon_enabled?: truthy?(values[@beacon_key], false),
       exclusions: parse_exclusions(values[@exclude_paths_key]),
@@ -303,6 +308,7 @@ defmodule PhoenixKitWebAnalytics.Config do
     %{
       enabled: @enabled_key,
       track_bots: @track_bots_key,
+      detect_bots: @detect_bots_key,
       respect_dnt: @respect_dnt_key,
       exclude_paths: @exclude_paths_key,
       session_timeout: @session_timeout_key,
@@ -324,6 +330,7 @@ defmodule PhoenixKitWebAnalytics.Config do
     %{
       enabled?: false,
       track_bots?: false,
+      detect_bots?: true,
       respect_dnt?: true,
       beacon_enabled?: false,
       exclusions: parse_exclusions(@default_exclusions),

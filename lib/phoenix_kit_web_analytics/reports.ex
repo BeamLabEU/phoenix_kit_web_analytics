@@ -674,7 +674,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
   @doc """
   One visit's totals over all its events, however long the visit —
-  `%{started, seconds, pageviews, actions, max_scroll}`, or `nil`.
+  `%{started, seconds, pageviews, actions, max_scroll, bot?, bot_reason}`,
+  or `nil`. `bot_reason` says why a visit counts as a bot's when its
+  behaviour gave it away (see `PhoenixKitWebAnalytics.BotSignals`).
   """
   @spec session_summary(String.t()) :: map() | nil
   def session_summary(session_id) do
@@ -694,7 +696,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
                pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
                actions:
                  fragment("COUNT(*) FILTER (WHERE ? IN ('interaction', 'event'))", e.event_type),
-               max_scroll: max(e.scroll_depth)
+               max_scroll: max(e.scroll_depth),
+               bot?: fragment("bool_or(?)", e.is_bot),
+               bot_reason: fragment("max(?->>'bot')", e.metadata)
              }
            )
            |> one(nil) do

@@ -230,6 +230,7 @@ defmodule PhoenixKitWebAnalytics do
   def children do
     [
       Collector.gate_spec(),
+      PhoenixKitWebAnalytics.BotSignals,
       Collector.task_supervisor_spec(),
       PhoenixKitWebAnalytics.LivePresence,
       PhoenixKitWebAnalytics.ReportCache,

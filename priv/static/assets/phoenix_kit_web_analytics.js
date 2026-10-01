@@ -62,6 +62,12 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
     };
   }
 
+  // ── automation ────────────────────────────────────────────────────────────
+
+  // Selenium, Puppeteer and Playwright set navigator.webdriver; a browser a
+  // person uses doesn't. Reported once per page; the server flags the visit.
+  if (navigator.webdriver === true) send({ e: "automation" });
+
   // ── clicks ────────────────────────────────────────────────────────────────
 
   function label(el) {

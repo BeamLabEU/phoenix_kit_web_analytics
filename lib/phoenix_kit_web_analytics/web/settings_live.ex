@@ -207,6 +207,18 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             </:description>
           </.checkbox>
 
+          <.checkbox
+            name="detect_bots"
+            checked={@config.detect_bots?}
+            label={gettext("Spot bots by behaviour")}
+          >
+            <:description>
+              {gettext(
+                "Bots are recognised by the name their browser sends. This also catches ones posing as a normal browser: browsers under automation (needs the client script), page views faster than a person reads, and LiveView pages that never connected — a scraper fetching HTML runs no JavaScript."
+              )}
+            </:description>
+          </.checkbox>
+
           <.textarea
             id="exclude_paths"
             name="exclude_paths"
