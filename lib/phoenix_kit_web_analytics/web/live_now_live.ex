@@ -192,7 +192,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
           :if={@open == [] and @open_history == []}
           title={gettext("Nobody has a page open right now.")}
           icon="hero-user"
-          class="py-10"
+          class="py-10 px-6"
         />
 
         <div :if={@open_tab == "visitors" and (@open != [] or @open_history != [])}>

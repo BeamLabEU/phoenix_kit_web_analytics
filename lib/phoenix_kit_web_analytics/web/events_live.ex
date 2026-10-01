@@ -185,7 +185,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
           :if={@feed == []}
           title={gettext("Nothing recorded in this period yet.")}
           icon="hero-signal"
-          class="py-10"
+          class="py-10 px-6"
         />
 
         <.table_default :if={@feed != []} size="xs" wrapper_class="overflow-x-auto">

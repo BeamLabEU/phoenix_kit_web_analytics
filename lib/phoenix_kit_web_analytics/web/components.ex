@@ -280,7 +280,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       :if={@series == [] or Enum.all?(@data, &(&1.value in [0, nil]))}
       title={gettext("No traffic in this period yet.")}
       icon="hero-chart-bar"
-      class="py-10"
+      class="py-10 px-6"
     />
 
     <div :if={@series != [] and Enum.any?(@data, &(&1.value not in [0, nil]))}>
@@ -358,7 +358,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       <.empty_state
         :if={@rows == []}
         title={@empty_message || gettext("Nothing recorded yet.")}
-        class="py-8"
+        class="py-8 px-6"
       />
 
       <div
@@ -578,7 +578,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       :if={@sessions == []}
       title={@empty_message || gettext("No visits in this period.")}
       icon="hero-users"
-      class="py-10"
+      class="py-10 px-6"
     />
     <.table_default
       :if={@sessions != []}

@@ -101,7 +101,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
           :if={@paths == []}
           title={gettext("No page views recorded in this period.")}
           icon="hero-document-text"
-          class="py-10"
+          class="py-10 px-6"
         />
         <.table_default :if={@paths != []} size="sm" wrapper_class="overflow-x-auto">
           <.table_default_header>
@@ -186,7 +186,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
         <.empty_state
           :if={@slowest == []}
           title={gettext("Not enough traffic yet to rank response times.")}
-          class="py-8"
+          class="py-8 px-6"
         />
 
         <.table_default :if={@slowest != []} size="sm" wrapper_class="overflow-x-auto">
