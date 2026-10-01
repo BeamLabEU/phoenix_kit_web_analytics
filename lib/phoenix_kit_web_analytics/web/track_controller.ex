@@ -17,6 +17,11 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     * `GET /phoenix-kit/analytics/pixel.gif` — a 1×1 GIF for pages the plug
       never runs for: full-page CDN caches, statically exported pages, AMP.
 
+    * `GET` / `POST /phoenix-kit/analytics/recording` — session recordings:
+      whether to record this visitor on this page, and the recorded chunks.
+      Off unless `web_analytics_recording` is on; see
+      `PhoenixKitWebAnalytics.Recordings`.
+
   ## Trust boundary
 
   These endpoints are public and unauthenticated. What a payload can and cannot
@@ -35,13 +40,17 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Recordings
   alias PhoenixKitWebAnalytics.Referrer
+  alias PhoenixKitWebAnalytics.Tracking
   alias PhoenixKitWebAnalytics.Web.BeaconPayload
 
   # 43-byte transparent 1×1 GIF.
   @pixel Base.decode64!("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
   # A beacon payload is a few hundred bytes; anything much larger isn't one.
   @max_body 16_384
+  # A recording chunk: up to a couple of thousand short frames.
+  @max_recording_body 131_072
 
   @doc "Records a hit reported by the beacon or the client script."
   def event(conn, params) do
@@ -65,6 +74,36 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     |> put_resp_header("cache-control", "no-store, no-cache, must-revalidate, private")
     |> put_resp_header("pragma", "no-cache")
     |> send_resp(200, @pixel)
+  end
+
+  @doc """
+  Whether the client script should record this page: `{"record": true}` or
+  `false`. Private and short-lived in caches — the answer depends on the
+  visitor (sampling) and on a setting that can change.
+  """
+  def recording_config(conn, params) do
+    record? = Recordings.record?(recording_client(conn), params["p"])
+
+    conn
+    |> put_resp_header("cache-control", "private, max-age=60")
+    |> json(%{record: record?})
+  end
+
+  @doc "Stores a chunk of a session recording."
+  def recording(conn, params) do
+    {conn, params} = with_body_params(conn, params, @max_recording_body)
+    _ = Recordings.store(recording_client(conn), params)
+
+    send_resp(conn, :no_content, "")
+  end
+
+  defp recording_client(conn) do
+    %{
+      ip: Tracking.client_ip(conn),
+      user_agent: conn |> get_req_header("user-agent") |> List.first(),
+      site: Referrer.normalize_host(conn.host),
+      opted_out?: get_req_header(conn, "dnt") == ["1"] or get_req_header(conn, "sec-gpc") == ["1"]
+    }
   end
 
   defp track(conn, params) do
@@ -103,9 +142,9 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   # `navigator.sendBeacon(url, string)` posts `text/plain`, which the JSON
   # parser leaves alone — so the body is read and decoded here. A JSON body
   # was already parsed into `params`.
-  defp with_body_params(conn, params) do
+  defp with_body_params(conn, params, max \\ @max_body) do
     if params_empty?(params) do
-      case read_body(conn, length: @max_body) do
+      case read_body(conn, length: max) do
         {:ok, body, conn} -> {conn, decode(body)}
         {_other, _body, conn} -> {conn, %{}}
         {:error, _reason} -> {conn, %{}}

@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   import PhoenixKitWebAnalytics.Web.Components
 
   alias PhoenixKitWebAnalytics.Paths
+  alias PhoenixKitWebAnalytics.Recordings
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.UserNames
 
@@ -48,7 +49,29 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      |> assign(:show, show)
      |> assign(:more?, rest != [])
      |> assign(:max_show, @max_show)
-     |> assign(:summary, Reports.session_summary(session_id))}
+     |> assign(:summary, Reports.session_summary(session_id))
+     |> assign(:recorded?, Recordings.recorded?(session_id))}
+  end
+
+  # The player asks for the recording when it starts — it can be large, so
+  # it isn't part of the page.
+  @impl true
+  def handle_event("replay_data", _params, socket) do
+    pages =
+      socket.assigns.session_id
+      |> Recordings.replay()
+      |> Enum.map(fn page ->
+        %{
+          path: page.path,
+          url: page.loadable && page.path <> "?pk_replay=1",
+          w: page.viewport_w,
+          h: page.viewport_h,
+          started_at: DateTime.to_iso8601(page.started_at),
+          frames: page.frames
+        }
+      end)
+
+    {:reply, %{pages: pages}, socket}
   end
 
   @impl true
@@ -150,6 +173,36 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
           />
         </dl>
       </div>
+
+      <.report_card
+        :if={@recorded?}
+        id="replay-card"
+        title={gettext("Recording")}
+        icon="hero-play-circle"
+      >
+        <:info>
+          <p>
+            {gettext(
+              "How this visitor moved the pointer, what they clicked and hovered, and how the page scrolled — played over the page as it looks today. Text, typing and form values are never recorded."
+            )}
+          </p>
+        </:info>
+        <div
+          id="replay"
+          phx-hook="PhoenixKitWebAnalyticsReplay"
+          phx-update="ignore"
+          data-play={gettext("Play")}
+          data-pause={gettext("Pause")}
+          data-unavailable={
+            gettext("This page can't be shown behind the replay; only the pointer is drawn.")
+          }
+          class="p-4"
+        >
+          <p class="text-sm text-base-content/60">
+            {gettext("The player needs JavaScript.")}
+          </p>
+        </div>
+      </.report_card>
 
       <ol :if={@events != []} class="relative space-y-0 border-l border-base-300 pl-6">
         <li :for={event <- @events} class="relative pb-4">

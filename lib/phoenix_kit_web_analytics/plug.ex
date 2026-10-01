@@ -77,7 +77,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   def call(conn, opts) do
     # Cheapest checks first: no settings read at all for asset requests, POSTs,
     # or anything already marked to skip.
-    if conn.method == "GET" and not skipped?(conn) do
+    if conn.method == "GET" and not skipped?(conn) and not replay_frame?(conn) do
       maybe_register(conn, opts)
     else
       conn
@@ -102,6 +102,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
   def skipped?(conn), do: conn.private[@skip_key] == true
 
   # ── internals ─────────────────────────────────────────────────────────────
+
+  # The session-recording player loads the recorded page behind the replay;
+  # an admin watching a visit is not a page view of it.
+  defp replay_frame?(conn), do: String.contains?(conn.query_string, "pk_replay=1")
 
   defp maybe_register(conn, opts) do
     config = Config.collection_config()

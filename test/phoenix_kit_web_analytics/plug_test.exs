@@ -153,6 +153,12 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert Repo.all(Event) == []
     end
 
+    test "the session-recording player loading a page behind a replay is not a page view" do
+      "/pricing?pk_replay=1" |> request() |> respond()
+
+      assert Repo.all(Event) == []
+    end
+
     test "skip/1 after the plug ran still drops the hit" do
       "/preview"
       |> request()

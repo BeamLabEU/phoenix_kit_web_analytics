@@ -340,9 +340,12 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       wait_until(fn -> match?([%{pid: ^second}], LivePresence.list()) end)
 
       LivePresence.navigate(first, "/blog", @client, %{site: "example.com"})
-      wait_until(fn -> LivePresence.count(nil) == 2 end)
 
-      assert Enum.sort(LivePresence.by_path(10)) == [{"/blog", 1}, {"/pricing", 1}]
+      wait_until(fn ->
+        Enum.sort(LivePresence.by_path(10)) == [{"/blog", 1}, {"/pricing", 1}]
+      end)
+
+      assert LivePresence.count(nil) == 2
 
       Enum.each([first, second], &Process.exit(&1, :kill))
     end

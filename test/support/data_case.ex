@@ -118,12 +118,15 @@ defmodule PhoenixKitWebAnalytics.DataCase do
       TestRepo,
       """
       UPDATE phoenix_kit_web_analytics_events AS e
-      SET session_start = (e.uuid = (
+      SET session_start = (e.uuid = first.uuid)
+      FROM (
         SELECT f.uuid FROM phoenix_kit_web_analytics_events AS f
-        WHERE f.session_id = e.session_id
+        WHERE f.session_id = $1
         ORDER BY f.inserted_at, f.uuid LIMIT 1
-      ))
-      WHERE e.session_id = $1
+      ) AS first
+      -- The first hit is found once, and only rows whose flag changes are
+      -- touched: a test inserting hundreds of hits into one visit stays linear.
+      WHERE e.session_id = $1 AND e.session_start IS DISTINCT FROM (e.uuid = first.uuid)
       """,
       [Ecto.UUID.dump!(session_id)]
     )

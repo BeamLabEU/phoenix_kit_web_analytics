@@ -31,6 +31,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_ignore_events` | `validate` | LiveView event names never recorded as interactions |
   | `web_analytics_event_params` | `tab, view, …` | Event param names whose short values are kept |
   | `web_analytics_client_script` | `false` | Accept clicks / scroll / leave from the optional client script |
+  | `web_analytics_recording` | `false` | Record pointer movement, clicks, hovers and scrolling (session recordings) |
+  | `web_analytics_recording_sample` | `100` | Percent of visitors recorded while recording is on |
+  | `web_analytics_recording_retention_days` | `30` | Age at which recordings are deleted |
   | `web_analytics_hash_salt` | generated | Secret mixed into the daily visitor hash |
   """
 
@@ -50,6 +53,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   @ignore_events_key "web_analytics_ignore_events"
   @event_params_key "web_analytics_event_params"
   @client_script_key "web_analytics_client_script"
+  @recording_key "web_analytics_recording"
+  @recording_sample_key "web_analytics_recording_sample"
+  @recording_retention_key "web_analytics_recording_retention_days"
 
   @module_key "web_analytics"
 
@@ -58,6 +64,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   @default_retention_days 365
   @default_ignore_events "validate"
   @default_event_params "tab, view, section, step, sort, filter, period"
+  @default_recording_retention_days 30
 
   @hot_keys [
     @enabled_key,
@@ -69,7 +76,9 @@ defmodule PhoenixKitWebAnalytics.Config do
     @track_interactions_key,
     @ignore_events_key,
     @event_params_key,
-    @client_script_key
+    @client_script_key,
+    @recording_key,
+    @recording_sample_key
   ]
 
   @type collection_config :: %{
@@ -81,6 +90,8 @@ defmodule PhoenixKitWebAnalytics.Config do
           session_timeout_minutes: pos_integer(),
           track_interactions?: boolean(),
           client_script?: boolean(),
+          recording?: boolean(),
+          recording_sample: 1..100,
           ignore_events: [String.t()],
           event_params: [String.t()]
         }
@@ -113,6 +124,8 @@ defmodule PhoenixKitWebAnalytics.Config do
         positive_integer(values[@session_timeout_key], @default_session_timeout),
       track_interactions?: truthy?(values[@track_interactions_key], true),
       client_script?: truthy?(values[@client_script_key], false),
+      recording?: truthy?(values[@recording_key], false),
+      recording_sample: values[@recording_sample_key] |> positive_integer(100) |> min(100),
       ignore_events: parse_list(values[@ignore_events_key] || @default_ignore_events),
       event_params: parse_list(values[@event_params_key] || @default_event_params)
     }
@@ -166,6 +179,19 @@ defmodule PhoenixKitWebAnalytics.Config do
     _ -> @default_retention_days
   catch
     :exit, _ -> @default_retention_days
+  end
+
+  @doc "Days of session recordings to keep (30 by default)."
+  @spec recording_retention_days() :: pos_integer()
+  def recording_retention_days do
+    case Settings.get_integer_setting(@recording_retention_key, @default_recording_retention_days) do
+      days when is_integer(days) and days > 0 -> days
+      _ -> @default_recording_retention_days
+    end
+  rescue
+    _ -> @default_recording_retention_days
+  catch
+    :exit, _ -> @default_recording_retention_days
   end
 
   @doc "Raw path-exclusion setting value, for the settings form."
@@ -285,7 +311,10 @@ defmodule PhoenixKitWebAnalytics.Config do
       track_interactions: @track_interactions_key,
       ignore_events: @ignore_events_key,
       event_params: @event_params_key,
-      client_script: @client_script_key
+      client_script: @client_script_key,
+      recording: @recording_key,
+      recording_sample: @recording_sample_key,
+      recording_retention_days: @recording_retention_key
     }
   end
 
@@ -301,6 +330,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       session_timeout_minutes: @default_session_timeout,
       track_interactions?: false,
       client_script?: false,
+      recording?: false,
+      recording_sample: 100,
       ignore_events: parse_list(@default_ignore_events),
       event_params: []
     }

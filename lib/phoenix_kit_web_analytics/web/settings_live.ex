@@ -133,6 +133,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:ignore_events, raw(keys.ignore_events, Config.default_ignore_events()))
     |> assign(:event_params, raw(keys.event_params, Config.default_event_params()))
     |> assign(:retention_days, Config.retention_days())
+    |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
   end
@@ -145,6 +146,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
 
   defp field_label(:session_timeout), do: gettext("Visit timeout")
   defp field_label(:retention_days), do: gettext("Retention")
+  defp field_label(:recording_sample), do: gettext("Visitors recorded")
+  defp field_label(:recording_retention_days), do: gettext("Keep recordings")
   defp field_label(:alert_max_per_hour), do: gettext("Alerts per hour")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
@@ -306,6 +309,46 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               )}
             </:description>
           </.checkbox>
+        </section>
+
+        <section class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4">
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("Session recordings")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "Replay a visit: where the pointer went, what was clicked and hovered, how the page scrolled. Recorded by the client script; only coordinates and element positions — never text, typing or form values. Visitors asking not to be tracked, bots and excluded paths are never recorded."
+              )}
+            </p>
+          </div>
+
+          <.checkbox name="recording" checked={@config.recording?} label={gettext("Record visits")}>
+            <:description>
+              {gettext(
+                "Off by default. A recorded page sends a few rows a minute while someone is using it — on a busy site, record a share of visitors."
+              )}
+            </:description>
+          </.checkbox>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <.input
+              type="number"
+              id="recording_sample"
+              name="recording_sample"
+              label={gettext("Visitors recorded, %")}
+              value={@config.recording_sample}
+              min="1"
+              max="100"
+            />
+            <.input
+              type="number"
+              id="recording_retention_days"
+              name="recording_retention_days"
+              label={gettext("Keep recordings, days")}
+              value={@recording_retention_days}
+              min="1"
+              max="3650"
+            />
+          </div>
         </section>
 
         <section class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4">

@@ -37,6 +37,9 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       `(path, inserted_at)` for page drill-downs and `(user_uuid,
       inserted_at)` for a user's visits; the plain `session_id` index goes
       (`(session_id, inserted_at)` already serves it)
+    * `6` — `phoenix_kit_web_analytics_recordings`: optional session
+      recordings (pointer movement, clicks, hovers, scrolling), in chunks per
+      page view — see `PhoenixKitWebAnalytics.Recordings`
 
   ## Large existing tables
 
@@ -70,7 +73,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 5
+  @current_version 6
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -458,6 +461,54 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     )
   end
 
+  # ── v6 ────────────────────────────────────────────────────────────────────
+
+  defp up_v6(prefix) do
+    create_if_not_exists table(:phoenix_kit_web_analytics_recordings,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:session_id, :uuid, null: false)
+      # The page view a chunk belongs to: a random key the recorder picks
+      # per page, and the chunk's place in it.
+      add(:page_key, :string, size: 32, null: false)
+      add(:seq, :integer, null: false)
+      add(:path, :text, null: false)
+      add(:site, :string, size: 255)
+      add(:viewport_w, :integer)
+      add(:viewport_h, :integer)
+      # %{"v" => 1, "f" => [[ms_since_page_start, type, ...], ...]} — see
+      # Recordings.
+      add(:frames, :map, null: false)
+      add(:frame_count, :integer, null: false, default: 0)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(:phoenix_kit_web_analytics_recordings, [:page_key, :seq], prefix: prefix)
+    )
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_recordings, [:session_id, :inserted_at], prefix: prefix)
+    )
+
+    # Pruning walks the oldest first.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_recordings, [:inserted_at], prefix: prefix)
+    )
+  end
+
+  defp down_v6(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_recordings, prefix: prefix))
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -484,6 +535,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 4, prefix), do: down_v4(prefix)
   defp apply_step(:up, 5, prefix), do: up_v5(prefix)
   defp apply_step(:down, 5, prefix), do: down_v5(prefix)
+  defp apply_step(:up, 6, prefix), do: up_v6(prefix)
+  defp apply_step(:down, 6, prefix), do: down_v6(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

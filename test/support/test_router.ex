@@ -62,5 +62,7 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
 
     post("/phoenix-kit/analytics/event", TrackController, :event)
     get("/phoenix-kit/analytics/pixel.gif", TrackController, :pixel)
+    get("/phoenix-kit/analytics/recording", TrackController, :recording_config)
+    post("/phoenix-kit/analytics/recording", TrackController, :recording)
   end
 end

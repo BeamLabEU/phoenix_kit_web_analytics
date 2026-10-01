@@ -8,6 +8,8 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
   use PhoenixKitWebAnalytics.LiveCase, async: false
 
   alias PhoenixKitWebAnalytics.LivePresence
+  alias PhoenixKitWebAnalytics.Schemas.Recording
+  alias PhoenixKitWebAnalytics.Test.Repo
 
   @base "/en/admin/web-analytics"
   @ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
@@ -224,6 +226,37 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       assert html =~ "Anonymous visitor"
       assert html =~ "Hacker News"
       refute html =~ "This visit isn"
+    end
+
+    test "a recorded visit shows the player, which gets the recording on request", %{conn: conn} do
+      id = UUIDv7.generate()
+      insert_event(%{session_id: id, visitor_id: "v", path: "/start"})
+
+      {:ok, _view, html} = live(conn, "#{@base}/sessions/#{id}")
+      refute html =~ "replay-card"
+
+      Repo.insert!(%Recording{
+        session_id: id,
+        page_key: "pageKey1234567",
+        seq: 0,
+        path: "/start",
+        viewport_w: 1024,
+        viewport_h: 700,
+        frames: %{"v" => 1, "f" => [[0, "m", 5, 5], [900, "c", 6, 6, "button"]]},
+        frame_count: 2
+      })
+
+      {:ok, view, html} = live(conn, "#{@base}/sessions/#{id}")
+      assert html =~ "replay-card"
+      assert html =~ "PhoenixKitWebAnalyticsReplay"
+
+      render_hook(view, "replay_data", %{})
+
+      assert_reply(view, %{pages: [page]})
+      # A page this visit viewed: loaded behind the replay, never tracked.
+      assert page.url == "/start?pk_replay=1"
+      assert {page.w, page.h} == {1024, 700}
+      assert page.frames == [[0, "m", 5, 5], [900, "c", 6, 6, "button"]]
     end
 
     test "an unknown or malformed id says the visit isn't here", %{conn: conn} do

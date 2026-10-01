@@ -20,11 +20,16 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   @type opts :: [actor_uuid: String.t() | nil]
 
-  @booleans [:respect_dnt, :track_bots, :beacon, :track_interactions, :client_script]
+  @booleans [:respect_dnt, :track_bots, :beacon, :track_interactions, :client_script, :recording]
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]
   @alert_lists [:paths, :events]
-  @integers %{session_timeout: {1, 1440}, retention_days: {0, 3650}}
+  @integers %{
+    session_timeout: {1, 1440},
+    retention_days: {0, 3650},
+    recording_sample: {1, 100},
+    recording_retention_days: {1, 3650}
+  }
 
   @doc """
   Saves the settings form. Every field present in `params` is validated;

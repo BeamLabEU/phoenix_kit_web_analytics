@@ -124,6 +124,18 @@ defmodule PhoenixKitWebAnalytics.Routes do
           PhoenixKitWebAnalytics.Web.TrackController,
           :pixel
         )
+
+        get(
+          "/phoenix-kit/analytics/recording",
+          PhoenixKitWebAnalytics.Web.TrackController,
+          :recording_config
+        )
+
+        post(
+          "/phoenix-kit/analytics/recording",
+          PhoenixKitWebAnalytics.Web.TrackController,
+          :recording
+        )
       end
     end
   end
