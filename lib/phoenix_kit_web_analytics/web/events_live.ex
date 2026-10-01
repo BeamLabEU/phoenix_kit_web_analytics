@@ -215,7 +215,10 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
                   do: hit.referrer_source || channel_label(hit.referrer_medium)}
               </.table_default_cell>
               <.table_default_cell class="whitespace-nowrap text-base-content/60">
-                {Enum.join(Enum.reject([hit.browser, hit.os], &is_nil/1), " · ")}
+                {Enum.join(
+                  Enum.reject([client_label(hit.browser), client_label(hit.os)], &is_nil/1),
+                  " · "
+                )}
               </.table_default_cell>
               <.table_default_cell>
                 <.link

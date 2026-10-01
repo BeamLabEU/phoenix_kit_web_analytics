@@ -34,7 +34,8 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
   if (navigator.doNotTrack === "1" || navigator.globalPrivacyControl === true) return;
   if (typeof navigator.sendBeacon !== "function") return;
 
-  var prefix = window.PHOENIX_KIT_PREFIX || "";
+  // Core sets the prefix on every page; its own default if a layout doesn't.
+  var prefix = typeof window.PHOENIX_KIT_PREFIX === "string" ? window.PHOENIX_KIT_PREFIX : "/phoenix_kit";
   var endpoint = (prefix === "/" ? "" : prefix.replace(/\/$/, "")) + "/phoenix-kit/analytics/event";
   var DOWNLOAD = /\.(pdf|zip|rar|7z|gz|tar|dmg|exe|msi|apk|docx?|xlsx?|pptx?|csv|odt|ods|mp3|mp4|mov|avi|epub)$/i;
 
@@ -513,8 +514,13 @@ window.PhoenixKitWebAnalyticsHooks.PhoenixKitWebAnalyticsReplay = {
     this.scrubber.max = String(this.duration);
     this.size = { w: page.w || 1280, h: page.h || 800 };
 
-    if (page.url) {
-      this.frame.src = page.url;
+    // Only ever this site's own pages, whatever the recording says.
+    var url = null;
+    try {
+      url = page.url ? new URL(page.url, location.origin) : null;
+    } catch (_e) {}
+    if (url && url.origin === location.origin) {
+      this.frame.src = url.href;
       this.frame.style.visibility = "visible";
       this.note.classList.add("hidden");
     } else {

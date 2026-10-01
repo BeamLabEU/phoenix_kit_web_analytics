@@ -93,8 +93,13 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   """
   @spec watch(pid(), map(), map()) :: :ok
   def watch(pid, client, attrs) when is_pid(pid) and is_map(client) and is_map(attrs) do
-    cast({:watch, pid, client, attrs, DateTime.utc_now()})
+    cast({:watch, pid, with_ua(client), attrs, DateTime.utc_now()})
   end
+
+  # The User-Agent is parsed by the caller (the page's own process), not by
+  # this one server every page waits behind.
+  defp with_ua(client),
+    do: Map.put_new_lazy(client, :ua, fn -> UserAgent.parse(client[:user_agent]) end)
 
   @doc """
   Records that a watched LiveView moved to a new URL without a remount
@@ -104,7 +109,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @spec navigate(pid(), String.t(), map(), map()) :: :ok
   def navigate(pid, path, client \\ %{}, attrs \\ %{})
       when is_pid(pid) and is_binary(path) do
-    cast({:navigate, pid, path, client, attrs, DateTime.utc_now()})
+    cast({:navigate, pid, path, with_ua(client), attrs, DateTime.utc_now()})
   end
 
   @doc """
@@ -261,6 +266,9 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
   @impl GenServer
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    # A page this one hid is still open, so it was a second tab after all:
+    # shown again first, which gives this page back its own start.
+    state = restore_hidden_by(state, pid)
     {client, clients} = Map.pop(state.clients, pid)
     {hidden, shadowed} = Map.pop(state.shadowed, pid)
     state = %{state | clients: clients, shadowed: shadowed}
@@ -301,6 +309,13 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   def handle_info(message, state) do
     Logger.debug("[WebAnalytics] LivePresence ignored #{inspect(message)}")
     {:noreply, state}
+  end
+
+  defp restore_hidden_by(state, pid) do
+    case Enum.find(state.shadowed, fn {_older, hidden} -> hidden.new_pid == pid end) do
+      nil -> state
+      {older, _hidden} -> restore(state, older)
+    end
   end
 
   # ── internals ─────────────────────────────────────────────────────────────
@@ -462,7 +477,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     do: Application.get_env(:phoenix_kit_web_analytics, :presence_reconnect_grace_ms, 10_000)
 
   defp build_visit(pid, client, attrs, now) do
-    ua = UserAgent.parse(client[:user_agent])
+    ua = client[:ua] || UserAgent.parse(client[:user_agent])
 
     %{
       pid: pid,

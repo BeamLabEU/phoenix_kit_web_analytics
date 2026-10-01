@@ -61,6 +61,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   @types ~w(m c h s r v)
   @max_frames 2_000
+  @max_chunks_per_minute 30
   # 30 minutes of chunks every ~5 s; a page open longer stops recording.
   @max_seq 400
   @max_selector 200
@@ -82,32 +83,39 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       not Config.excluded?(path, config.exclusions) and
       not (config.respect_dnt? and client[:opted_out?] == true) and
       not UserAgent.bot?(client[:user_agent]) and
-      sampled?(client, config.recording_sample)
+      sampled?(visitor_id(client), config.recording_sample)
   end
 
-  defp sampled?(_client, 100), do: true
-
-  defp sampled?(client, percent) do
-    case visitor_id(client) do
-      nil -> false
-      id -> :erlang.phash2(id, 100) < percent
-    end
-  end
+  defp sampled?(nil, _percent), do: false
+  defp sampled?(_visitor_id, 100), do: true
+  defp sampled?(visitor_id, percent), do: :erlang.phash2(visitor_id, 100) < percent
 
   @doc """
   Validates a chunk the client script posted and stores it, off the
   caller's process. Returns `:ok` when it was accepted for writing and
-  `{:error, reason}` when it was refused — `:not_recording`, `:invalid`.
+  `{:error, reason}` when it was refused — `:not_recording`, `:invalid`,
+  `:too_fast` (over #{@max_chunks_per_minute} chunks a minute from one
+  visitor).
   """
-  @spec store(map(), map()) :: :ok | {:error, :not_recording | :invalid}
+  @spec store(map(), map()) :: :ok | {:error, :not_recording | :invalid | :too_fast}
   def store(client, params) when is_map(params) do
     with {:ok, chunk} <- validate(params),
-         true <- record?(client, chunk.path) || {:error, :not_recording} do
-      Collector.run_async(fn -> insert(client, chunk) end)
+         true <- record?(client, chunk.path) || {:error, :not_recording},
+         visitor_id when is_binary(visitor_id) <- visitor_id(client),
+         true <- within_rate?(visitor_id) || {:error, :too_fast} do
+      Collector.run_async(fn -> insert(client, visitor_id, chunk) end)
+    else
+      nil -> {:error, :not_recording}
+      error -> error
     end
   end
 
   def store(_client, _params), do: {:error, :invalid}
+
+  # A page sends a chunk every ~10 s, plus one when it's hidden or left;
+  # far more than that from one visitor is someone filling the table.
+  defp within_rate?(visitor_id),
+    do: PhoenixKitWebAnalytics.BotSignals.count(:recording, visitor_id) <= @max_chunks_per_minute
 
   @doc false
   # Public for the controller test: what a payload turns into, or :error.
@@ -116,8 +124,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
     with key when is_binary(key) <- params["k"],
          true <- Regex.match?(~r/\A[A-Za-z0-9]{8,32}\z/, key),
          seq when is_integer(seq) and seq >= 0 and seq <= @max_seq <- params["s"],
-         "/" <> rest = path when is_binary(path) <- params["p"],
-         false <- String.starts_with?(rest, "/"),
+         {:ok, path} <- clean_path(params["p"]),
          frames when is_list(frames) and frames != [] <- params["f"] do
       frames = frames |> Enum.take(@max_frames) |> Enum.flat_map(&frame/1)
 
@@ -128,7 +135,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
          %{
            page_key: key,
            seq: seq,
-           path: path |> PhoenixKitWebAnalytics.Tracking.truncate_utf8(2048),
+           path: path,
            viewport_w: dimension(params["w"]),
            viewport_h: dimension(params["h"]),
            frames: frames
@@ -138,6 +145,22 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       _ -> {:error, :invalid}
     end
   end
+
+  # A same-site path, and nothing more: the query string and fragment go (a
+  # path never keeps one), and anything a browser could read as another
+  # site — `//host`, `/\\host`, control characters — is refused.
+  defp clean_path("/" <> _ = raw) do
+    path = raw |> String.split(["?", "#"], parts: 2) |> hd()
+
+    cond do
+      String.starts_with?(path, "//") -> :error
+      String.contains?(path, "\\") -> :error
+      String.match?(path, ~r/[\x00-\x1f\x7f]/) -> :error
+      true -> {:ok, PhoenixKitWebAnalytics.Tracking.truncate_utf8(path, 2048)}
+    end
+  end
+
+  defp clean_path(_path), do: :error
 
   defp frame([t, type | rest]) when is_integer(t) and t >= 0 and type in @types do
     case args(type, rest) do
@@ -175,27 +198,34 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   defp dimension(_value), do: nil
 
-  defp insert(client, chunk) do
-    with id when is_binary(id) <- visitor_id(client) do
-      now = DateTime.utc_now()
-      timeout = Config.session_timeout_minutes()
-      site = client[:site]
-      session_id = Collector.resolve_session(id, timeout, now, site)
+  defp insert(client, visitor_id, chunk) do
+    now = DateTime.utc_now()
+    site = client[:site]
 
-      %{
-        session_id: session_id,
-        page_key: chunk.page_key,
-        seq: chunk.seq,
-        path: chunk.path,
-        site: site,
-        viewport_w: chunk.viewport_w,
-        viewport_h: chunk.viewport_h,
-        frames: %{"v" => 1, "f" => chunk.frames},
-        frame_count: length(chunk.frames),
-        inserted_at: now
-      }
-      |> then(&struct(Recording, &1))
-      |> repo().insert(on_conflict: :nothing, conflict_target: [:page_key, :seq])
+    %{
+      session_id: session_for(chunk.page_key, visitor_id, now, site),
+      page_key: chunk.page_key,
+      seq: chunk.seq,
+      path: chunk.path,
+      site: site,
+      viewport_w: chunk.viewport_w,
+      viewport_h: chunk.viewport_h,
+      frames: %{"v" => 1, "f" => chunk.frames},
+      frame_count: length(chunk.frames),
+      inserted_at: now
+    }
+    |> then(&struct(Recording, &1))
+    |> repo().insert(on_conflict: :nothing, conflict_target: [:page_key, :seq])
+  end
+
+  # A page view's chunks stay in one visit: later chunks follow the first
+  # one's, even when they arrive after the visit's inactivity window.
+  defp session_for(page_key, visitor_id, now, site) do
+    from(r in Recording, where: r.page_key == ^page_key, select: r.session_id, limit: 1)
+    |> repo().one()
+    |> case do
+      nil -> Collector.resolve_session(visitor_id, Config.session_timeout_minutes(), now, site)
+      session_id -> session_id
     end
   end
 
@@ -220,6 +250,15 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       :error ->
         false
     end
+  rescue
+    # The visit page asks on mount; a failed read hides the player, never
+    # the page.
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning(
+        "[WebAnalytics] could not check for a recording: #{Exception.message(error)}"
+      )
+
+      false
   end
 
   @doc """
@@ -318,8 +357,11 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   defp viewed_paths(session_id) do
     case Ecto.UUID.cast(session_id) do
       {:ok, uuid} ->
+        # Page views the server itself saw (the plug, a live navigation) —
+        # never one the visitor's browser reported through the beacon.
         from(e in PhoenixKitWebAnalytics.Schemas.Event,
           where: e.session_id == ^uuid and e.event_type == "pageview",
+          where: fragment("COALESCE(?->>'source', '') <> 'beacon'", e.metadata),
           distinct: true,
           select: e.path
         )
@@ -338,6 +380,11 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   def prune do
     cutoff = DateTime.add(DateTime.utc_now(), -Config.recording_retention_days(), :day)
     prune_before(cutoff, 0, 0)
+  rescue
+    # Part of the retention pass, which must go on to the rollups.
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("[WebAnalytics] recording prune failed: #{Exception.message(error)}")
+      0
   end
 
   defp prune_before(_cutoff, deleted, @max_delete_batches), do: deleted

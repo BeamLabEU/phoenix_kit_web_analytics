@@ -67,6 +67,7 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   attr :auto_pageview, :boolean, default: false
   attr :nonce, :string, default: nil
 
+  @spec beacon(map()) :: Phoenix.LiveView.Rendered.t()
   def beacon(assigns) do
     assigns = assign(assigns, :endpoint, Paths.beacon_endpoint())
 
@@ -117,6 +118,7 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
     default: nil,
     doc: "the page's path; without it the endpoint falls back to the Referer header"
 
+  @spec pixel(map()) :: Phoenix.LiveView.Rendered.t()
   def pixel(assigns) do
     assigns = assign(assigns, :src, Paths.pixel_endpoint(assigns.cache_buster, assigns.path))
 

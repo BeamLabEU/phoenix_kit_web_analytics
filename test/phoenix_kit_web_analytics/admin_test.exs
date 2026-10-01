@@ -42,6 +42,40 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       assert read(@timeout_key) == "45"
     end
 
+    test "a value longer than a setting can hold is refused by name, and nothing is saved",
+         %{actor: actor} do
+      params = %{
+        "exclude_paths" => String.duplicate("/a-very-long-path\n", 60),
+        "retention_days" => "90"
+      }
+
+      assert {:error, [:exclude_paths]} = Admin.save_settings(params, actor_uuid: actor)
+      assert read(@retention_key) == nil
+      refute_activity_logged("settings.updated")
+    end
+
+    test "each setting's own history names the admin who changed it", %{actor: actor} do
+      {:ok, _} = Admin.save_settings(%{"retention_days" => "90"}, actor_uuid: actor)
+
+      assert_activity_logged("setting.changed",
+        actor_uuid: actor,
+        metadata_has: %{"key" => @retention_key, "source" => "settings"}
+      )
+    end
+
+    test "a save drops cached reports, so the next read sees the new settings", %{actor: actor} do
+      unless Process.whereis(PhoenixKitWebAnalytics.ReportCache),
+        do: start_supervised!(PhoenixKitWebAnalytics.ReportCache)
+
+      assert PhoenixKitWebAnalytics.ReportCache.fetch(:cached_report, fn -> :old end, 60_000) ==
+               :old
+
+      {:ok, _} = Admin.save_settings(%{"retention_days" => "90"}, actor_uuid: actor)
+
+      assert PhoenixKitWebAnalytics.ReportCache.fetch(:cached_report, fn -> :new end, 60_000) ==
+               :new
+    end
+
     test "saving the same params twice changes nothing the second time", %{actor: actor} do
       params = %{"retention_days" => "120", "exclude_paths" => "/x"}
 

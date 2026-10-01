@@ -20,6 +20,7 @@ defmodule PhoenixKitWebAnalytics.Routes do
   """
 
   @doc "Localized admin routes (inside the `/:locale` scope)."
+  @spec admin_locale_routes() :: Macro.t()
   def admin_locale_routes do
     quote do
       live("/admin/web-analytics", PhoenixKitWebAnalytics.Web.DashboardLive, :index,
@@ -64,6 +65,7 @@ defmodule PhoenixKitWebAnalytics.Routes do
   end
 
   @doc "Non-localized admin routes."
+  @spec admin_routes() :: Macro.t()
   def admin_routes do
     quote do
       live("/admin/web-analytics", PhoenixKitWebAnalytics.Web.DashboardLive, :index,
@@ -112,6 +114,7 @@ defmodule PhoenixKitWebAnalytics.Routes do
 
   These are specific (non-catch-all) paths, so they belong in `generate/1`.
   """
+  @spec generate(String.t()) :: Macro.t()
   def generate(url_prefix) do
     quote do
       scope unquote(url_prefix) do

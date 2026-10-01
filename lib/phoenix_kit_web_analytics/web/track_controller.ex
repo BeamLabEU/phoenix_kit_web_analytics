@@ -53,6 +53,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   @max_recording_body 131_072
 
   @doc "Records a hit reported by the beacon or the client script."
+  @spec event(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def event(conn, params) do
     {conn, params} = with_body_params(conn, params)
 
@@ -65,6 +66,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   end
 
   @doc "Records a page view and returns a 1×1 GIF."
+  @spec pixel(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def pixel(conn, params) do
     params =
       params
@@ -85,6 +87,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   `false`. Private and short-lived in caches — the answer depends on the
   visitor (sampling) and on a setting that can change.
   """
+  @spec recording_config(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def recording_config(conn, params) do
     record? = Recordings.record?(recording_client(conn), params["p"])
 
@@ -94,6 +97,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   end
 
   @doc "Stores a chunk of a session recording."
+  @spec recording(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def recording(conn, params) do
     {conn, params} = with_body_params(conn, params, @max_recording_body)
     _ = Recordings.store(recording_client(conn), params)

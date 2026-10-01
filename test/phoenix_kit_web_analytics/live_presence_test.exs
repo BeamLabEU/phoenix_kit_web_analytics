@@ -330,6 +330,31 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       Enum.each([first, second], &Process.exit(&1, :kill))
     end
 
+    test "when the newer page closes first, the hidden one comes back and each keeps its own time" do
+      first = spawn_page()
+      LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> LivePresence.count(nil) == 1 end)
+      [%{since: first_since}] = LivePresence.list()
+      Process.sleep(300)
+
+      second = spawn_page()
+      LivePresence.watch(second, @client, %{path: "/pricing", site: "example.com"})
+      wait_until(fn -> match?([%{pid: ^second}], LivePresence.list()) end)
+
+      Process.exit(second, :kill)
+
+      # The first tab is still open: it shows again, with its own start.
+      wait_until(fn -> match?([%{pid: ^first}], LivePresence.list()) end)
+      assert [%{since: ^first_since}] = LivePresence.list()
+
+      # The closed tab's leave counts from when it opened (moments ago), not
+      # from the first tab's start 300 ms earlier.
+      assert [leave] = wait_for_leave_list(1)
+      assert leave.engaged_ms < 250
+
+      Process.exit(first, :kill)
+    end
+
     test "a hidden page that navigates is a real tab, shown again" do
       first = spawn_page()
       LivePresence.watch(first, @client, %{path: "/pricing", site: "example.com"})

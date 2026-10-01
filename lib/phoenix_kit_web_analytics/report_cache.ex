@@ -71,6 +71,11 @@ defmodule PhoenixKitWebAnalytics.ReportCache do
       {{{:value, :_}, :_, :"$1"}, [{:<, :"$1", now - @stale_ms}], [true]}
     ])
 
+    # Claims left by a process that died mid-computation.
+    for [key, pid] <- :ets.match(@table, {{:computing, :"$1"}, :"$2"}), not Process.alive?(pid) do
+      :ets.delete_object(@table, {{:computing, key}, pid})
+    end
+
     Process.send_after(self(), :sweep, @sweep_ms)
     {:noreply, state}
   end
@@ -103,19 +108,7 @@ defmodule PhoenixKitWebAnalytics.ReportCache do
 
   defp wait(key, fun, ttl, deadline) do
     Process.sleep(@wait_step_ms)
-
-    # The computing process may have died without storing anything.
-    case :ets.lookup(@table, {:computing, key}) do
-      [{_, pid}] when is_pid(pid) ->
-        unless Process.alive?(pid), do: :ets.delete_object(@table, {{:computing, key}, pid})
-
-      _ ->
-        :ok
-    end
-
     fetch_cached(key, fun, ttl, deadline)
-  rescue
-    ArgumentError -> fun.()
   end
 
   defp compute(key, fun, ttl) do
@@ -136,10 +129,28 @@ defmodule PhoenixKitWebAnalytics.ReportCache do
     ArgumentError -> :miss
   end
 
+  # The claim to compute `key`. One left by a process that died
+  # mid-computation (a closed tab's LiveView) is taken over, so neither the
+  # waiters nor the stale-value readers are stuck behind it.
   defp claim(key) do
-    :ets.insert_new(@table, {{:computing, key}, self()})
+    :ets.insert_new(@table, {{:computing, key}, self()}) or take_over_dead_claim(key)
   rescue
     ArgumentError -> false
+  end
+
+  defp take_over_dead_claim(key) do
+    case :ets.lookup(@table, {:computing, key}) do
+      [{_, pid}] when is_pid(pid) ->
+        if Process.alive?(pid) do
+          false
+        else
+          :ets.delete_object(@table, {{:computing, key}, pid})
+          :ets.insert_new(@table, {{:computing, key}, self()})
+        end
+
+      _ ->
+        :ets.insert_new(@table, {{:computing, key}, self()})
+    end
   end
 
   defp release(key) do

@@ -41,6 +41,10 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
       {:ok, _changed} ->
         {:noreply, socket |> put_flash(:info, gettext("Settings saved.")) |> load()}
 
+      {:error, :not_saved} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Settings could not be saved. Nothing was changed."))}
+
       {:error, fields} ->
         {:noreply,
          put_flash(

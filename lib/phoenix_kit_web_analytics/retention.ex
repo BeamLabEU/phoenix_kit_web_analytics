@@ -107,7 +107,10 @@ defmodule PhoenixKitWebAnalytics.Retention do
           backfill_session_starts()
           PhoenixKitWebAnalytics.BotSignals.judge_no_js()
           PhoenixKitWebAnalytics.Recordings.prune()
-          %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
+          result = %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
+          # Reports (and the cached watermark) re-read what this pass changed.
+          PhoenixKitWebAnalytics.ReportCache.clear()
+          result
         after
           unlock()
         end
@@ -464,7 +467,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
            Config.module_key()
          ) do
       {:ok, _} -> :ok
-      error -> {:error, error}
+      {:error, _reason} = error -> error
     end
   end
 

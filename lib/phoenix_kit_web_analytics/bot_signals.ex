@@ -33,7 +33,6 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
   require Logger
 
-  alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -42,11 +41,12 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   @table :phoenix_kit_web_analytics_bot_signals
   @sweep_ms 60_000
   @default_pageviews_per_minute 30
-  @watermark_key "web_analytics_bot_sweep_through"
   # A browser's live connection comes within a second; a visit is judged
   # once it has had this long.
   @judge_after_minutes 30
-  @max_window_hours 6
+  # Two hours of visit starts per hourly pass: each visit is seen at least
+  # once even when a pass runs late.
+  @window_hours 2
   @batch 2_000
 
   # Reports that only a browser running JavaScript sends.
@@ -77,8 +77,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   """
   @spec count_pageview(String.t()) :: :ok | :crossed | :over
   def count_pageview(visitor_id) do
-    key = {:rate, visitor_id, minute()}
-    count = :ets.update_counter(@table, key, {2, 1}, {key, 0})
+    count = count(:pageview, visitor_id)
     limit = pageviews_per_minute()
 
     cond do
@@ -86,8 +85,19 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
       count == limit + 1 -> :crossed
       true -> :over
     end
+  end
+
+  @doc """
+  Counts one `kind` of report from `visitor_id` in the current minute and
+  returns the count so far (`0` when the counters aren't running). The
+  per-visitor speed limits — page views, recording chunks — share it.
+  """
+  @spec count(atom(), String.t()) :: non_neg_integer()
+  def count(kind, visitor_id) do
+    key = {:rate, {kind, visitor_id}, minute()}
+    :ets.update_counter(@table, key, {2, 1}, {key, 0})
   rescue
-    ArgumentError -> :ok
+    ArgumentError -> 0
   end
 
   defp minute, do: div(System.system_time(:second), 60)
@@ -169,26 +179,24 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   # ── no JavaScript ─────────────────────────────────────────────────────────
 
   @doc """
-  Judges the visits that started since the last pass and have had
-  #{@judge_after_minutes} minutes to connect: a visit that loaded a LiveView
-  page running the hook, by a visitor with no JavaScript report all day, is
-  flagged `"no_js"`. Run by the retention pass. Returns the number of visits
-  flagged.
+  Judges the visits that started in the #{@window_hours} hours before the
+  last #{@judge_after_minutes} minutes (time enough to connect): a visit
+  that loaded a LiveView page running the hook, by a visitor with no
+  JavaScript report all day, is flagged `"no_js"`. Run by every retention
+  pass. Returns the number of visits flagged.
+
+  Stateless on purpose: the window overlaps the previous pass's, and judging
+  a visit twice gives the same answer (a flagged one is skipped, one with
+  JavaScript stays clear) — so no watermark is written, which would add an
+  activity-log entry every hour. Pages through the window in batches
+  (`:batch`, #{@batch} by default), so a busy hour is judged whole.
   """
-  @spec judge_no_js(DateTime.t()) :: non_neg_integer()
-  def judge_no_js(now \\ DateTime.utc_now()) do
+  @spec judge_no_js(DateTime.t(), keyword()) :: non_neg_integer()
+  def judge_no_js(now \\ DateTime.utc_now(), opts \\ []) do
     if detect?() do
       to = DateTime.add(now, -@judge_after_minutes * 60, :second)
-      from = watermark() || DateTime.add(to, -@max_window_hours * 3600, :second)
-      from = Enum.max([from, DateTime.add(to, -@max_window_hours * 3600, :second)], DateTime)
-
-      if DateTime.compare(from, to) == :lt do
-        flagged = flag_no_js_between(from, to)
-        save_watermark(to)
-        flagged
-      else
-        0
-      end
+      from = DateTime.add(to, -@window_hours * 3600, :second)
+      judge_batches(from, to, nil, Keyword.get(opts, :batch, @batch), 0)
     else
       0
     end
@@ -198,21 +206,46 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
       0
   end
 
-  defp flag_no_js_between(from, to) do
-    sessions =
-      from(s in Event,
-        as: :start,
-        where: s.session_start and s.inserted_at >= ^from and s.inserted_at < ^to,
-        where: not s.is_bot,
-        where: exists(hooked_page_view()),
-        where: not exists(js_report_that_day()),
-        limit: @batch,
-        select: s.session_id
-      )
-      |> repo().all()
+  # Keyset paging over visit starts, oldest first; each batch flagged in one
+  # statement.
+  defp judge_batches(from, to, after_key, batch, flagged) do
+    rows = no_js_starts(from, to, after_key, batch)
+    ids = Enum.map(rows, &elem(&1, 1))
 
-    Enum.each(sessions, &flag_session(&1, "no_js"))
-    length(sessions)
+    if ids != [] do
+      flag(from(e in Event, where: e.session_id in ^ids), "no_js")
+    end
+
+    flagged = flagged + length(ids)
+
+    if length(rows) < batch,
+      do: flagged,
+      else: judge_batches(from, to, List.last(rows), batch, flagged)
+  end
+
+  defp no_js_starts(from, to, after_key, batch) do
+    from(s in Event,
+      as: :start,
+      where: s.session_start and s.inserted_at >= ^from and s.inserted_at < ^to,
+      where: not s.is_bot,
+      where: exists(hooked_page_view()),
+      where: not exists(js_report_that_day()),
+      order_by: [asc: s.inserted_at, asc: s.session_id],
+      limit: ^batch,
+      select: {s.inserted_at, s.session_id}
+    )
+    |> after_start(after_key)
+    |> repo().all()
+  end
+
+  defp after_start(query, nil), do: query
+
+  defp after_start(query, {at, session_id}) do
+    where(
+      query,
+      [s],
+      s.inserted_at > ^at or (s.inserted_at == ^at and s.session_id > ^session_id)
+    )
   end
 
   # The visit loaded a page whose LiveView runs the hook.
@@ -234,27 +267,6 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
       where:
         h.event_type == "interaction" or
           fragment("?->>'source' = ANY(?)", h.metadata, type(^@js_sources, {:array, :string}))
-    )
-  end
-
-  defp watermark do
-    case Settings.get_setting(@watermark_key, nil) do
-      nil ->
-        nil
-
-      value ->
-        case DateTime.from_iso8601(value) do
-          {:ok, at, _} -> at
-          _ -> nil
-        end
-    end
-  end
-
-  defp save_watermark(at) do
-    Settings.update_setting_with_module(
-      @watermark_key,
-      DateTime.to_iso8601(at),
-      Config.module_key()
     )
   end
 

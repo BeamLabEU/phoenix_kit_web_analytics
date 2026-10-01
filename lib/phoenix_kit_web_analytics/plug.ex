@@ -40,7 +40,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
     * `:exclude` — extra path patterns on top of the ones in settings, e.g.
       `plug PhoenixKitWebAnalytics.Plug, exclude: ["/healthz", "/internal*"]`.
-      A trailing `*` makes a pattern a prefix match.
+      A trailing `*` makes a pattern a prefix match. These apply to this
+      plug's page views only: the LiveView hook can't see plug options, so a
+      LiveView page to leave out entirely belongs in the
+      `web_analytics_exclude_paths` setting, which both honour.
 
   ## Client IP
 
@@ -112,11 +115,16 @@ defmodule PhoenixKitWebAnalytics.Plug do
     path = conn.request_path
 
     cond do
-      not config.enabled? or not trackable_path?(path, config, opts) ->
+      not config.enabled? ->
         conn
 
+      # Noted whatever the path: a visitor who arrives on an excluded page
+      # and live-navigates on is still to be left alone by the hook.
       opted_out?(conn, config) ->
         remember_opt_out(conn)
+
+      not trackable_path?(path, config, opts) ->
+        conn
 
       true ->
         started_at = System.monotonic_time(:microsecond)
@@ -253,7 +261,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp decode_city(city) do
     URI.decode(city)
   rescue
-    _ -> nil
+    # A malformed %-escape in the header.
+    ArgumentError -> nil
   end
 
   defp header(conn, name) do

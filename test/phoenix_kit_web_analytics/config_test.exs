@@ -36,12 +36,12 @@ defmodule PhoenixKitWebAnalytics.ConfigTest do
       assert Config.excluded?("/admin/web-analytics", exclusions)
     end
 
-    test "collection_config/0 reports tracking off when settings are unavailable" do
+    test "collection_config/0 reads tracking as off when nothing says it's on" do
       config = Config.collection_config()
 
-      assert is_boolean(config.enabled?)
-      assert is_list(config.exclusions)
-      assert config.session_timeout_minutes > 0
+      refute config.enabled?
+      assert "/admin*" in config.exclusions
+      assert config.session_timeout_minutes == 30
     end
   end
 

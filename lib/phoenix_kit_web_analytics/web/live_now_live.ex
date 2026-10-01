@@ -228,7 +228,11 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
                 <.table_default_cell class="whitespace-nowrap text-base-content/60">
                   {Enum.join(
                     Enum.reject(
-                      [visit.browser, visit.os, device_label(visit.device_type)],
+                      [
+                        client_label(visit.browser),
+                        client_label(visit.os),
+                        device_label(visit.device_type)
+                      ],
                       &is_nil/1
                     ),
                     " · "

@@ -254,23 +254,46 @@ defmodule PhoenixKitWebAnalytics.Config do
   def hash_salt do
     case Settings.get_setting_cached(@salt_key, nil) do
       salt when is_binary(salt) and byte_size(salt) >= 16 -> salt
-      _ -> generate_salt()
+      _ -> create_salt()
     end
   rescue
     error ->
-      Logger.warning("[WebAnalytics] could not read the visitor salt: #{inspect(error)}")
+      Logger.warning(
+        "[WebAnalytics] could not read the visitor salt: #{Exception.message(error)}"
+      )
+
       nil
   catch
     :exit, _ -> nil
   end
 
+  # The first salt, created once: concurrent first hits (the collector's
+  # tasks, other nodes) wait on one lock and re-read inside it, so they all
+  # end up with the same salt — two would give one visitor two IDs that day.
+  defp create_salt do
+    repo = PhoenixKit.RepoHelper.repo()
+
+    result =
+      repo.transaction(fn ->
+        repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [@salt_key])
+
+        case Settings.get_setting(@salt_key, nil) do
+          salt when is_binary(salt) and byte_size(salt) >= 16 -> salt
+          _ -> generate_salt()
+        end
+      end)
+
+    case result do
+      {:ok, salt} -> salt
+      _ -> nil
+    end
+  end
+
   @doc """
   Generates and persists a new visitor hash salt, returning the one that ended
-  up stored (`nil` if it couldn't be written).
-
-  Called on first use and from `enable_system/0` so a fresh install has one
-  before the first request arrives. Two nodes generating at once converge: each
-  re-reads what was stored after writing, so both use the last write.
+  up stored (`nil` if it couldn't be written) — a rotation. The first salt is
+  created through `hash_salt/0` instead, under a lock, so concurrent first
+  hits agree on it.
   """
   @spec generate_salt() :: String.t() | nil
   def generate_salt do
@@ -282,7 +305,8 @@ defmodule PhoenixKitWebAnalytics.Config do
     end
   rescue
     error ->
-      Logger.warning("[WebAnalytics] could not store a visitor salt: #{inspect(error)}")
+      # The message only: an inspected changeset would contain the salt.
+      Logger.warning("[WebAnalytics] could not store a visitor salt: #{Exception.message(error)}")
       nil
   catch
     :exit, _ -> nil

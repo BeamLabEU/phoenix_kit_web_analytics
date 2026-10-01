@@ -60,13 +60,28 @@ defmodule PhoenixKitWebAnalytics.ReportCacheTest do
     assert ReportCache.fetch(:stale, fn -> flunk("computed again") end, 10_000) == :new
   end
 
-  test "waiters take over when the computing process dies" do
-    task =
-      Task.async(fn ->
-        ReportCache.fetch(:dies, fn -> Process.exit(self(), :kill) end, 10_000)
-      end)
+  test "a claim left by a process that died is taken over, with or without a stale value" do
+    dead = spawn(fn -> :ok end)
+    ref = Process.monitor(dead)
+    assert_receive {:DOWN, ^ref, _, _, _}
 
-    Task.shutdown(task, :brutal_kill)
-    assert ReportCache.fetch(:dies, fn -> :recovered end, 10_000) == :recovered
+    # No value yet, a dead claimant: the next caller computes.
+    :ets.insert(:phoenix_kit_web_analytics_report_cache, {{:computing, :no_value}, dead})
+    assert ReportCache.fetch(:no_value, fn -> :computed end, 10_000) == :computed
+
+    # An expired value, a dead claimant: recomputed, not served stale until
+    # the sweep.
+    assert ReportCache.fetch(:expired, fn -> :old end, 1) == :old
+    Process.sleep(5)
+    :ets.insert(:phoenix_kit_web_analytics_report_cache, {{:computing, :expired}, dead})
+    assert ReportCache.fetch(:expired, fn -> :new end, 10_000) == :new
+  end
+
+  test "a computation that raises releases its claim" do
+    assert_raise RuntimeError, fn ->
+      ReportCache.fetch(:raises, fn -> raise "boom" end, 10_000)
+    end
+
+    assert ReportCache.fetch(:raises, fn -> :second_try end, 10_000) == :second_try
   end
 end

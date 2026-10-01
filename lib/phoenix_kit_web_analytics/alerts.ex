@@ -289,10 +289,18 @@ defmodule PhoenixKitWebAnalytics.Alerts do
     {:noreply, state}
   end
 
+  # Core's user broadcasts carry the whole user struct (email, name) — only
+  # the message's name is logged.
   def handle_info(message, state) do
-    Logger.debug("[WebAnalytics] Alerts ignored #{inspect(message)}")
+    Logger.debug("[WebAnalytics] Alerts ignored #{message_name(message)}")
     {:noreply, state}
   end
+
+  defp message_name(message) when is_tuple(message) and is_atom(elem(message, 0)),
+    do: inspect(elem(message, 0))
+
+  defp message_name(message) when is_atom(message), do: inspect(message)
+  defp message_name(_message), do: "a message"
 
   # ── internals ─────────────────────────────────────────────────────────────
 

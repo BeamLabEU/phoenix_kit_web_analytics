@@ -52,6 +52,8 @@ defmodule PhoenixKitWebAnalytics do
   use PhoenixKit.Module
   use Gettext, backend: PhoenixKitWebAnalytics.Gettext
 
+  require Logger
+
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Collector
@@ -258,7 +260,9 @@ defmodule PhoenixKitWebAnalytics do
       beacon_enabled: Config.beacon_enabled?()
     }
   rescue
-    _ -> %{enabled: false}
+    error ->
+      Logger.warning("[WebAnalytics] module summary unavailable: #{Exception.message(error)}")
+      %{enabled: false}
   end
 
   # ── Public API ─────────────────────────────────────────────────────────────

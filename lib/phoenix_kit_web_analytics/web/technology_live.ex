@@ -75,6 +75,7 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
         <.breakdown_card
           id="card-browsers"
           title={gettext("Browsers")}
+          labels={:client}
           icon="hero-globe-alt"
           rows={@browsers}
           label_header={gettext("Browser")}
@@ -91,6 +92,7 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
         <.breakdown_card
           id="card-systems"
           title={gettext("Operating systems")}
+          labels={:client}
           icon="hero-computer-desktop"
           rows={@operating_systems}
           label_header={gettext("System")}

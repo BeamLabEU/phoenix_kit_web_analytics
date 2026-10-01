@@ -131,6 +131,17 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
                Enum.find(series, &(&1.date == old_date))
     end
 
+    test "drops cached reports, so the next read sees the pass's rollups" do
+      unless Process.whereis(PhoenixKitWebAnalytics.ReportCache),
+        do: start_supervised!(PhoenixKitWebAnalytics.ReportCache)
+
+      PhoenixKitWebAnalytics.ReportCache.fetch(:before_pass, fn -> :old end, 60_000)
+      Retention.run()
+
+      assert PhoenixKitWebAnalytics.ReportCache.fetch(:before_pass, fn -> :new end, 60_000) ==
+               :new
+    end
+
     test "skips while another pass (another node, or Run now) holds the lock" do
       enable_tracking(%{"web_analytics_retention_days" => "10"})
       insert_event(%{inserted_at: days_ago(20)})

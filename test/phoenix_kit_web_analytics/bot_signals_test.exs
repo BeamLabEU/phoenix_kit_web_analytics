@@ -141,23 +141,40 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
       refute plain.session_id in flagged
     end
 
-    test "a visit is judged only after it has had time to connect, and once" do
+    test "a visit is judged only after it has had time to connect" do
       recent = page("recent", DateTime.add(DateTime.utc_now(), -60, :second))
       old = page("old", hours_ago(2))
 
       assert BotSignals.judge_no_js() == 1
       assert Repo.all(from(e in Event, where: e.is_bot, select: e.session_id)) == [old.session_id]
 
-      # The watermark moved on: the same stretch isn't judged again…
-      Repo.update_all(Event, set: [is_bot: false])
+      # Judging again changes nothing: a flagged visit is skipped.
       assert BotSignals.judge_no_js() == 0
 
-      # …and the recent visit is judged once it has had its time.
+      # The recent visit is judged once it has had its time.
       assert BotSignals.judge_no_js(DateTime.add(DateTime.utc_now(), 3600, :second)) == 1
 
-      assert Repo.all(from(e in Event, where: e.is_bot, select: e.session_id)) == [
-               recent.session_id
-             ]
+      assert recent.session_id in Repo.all(
+               from(e in Event, where: e.is_bot, select: e.session_id)
+             )
+    end
+
+    test "a busy window is judged whole, a batch at a time" do
+      sessions = for i <- 1..5, do: page("scraper-#{i}", DateTime.add(hours_ago(2), i, :second))
+
+      assert BotSignals.judge_no_js(DateTime.utc_now(), batch: 2) == 5
+
+      assert Enum.sort(Repo.all(from(e in Event, where: e.is_bot, select: e.session_id))) ==
+               Enum.sort(Enum.map(sessions, & &1.session_id))
+    end
+
+    test "writes no setting (each would be a permanent activity-log entry)" do
+      page("scraper", hours_ago(2))
+      changes = from(a in "phoenix_kit_activities", where: a.action == "setting.changed")
+      before = Repo.aggregate(changes, :count)
+
+      assert BotSignals.judge_no_js() == 1
+      assert Repo.aggregate(changes, :count) == before
     end
 
     test "a flagged visit is cleared when its JavaScript shows up after all (a tab left open)" do

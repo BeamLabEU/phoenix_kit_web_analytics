@@ -104,6 +104,13 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   @doc """
   `on_mount` callback. Use `:track_navigation`.
   """
+  @spec on_mount(
+          :track_navigation,
+          map() | :not_mounted_at_router,
+          map(),
+          Phoenix.LiveView.Socket.t()
+        ) ::
+          {:cont, Phoenix.LiveView.Socket.t()}
   def on_mount(:track_navigation, _params, session, socket) do
     if Phoenix.LiveView.connected?(socket) and not opted_out?(session) do
       mount_connected(socket)

@@ -132,7 +132,8 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
       for params <- [%{}, %{"n" => ""}, %{"p" => "not a url"}, %{"p" => 42}, "not a map", nil] do
         hit = BeaconPayload.to_hit(request(), params)
 
-        assert is_binary(hit.path)
+        # Anything that isn't a path reads as the home page, never as garbage.
+        assert hit.path == "/"
         assert hit.event_type in ["pageview", "event"]
       end
     end

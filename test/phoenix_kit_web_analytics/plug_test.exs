@@ -211,6 +211,18 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert Repo.all(Event) == []
     end
 
+    test "is noted on an excluded page too, so the LiveView hook leaves them alone after it" do
+      for {path, opts} <- [{"/admin/settings", []}, {"/healthz", [exclude: "/healthz"]}] do
+        conn =
+          path
+          |> request([{"dnt", "1"}])
+          |> init_test_session(%{})
+          |> TrackingPlug.call(TrackingPlug.init(opts))
+
+        assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == true
+      end
+    end
+
     test "Sec-GPC is honoured the same way" do
       conn =
         "/pricing"

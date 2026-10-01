@@ -226,11 +226,85 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
                Recordings.replay(view.session_id)
     end
 
-    test "paths that aren't same-site paths are refused", %{conn: conn} do
-      post_chunk(conn, chunk(%{"p" => "https://evil.example/x"}))
-      post_chunk(build_conn(), chunk(%{"k" => "otherKey12345", "p" => "//evil.example/x"}))
+    test "paths that a browser could read as another site are refused" do
+      bad = [
+        "https://evil.example/x",
+        "//evil.example/x",
+        "/\\evil.example",
+        "/\t/evil.example",
+        "x"
+      ]
+
+      for {path, i} <- Enum.with_index(bad) do
+        post_chunk(build_conn(), chunk(%{"k" => "badPathKey#{i}xx", "p" => path}))
+      end
 
       assert Repo.aggregate(Recording, :count) == 0
+    end
+
+    test "one visitor is held to 30 chunks a minute" do
+      unless Process.whereis(PhoenixKitWebAnalytics.BotSignals),
+        do: start_supervised!(PhoenixKitWebAnalytics.BotSignals)
+
+      for seq <- 0..39, do: post_chunk(build_conn(), chunk(%{"s" => seq}))
+
+      assert Repo.aggregate(Recording, :count) == 30
+    end
+
+    test "a page view's later chunks stay in the visit its first chunk joined", %{conn: conn} do
+      post_chunk(conn, chunk(%{"s" => 0}))
+      [first] = Repo.all(Recording)
+
+      # The visitor's next hit starts a new visit (the old one timed out)…
+      Repo.update_all(Event, set: [inserted_at: hours_ago(2)])
+      Repo.update_all(Recording, set: [inserted_at: hours_ago(2)])
+
+      {:ok, _} =
+        Collector.track(%{
+          path: "/later",
+          site: "www.example.com",
+          ip: {127, 0, 0, 1},
+          user_agent: @ua
+        })
+
+      # …but the open page's next chunk still belongs with its first.
+      post_chunk(build_conn(), chunk(%{"s" => 1}))
+
+      assert Repo.all(from(r in Recording, select: r.session_id)) |> Enum.uniq() == [
+               first.session_id
+             ]
+    end
+
+    test "the query string and fragment never reach the stored path", %{conn: conn} do
+      post_chunk(conn, chunk(%{"p" => "/reset?token=secret#top"}))
+
+      assert [%{path: "/reset"}] = Repo.all(Recording)
+    end
+
+    test "a page view the visitor's browser reported (the beacon) is never loaded behind a replay",
+         %{conn: conn} do
+      {:ok, view} =
+        Collector.track(%{
+          path: "/pricing",
+          site: "www.example.com",
+          ip: {127, 0, 0, 1},
+          user_agent: @ua
+        })
+
+      # The same visitor claims a page view through the beacon…
+      {:ok, _} =
+        Collector.track(%{
+          path: "/users/log-out",
+          site: "www.example.com",
+          ip: {127, 0, 0, 1},
+          user_agent: @ua,
+          metadata: %{"source" => "beacon"}
+        })
+
+      post_chunk(conn, chunk(%{"k" => "claimedPage123", "p" => "/users/log-out"}))
+
+      # …which doesn't make it loadable.
+      assert [%{path: "/users/log-out", loadable: false}] = Recordings.replay(view.session_id)
     end
 
     test "prune/0 deletes recordings past their retention", %{conn: conn} do

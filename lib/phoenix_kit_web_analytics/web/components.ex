@@ -325,7 +325,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   attr :metric_header, :string, default: nil
   attr :link, :string, default: nil
   attr :link_label, :string, default: nil
-  attr :labels, :atom, default: nil, values: [nil, :channel, :device]
+  attr :labels, :atom, default: nil, values: [nil, :channel, :device, :client]
   attr :show_visitors, :boolean, default: true
   attr :info_align, :string, default: "start", values: ["start", "end"]
   slot :info
@@ -663,7 +663,10 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
           </.table_default_cell>
           <.table_default_cell class="whitespace-nowrap text-base-content/60">
             {Enum.join(
-              Enum.reject([session.browser, session.os, session.country_code], &is_nil/1),
+              Enum.reject(
+                [client_label(session.browser), client_label(session.os), session.country_code],
+                &is_nil/1
+              ),
               " · "
             )}
           </.table_default_cell>
@@ -735,6 +738,16 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   def device_label("bot"), do: gettext("Bot")
   def device_label(_other), do: gettext("Unknown")
 
+  @doc """
+  The label for a stored browser or operating-system name: real names
+  (Chrome, macOS) are shown as they are; the two placeholders the
+  User-Agent parser stores are translated.
+  """
+  @spec client_label(String.t() | nil) :: String.t() | nil
+  def client_label("Unknown"), do: gettext("Unknown")
+  def client_label("Other"), do: gettext("Other")
+  def client_label(name), do: name
+
   @doc "The label for an interaction name recorded by the client script."
   @spec interaction_label(String.t() | nil) :: String.t()
   def interaction_label("outbound"), do: gettext("Outbound link")
@@ -758,6 +771,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
 
   defp row_label(label, :channel), do: channel_label(label)
   defp row_label(label, :device), do: device_label(label)
+  defp row_label(label, :client), do: client_label(label)
   defp row_label(label, _vocabulary), do: to_string(label)
 
   # ── formatting helpers (shared by the LiveViews) ───────────────────────────

@@ -382,6 +382,36 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
                "should-not-be-saved"
     end
 
+    test "saving logs settings.updated with the admin as actor and the changed keys",
+         %{conn: conn} do
+      scope = fake_scope()
+      {:ok, view, _html} = conn |> put_test_scope(scope) |> live("#{@base}/settings")
+
+      html =
+        view
+        |> element("form[phx-submit='save']")
+        |> render_submit(%{"_form" => "settings", "retention_days" => "77"})
+
+      assert html =~ "Settings saved."
+
+      row = assert_activity_logged("settings.updated", actor_uuid: scope.user.uuid)
+      assert "web_analytics_retention_days" in row.metadata["changed"]
+    end
+
+    test "rotating the salt and running retention carry the admin as actor", %{conn: conn} do
+      enable_tracking()
+      scope = fake_scope()
+      {:ok, view, _html} = conn |> put_test_scope(scope) |> live("#{@base}/settings")
+
+      view |> element("button[phx-click='rotate_salt']") |> render_click()
+      assert_activity_logged("salt.rotated", actor_uuid: scope.user.uuid)
+
+      view |> element("button[phx-click='run_retention']") |> render_click()
+      # The pass runs in start_async; its result comes back as a flash.
+      assert render_async(view) =~ "Rolled up"
+      assert_activity_logged("retention.run", actor_uuid: scope.user.uuid)
+    end
+
     test "turning tracking on logs tracking.enabled with the admin as actor", %{conn: conn} do
       scope = fake_scope()
       {:ok, view, _html} = conn |> put_test_scope(scope) |> live("#{@base}/settings")

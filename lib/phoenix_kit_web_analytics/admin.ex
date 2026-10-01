@@ -31,6 +31,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
   ]
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]
+  @max_setting_length 1000
   @alert_lists [:paths, :events]
   @integers %{
     session_timeout: {1, 1440},
@@ -43,21 +44,43 @@ defmodule PhoenixKitWebAnalytics.Admin do
   Saves the settings form. Every field present in `params` is validated;
   fields that fail keep their previous value and are returned by name.
 
-  Returns `{:ok, changed_keys}` or `{:error, invalid_fields}` (nothing saved
-  when any field is invalid).
+  Returns `{:ok, changed_keys}`, `{:error, invalid_fields}` (nothing saved
+  when any field is invalid), or `{:error, :not_saved}` when a write failed —
+  the writes are one transaction, so then nothing is saved either.
   """
-  @spec save_settings(map(), opts()) :: {:ok, [String.t()]} | {:error, [atom()]}
+  @spec save_settings(map(), opts()) :: {:ok, [String.t()]} | {:error, [atom()] | :not_saved}
   def save_settings(params, opts \\ []) when is_map(params) do
     with {:ok, writes} <- validate(params) do
-      changed =
-        writes
-        |> Enum.reject(fn {key, value} -> unchanged?(key, value) end)
-        |> Enum.filter(fn {key, value} -> write(key, value) end)
-        |> Enum.map(&elem(&1, 0))
+      changes = Enum.reject(writes, fn {key, value} -> unchanged?(key, value) end)
 
-      if changed != [], do: log("settings.updated", opts, %{"changed" => changed})
-      {:ok, changed}
+      changes |> write_all(opts) |> after_save(opts)
     end
+  end
+
+  defp after_save({:ok, []}, _opts), do: {:ok, []}
+
+  defp after_save({:ok, changed}, opts) do
+    log("settings.updated", opts, %{"changed" => changed})
+    # Reports computed under the old settings go.
+    PhoenixKitWebAnalytics.ReportCache.clear()
+    {:ok, changed}
+  end
+
+  defp after_save({:error, key}, opts) do
+    log("settings.update_failed", opts, %{"key" => key, "db_pending" => true})
+    {:error, :not_saved}
+  end
+
+  defp write_all([], _opts), do: {:ok, []}
+
+  defp write_all(changes, opts) do
+    PhoenixKit.RepoHelper.repo().transaction(fn ->
+      Enum.map(changes, &write_or_roll_back(&1, opts))
+    end)
+  end
+
+  defp write_or_roll_back({key, value}, opts) do
+    if write(key, value, opts), do: key, else: PhoenixKit.RepoHelper.repo().rollback(key)
   end
 
   @doc "Switches tracking on or off (the module toggle)."
@@ -75,6 +98,12 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
       {:error, reason} = error ->
         Logger.warning("[WebAnalytics] tracking switch failed: #{inspect(reason)}")
+
+        log_failure(
+          if(enabled?, do: "tracking.enable_failed", else: "tracking.disable_failed"),
+          opts
+        )
+
         error
     end
   end
@@ -90,6 +119,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
     })
 
     result
+  rescue
+    error ->
+      # The settings page reports it; the audit trail records who asked.
+      log_failure("retention.failed", opts)
+      reraise error, __STACKTRACE__
   end
 
   @doc """
@@ -104,7 +138,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
         :ok
 
       nil ->
-        log_failure("salt.rotated", opts)
+        log_failure("salt.rotate_failed", opts)
         :error
     end
   end
@@ -152,7 +186,13 @@ defmodule PhoenixKitWebAnalytics.Admin do
   defp cast(:boolean, value, _params), do: {:ok, bool_string(value)}
 
   defp cast(:text, nil, _params), do: :skip
-  defp cast(:text, value, _params) when is_binary(value), do: {:ok, String.trim(value)}
+  # Core stores a setting value of at most 1000 characters; a longer one
+  # would fail at the write.
+  defp cast(:text, value, _params) when is_binary(value) do
+    value = String.trim(value)
+    if String.length(value) <= @max_setting_length, do: {:ok, value}, else: :error
+  end
+
   defp cast(:text, _value, _params), do: :error
 
   defp cast({:integer, _range}, nil, _params), do: :skip
@@ -192,8 +232,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   defp bool_string(value), do: to_string(value in ["true", "on", true])
 
-  defp write(key, value) do
-    case Settings.update_setting_with_module(key, value, @module_key) do
+  # The setting's own history (core's `setting.changed`) names the admin too.
+  defp write(key, value, opts) do
+    history = [actor_uuid: Keyword.get(opts, :actor_uuid), source: "settings"]
+
+    case Settings.update_setting_with_module(key, value, @module_key, history) do
       {:ok, _} ->
         true
 

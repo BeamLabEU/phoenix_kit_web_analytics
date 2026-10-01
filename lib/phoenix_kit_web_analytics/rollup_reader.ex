@@ -25,9 +25,6 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
 
-  @metrics ~w(hits visitors exits exit_visitors engaged_ms_sum engaged_count scroll_sum
-              scroll_count duration_ms_sum duration_count)a
-
   @doc """
   How a filter's window is read: `%{dates: {first, last} | nil, raw: filter
   | nil}` — the rolled-up days and the raw remainder.
@@ -337,10 +334,6 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   @doc "A combined row's sums as plain integers."
   @spec numbers(map()) :: map()
   def numbers(row), do: Map.new(row, fn {key, value} -> {key, to_int(value)} end)
-
-  @doc "The metric names a combined breakdown row carries."
-  @spec metrics() :: [atom()]
-  def metrics, do: @metrics
 
   defp rollups_apply?(filter) do
     is_nil(filter[:path]) and not Map.get(filter, :bots, false) and

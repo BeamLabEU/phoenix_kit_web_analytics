@@ -168,7 +168,14 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             label={gettext("Device")}
             value={
               Enum.join(
-                Enum.reject([@first.browser, @first.os, device_label(@first.device_type)], &is_nil/1),
+                Enum.reject(
+                  [
+                    client_label(@first.browser),
+                    client_label(@first.os),
+                    device_label(@first.device_type)
+                  ],
+                  &is_nil/1
+                ),
                 " · "
               )
             }
