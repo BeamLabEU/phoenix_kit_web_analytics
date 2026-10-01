@@ -8,14 +8,16 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyStat do
   read raw events when they are still there and fall back to these rows for
   older days, so the long-range trend line outlives the raw data.
 
-  ## Why only totals
+  ## Adding days up
 
-  `visitors` is a **distinct count for that day**, and distinct counts don't
-  add up: summing two days of `visitors` overstates the real number whenever
-  someone visited on both days. Treat these columns as per-day facts, never as
-  something to sum across rows. Per-dimension breakdowns (top pages,
-  referrers, …) are only ever computed from raw events — once a day is pruned,
-  its breakdowns are gone by design.
+  `visitors` is a distinct count for that day — and it **does** add up across
+  days, because the visitor ID itself changes every day (see
+  `PhoenixKitWebAnalytics.Visitor`): nobody can be the same visitor on two
+  days, so the sum over a range is exactly what a distinct count over the raw
+  events would give. That is what lets reports read finished days from here.
+
+  The per-day breakdowns (pages, referrers, …) are
+  `PhoenixKitWebAnalytics.Schemas.DailyDim` rows.
 
   `site` is `""` (not `NULL`) when a hit had no host, so the unique index on
   (`date`, `site`) actually constrains those rows.
@@ -41,11 +43,20 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyStat do
     field(:bounces, :integer, default: 0)
     field(:events, :integer, default: 0)
     field(:total_session_seconds, :integer, default: 0)
+    field(:exits, :integer, default: 0)
+    field(:engaged_ms_sum, :integer, default: 0)
+    field(:engaged_count, :integer, default: 0)
+    field(:scroll_sum, :integer, default: 0)
+    field(:scroll_count, :integer, default: 0)
+    field(:duration_ms_sum, :integer, default: 0)
+    field(:duration_count, :integer, default: 0)
 
     timestamps(type: :utc_datetime_usec)
   end
 
-  @castable ~w(date site pageviews visitors sessions bounces events total_session_seconds)a
+  @castable ~w(date site pageviews visitors sessions bounces events total_session_seconds
+               exits engaged_ms_sum engaged_count scroll_sum scroll_count duration_ms_sum
+               duration_count)a
 
   @doc "Changeset for a daily rollup row."
   @spec changeset(t(), map()) :: Ecto.Changeset.t()

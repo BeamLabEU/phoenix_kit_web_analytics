@@ -27,6 +27,22 @@ config :phoenix_kit_web_analytics, PhoenixKitWebAnalytics.Test.Endpoint,
   url: [host: "localhost"],
   render_errors: [formats: [html: PhoenixKitWebAnalytics.Test.Layouts]]
 
+# Write hits inline instead of in a supervised task, so they land on the
+# test's sandbox connection (and can be asserted on) instead of racing the
+# test's end.
+config :phoenix_kit_web_analytics, async_tracking: false
+
+# A closed page's leave is recorded at once in tests; the reconnect grace
+# period is exercised by setting it explicitly.
+config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 0
+
+# Two pages of one visitor's same path are two pages in tests; superseding
+# (a reload whose old connection lingers) is exercised by setting it.
+config :phoenix_kit_web_analytics, presence_supersede_ms: 0
+
+# Reports read fresh data in tests (no 30 s cache).
+config :phoenix_kit_web_analytics, report_cache_ms: 0
+
 config :phoenix, :json_library, Jason
 
 config :logger, level: :warning

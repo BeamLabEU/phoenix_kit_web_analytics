@@ -18,19 +18,22 @@
 # `:test_load_filters` are loaded by the runner. The support modules are
 # compiled but not loaded, so they need explicit `Code.require_file/2` before
 # this file references them.
-support_dir = Path.expand("support", __DIR__)
-
+# test/support is compiled through elixirc_paths(:test); requiring the files
+# again would redefine every module (a warning per module per run). Loading
+# the compiled modules is enough.
 [
-  "test_repo.ex",
-  "test_migration.ex",
-  "test_layouts.ex",
-  "hooks.ex",
-  "test_router.ex",
-  "test_endpoint.ex",
-  "data_case.ex",
-  "live_case.ex"
+  PhoenixKitWebAnalytics.Test.Repo,
+  PhoenixKitWebAnalytics.Test.Migration,
+  PhoenixKitWebAnalytics.Test.Layouts,
+  PhoenixKitWebAnalytics.Test.Hooks,
+  PhoenixKitWebAnalytics.Test.TrackedLive,
+  PhoenixKitWebAnalytics.ActivityLogAssertions,
+  PhoenixKitWebAnalytics.Test.Router,
+  PhoenixKitWebAnalytics.Test.Endpoint,
+  PhoenixKitWebAnalytics.DataCase,
+  PhoenixKitWebAnalytics.LiveCase
 ]
-|> Enum.each(&Code.require_file(&1, support_dir))
+|> Enum.each(&Code.ensure_loaded!/1)
 
 db_name =
   Application.get_env(:phoenix_kit_web_analytics, PhoenixKitWebAnalytics.Test.Repo)[:database] ||
@@ -77,9 +80,11 @@ repo_available =
       # Then this module's tables, through the same coordinator a real host
       # runs via `mix phoenix_kit.update` — so the suite can never pass against
       # a schema that differs from what installs get.
+      # One Ecto version per chain version: a test DB created at an older
+      # chain version runs the new steps instead of being skipped as "done".
       Ecto.Migrator.up(
         PhoenixKitWebAnalytics.Test.Repo,
-        20_260_726_000_001,
+        20_260_726_000_000 + PhoenixKitWebAnalytics.Migrations.current_version(),
         PhoenixKitWebAnalytics.Test.Migration,
         log: false
       )

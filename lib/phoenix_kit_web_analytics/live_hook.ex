@@ -1,17 +1,32 @@
 defmodule PhoenixKitWebAnalytics.LiveHook do
   @moduledoc """
-  Counts LiveView navigations as page views.
+  Everything a visitor does on a LiveView page, recorded server-side from the
+  socket — no client-side script.
 
   `PhoenixKitWebAnalytics.Plug` sees HTTP requests, which covers the first load
-  of a LiveView page but not what happens afterwards: `push_patch`,
-  `push_navigate`, and `<.link patch={…}>` change the URL over the socket
-  without ever touching the router. Without this hook a LiveView-heavy app
-  reports one page view per session and nothing else.
+  of a page. Once a LiveView is connected, the visitor's clicks, form submits
+  and navigations travel over the websocket instead, and that's where this hook
+  sits. It records:
 
-  Attach it in the host's `live_session`:
+    * **Page views for live navigation** — `push_navigate`, `push_patch`,
+      `<.link navigate>` / `<.link patch>` change the URL without an HTTP
+      request, so the plug never sees them.
+    * **Interactions** — every `phx-click`, `phx-submit`, `phx-keydown` … event
+      the LiveView handles, by event name (`"add_to_cart"`, `"save"`). Form
+      contents are never recorded; see "What an interaction stores" below.
+    * **Leaving** — the page is registered with
+      `PhoenixKitWebAnalytics.LivePresence`, which records a `"leave"` event
+      with the time spent on the page when the LiveView process ends, and
+      powers the "on the site right now" view.
+
+  Attach it in the host's `live_session`, after whatever mounts the current
+  user, so logged-in visitors are attributed:
 
       live_session :public,
-        on_mount: [{PhoenixKitWebAnalytics.LiveHook, :track_navigation}] do
+        on_mount: [
+          {PhoenixKitWeb.Users.Auth, :phoenix_kit_mount_current_scope},
+          {PhoenixKitWebAnalytics.LiveHook, :track_navigation}
+        ] do
         live "/", HomeLive
         live "/pricing", PricingLive
       end
@@ -25,36 +40,85 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   hook does nothing unless the endpoint provides them:
 
       socket "/live", Phoenix.LiveView.Socket,
-        websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+        websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
+        longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
 
-  Both keys must be listed. If either is missing the hook stays inert and only
-  full page loads are counted — check this first if LiveView navigations aren't
-  showing up.
+  Both keys must be listed, **on both transports**: LiveView falls back to
+  long polling when a websocket can't be opened (a corporate proxy, a flaky
+  network), and a visitor on the fallback transport is invisible to this hook
+  if only `websocket:` carries them. If either is missing the hook stays inert
+  and only full page loads are counted — check this first if LiveView activity
+  isn't showing up.
+
+  Behind a proxy with `config :phoenix_kit_web_analytics,
+  trust_x_forwarded_for: true`, also list `:x_headers` on both transports, so
+  the hook reads the same forwarded address the plug does (and an
+  `x-accept-language` header, when a proxy sets one, for the visitor's
+  language).
 
   ## Not double-counted
 
-  On a normal page load the dead render already produced a tracked HTTP
-  response, so the hook ignores the `handle_params` that follows the connected
-  mount. It tells that case apart from a `push_navigate` remount (which has no
-  HTTP request behind it, and *is* counted) using LiveView's `_mounts` connect
-  parameter.
+  A page load is an ordinary HTTP response the plug already recorded, so the
+  `handle_params` that follows the connected mount is not counted again. A live
+  navigation is told apart by LiveView's `_live_referer` connect parameter,
+  which the client sends only when it arrived by `push_navigate` / `<.link
+  navigate>`. A **reconnect** (a deploy, a dropped network) remounts with
+  `_mounts > 0` and is never counted — the visitor didn't go anywhere.
+
+  ## What an interaction stores
+
+  The event name, the page it happened on, and — only for parameter names
+  listed in the `web_analytics_event_params` setting (`tab`, `view`, `step` …
+  by default) — short scalar values, so "switched to the *pricing* tab" is
+  visible. Everything else in the params is discarded before it leaves the
+  LiveView process: form fields, free text, uploads.
+
+  Form *typing* (`phx-change`, recognisable by its `"_target"` parameter) is
+  not recorded at all, and neither are event names listed in the
+  `web_analytics_ignore_events` setting. The same event repeated within a
+  second on one page counts once, so a double-click or a key held down is one
+  interaction.
+
+  Events handled by a LiveComponent (`phx-target={@myself}`) run in the
+  component, not the LiveView, and are not seen by this hook.
+
+  ## Do Not Track
+
+  The socket can't see request headers, so the plug notes a `DNT: 1` /
+  `Sec-GPC: 1` visitor in the session and this hook reads it from there; such
+  a visitor's LiveView activity is not recorded either. That needs the plug to
+  run after `:fetch_session`, as it does in a standard `:browser` pipeline.
   """
 
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, get_connect_info: 2, get_connect_params: 1]
 
   alias PhoenixKitWebAnalytics.Collector
+  alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.LivePresence
+  alias PhoenixKitWebAnalytics.Referrer
+  alias PhoenixKitWebAnalytics.Tracking
 
   @hook_name :phoenix_kit_web_analytics
   @client_key :__phoenix_kit_web_analytics_client
-  @skip_key :__phoenix_kit_web_analytics_skip_next
-  @last_uri_key :__phoenix_kit_web_analytics_last_uri
+  @state_key :__phoenix_kit_web_analytics_state
+
+  # The same event within this window on one page counts once.
+  @repeat_window_ms 1_000
+  @max_param_value 60
 
   @doc """
   `on_mount` callback. Use `:track_navigation`.
   """
-  def on_mount(:track_navigation, _params, _session, socket) do
-    if Phoenix.LiveView.connected?(socket) do
+  @spec on_mount(
+          :track_navigation,
+          map() | :not_mounted_at_router,
+          map(),
+          Phoenix.LiveView.Socket.t()
+        ) ::
+          {:cont, Phoenix.LiveView.Socket.t()}
+  def on_mount(:track_navigation, _params, session, socket) do
+    if Phoenix.LiveView.connected?(socket) and not opted_out?(session) do
       mount_connected(socket)
     else
       # The dead render is an ordinary HTTP response — the plug has it.
@@ -71,43 +135,169 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         socket =
           socket
           |> assign(@client_key, client)
-          |> assign(@skip_key, first_mount?(socket))
-          |> assign(@last_uri_key, nil)
+          |> assign(@state_key, %{
+            first?: true,
+            live_navigation?: live_navigation?(socket),
+            live_referer: live_referer(socket),
+            uri: nil,
+            last_event: nil
+          })
           |> attach_hook(@hook_name, :handle_params, &handle_params/3)
+          |> attach_hook(@hook_name, :handle_event, &handle_event/3)
 
         {:cont, socket}
     end
   end
 
   defp handle_params(_params, uri, socket) do
-    if socket.assigns[@skip_key] do
-      # This is the connected mount's own handle_params, for a URL the plug
-      # already recorded during the dead render.
-      {:cont, socket |> assign(@skip_key, false) |> assign(@last_uri_key, uri)}
+    state = socket.assigns[@state_key]
+    parsed = URI.parse(uri)
+    path = parsed.path || "/"
+
+    cond do
+      state.first? ->
+        # The connected mount's own handle_params. Counted only when the
+        # visitor got here by live navigation; a page load was already
+        # recorded by the plug during the dead render.
+        if state.live_navigation?, do: track_pageview(socket, parsed, state.live_referer)
+
+        LivePresence.watch(self(), socket.assigns[@client_key], %{
+          path: path,
+          site: Referrer.normalize_host(parsed.host),
+          user_uuid: Tracking.current_user_uuid(socket.assigns),
+          referrer: state.live_referer
+        })
+
+      same_path?(state.uri, parsed) ->
+        # A patch that only changed the query string (a filter, a page of
+        # results) is the same page.
+        :ok
+
+      true ->
+        track_pageview(socket, parsed, state.uri)
+
+        LivePresence.navigate(self(), path, socket.assigns[@client_key], %{
+          site: Referrer.normalize_host(parsed.host),
+          user_uuid: Tracking.current_user_uuid(socket.assigns)
+        })
+    end
+
+    {:cont, assign(socket, @state_key, %{state | first?: false, uri: uri, last_event: nil})}
+  end
+
+  defp handle_event(event, params, socket) do
+    state = socket.assigns[@state_key]
+    now = System.monotonic_time(:millisecond)
+
+    if record_event?(event, params, state, now) do
+      track_interaction(socket, event, params, state.uri)
+      {:cont, assign(socket, @state_key, %{state | last_event: {event, now}})}
     else
-      track(socket, uri)
-      {:cont, assign(socket, @last_uri_key, uri)}
+      {:cont, socket}
     end
   end
 
-  defp track(socket, uri) do
-    parsed = URI.parse(uri)
-    client = socket.assigns[@client_key] || %{}
+  # ── what gets recorded ────────────────────────────────────────────────────
 
-    Collector.track_async(%{
-      event_type: "pageview",
-      path: parsed.path || "/",
-      site: parsed.host,
-      referrer: socket.assigns[@last_uri_key],
-      query_params: utm_params(parsed.query),
-      ip: client[:ip],
-      user_agent: client[:user_agent],
-      language: client[:language],
-      user_uuid: current_user_uuid(socket),
-      status: 200,
-      metadata: %{"source" => "live_navigation"}
-    })
+  defp record_event?(event, params, state, now) do
+    is_binary(event) and is_binary(state.uri) and not form_change?(params) and
+      not repeated?(state.last_event, event, now) and
+      not Config.ignored_event?(event)
   end
+
+  # LiveView adds `_target` to the params of every phx-change event.
+  defp form_change?(%{"_target" => _}), do: true
+  defp form_change?(_params), do: false
+
+  defp repeated?({event, at}, event, now), do: now - at < @repeat_window_ms
+  defp repeated?(_last, _event, _now), do: false
+
+  defp track_pageview(socket, parsed, referrer) do
+    path = parsed.path || "/"
+
+    if trackable_path?(path) do
+      client = socket.assigns[@client_key] || %{}
+
+      Collector.track_async(%{
+        event_type: "pageview",
+        path: path,
+        site: parsed.host,
+        referrer: referrer,
+        query_params: Tracking.utm_params(parsed.query),
+        ip: client[:ip],
+        user_agent: client[:user_agent],
+        language: client[:language],
+        user_uuid: Tracking.current_user_uuid(socket.assigns),
+        status: 200,
+        metadata: %{"source" => "live_navigation"}
+      })
+    end
+  end
+
+  defp track_interaction(socket, event, params, uri) do
+    parsed = URI.parse(uri)
+    path = parsed.path || "/"
+
+    if trackable_path?(path) do
+      client = socket.assigns[@client_key] || %{}
+
+      Collector.track_async(%{
+        event_type: "interaction",
+        event_name: event,
+        path: path,
+        site: parsed.host,
+        ip: client[:ip],
+        user_agent: client[:user_agent],
+        language: client[:language],
+        user_uuid: Tracking.current_user_uuid(socket.assigns),
+        metadata: interaction_metadata(params)
+      })
+    end
+  end
+
+  defp interaction_metadata(params) do
+    base = %{"source" => "live_event"}
+
+    case recorded_params(params) do
+      empty when map_size(empty) == 0 -> base
+      values -> Map.put(base, "params", values)
+    end
+  end
+
+  # Only allow-listed names, only short scalar values. Nothing else in the
+  # params is ever copied out of the LiveView process.
+  defp recorded_params(params) when is_map(params) do
+    allowed = Config.event_params()
+
+    params
+    |> Map.take(allowed)
+    |> Enum.flat_map(fn
+      {key, value} when is_binary(value) and value != "" ->
+        [{key, String.slice(value, 0, @max_param_value)}]
+
+      {key, value} when is_integer(value) or is_boolean(value) ->
+        [{key, to_string(value)}]
+
+      _ ->
+        []
+    end)
+    |> Map.new()
+  end
+
+  defp recorded_params(_params), do: %{}
+
+  defp trackable_path?(path) do
+    config = Config.collection_config()
+    config.enabled? and not Config.excluded?(path, config.exclusions)
+  end
+
+  defp same_path?(nil, _parsed), do: false
+  defp same_path?(previous, parsed), do: URI.parse(previous).path == parsed.path
+
+  # ── connection facts ──────────────────────────────────────────────────────
+
+  defp opted_out?(session) when is_map(session), do: session[Tracking.dnt_session_key()] == true
+  defp opted_out?(_session), do: false
 
   # nil (rather than an empty map) signals "can't identify this visitor the same
   # way the plug would" — see the moduledoc.
@@ -117,50 +307,44 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
 
     case {user_agent, peer_data} do
       {ua, %{address: address}} when is_binary(ua) ->
-        %{ip: address, user_agent: ua, language: accept_language(socket)}
+        x_headers = get_connect_info(socket, :x_headers)
+
+        %{
+          ip: Tracking.socket_ip(address, x_headers),
+          user_agent: ua,
+          language: accept_language(x_headers)
+        }
 
       _ ->
         nil
     end
   end
 
-  defp accept_language(socket) do
-    case get_connect_info(socket, :x_headers) do
-      headers when is_list(headers) ->
-        Enum.find_value(headers, fn
-          {"accept-language", value} -> value
-          _ -> nil
-        end)
-
-      _ ->
-        nil
-    end
+  # Only `x-`-prefixed headers reach `:x_headers`, so this finds a language
+  # only when a proxy forwards one that way; otherwise the collector carries
+  # the session's language over from its page view.
+  defp accept_language(headers) when is_list(headers) do
+    Enum.find_value(headers, fn
+      {"x-accept-language", value} -> value
+      _ -> nil
+    end)
   end
 
-  # LiveView increments `_mounts` for every remount within one page load, so 0
-  # means "this socket just connected for a freshly served HTML page".
-  defp first_mount?(socket) do
+  defp accept_language(_headers), do: nil
+
+  # `_live_referer` is sent only by a live navigation; `_mounts` is 0 on the
+  # first join of a view and goes up on every reconnect, so requiring both
+  # keeps a reconnect of a live-navigated page from counting twice.
+  defp live_navigation?(socket) do
     case get_connect_params(socket) do
-      %{"_mounts" => mounts} when is_integer(mounts) -> mounts == 0
-      # Unknown: assume a page load, since over-counting is the worse failure.
-      _ -> true
+      %{"_live_referer" => referer, "_mounts" => 0} when is_binary(referer) -> true
+      _ -> false
     end
   end
 
-  defp utm_params(nil), do: %{}
-
-  defp utm_params(query) do
-    query
-    |> URI.decode_query()
-    |> Map.take(~w(utm_source utm_medium utm_campaign utm_term utm_content))
-  rescue
-    _ -> %{}
-  end
-
-  defp current_user_uuid(socket) do
-    case socket.assigns do
-      %{phoenix_kit_current_user: %{uuid: uuid}} -> uuid
-      %{phoenix_kit_current_scope: %{user: %{uuid: uuid}}} -> uuid
+  defp live_referer(socket) do
+    case get_connect_params(socket) do
+      %{"_live_referer" => referer} when is_binary(referer) and referer != "" -> referer
       _ -> nil
     end
   end

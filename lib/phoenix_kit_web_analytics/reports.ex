@@ -35,38 +35,63 @@ defmodule PhoenixKitWebAnalytics.Reports do
       session, so single-page sessions contribute zero — the standard
       definition, and the reason it reads low on content sites.
 
-  ## Long windows and pruned data
+  ## Scale: rollups for finished days
 
-  `daily_timeseries/1` transparently falls back to
-  `PhoenixKitWebAnalytics.Schemas.DailyStat` rows for days whose raw events have
-  been pruned, so trend lines survive retention. Breakdowns (pages, referrers,
-  …) are raw-only: once a day is pruned its breakdowns are gone by design, and
-  this module will not show a partial ranking as if it were complete.
+  Every report that adds things up over a period reads the finished days from
+  the daily rollups (`DailyStat`, `DailyDim`) and only the rest — today, and
+  yesterday until its rollup has run — from raw events
+  (`PhoenixKitWebAnalytics.RollupReader`). A 30-day or 12-month window costs
+  about what a single day does, whatever the traffic, and breakdowns keep
+  working for days whose raw events retention has deleted. The numbers are
+  the same either way: distinct visitors add up across days exactly, because
+  the visitor ID changes daily.
+
+  Today (hourly), a single-page filter and bot traffic are read raw — the
+  rollups don't break down by hour, page or bot. Results are cached for
+  30 seconds (`PhoenixKitWebAnalytics.ReportCache`), so the raw slice runs at
+  most once per interval however many admins are watching.
+
+  ## Engagement
+
+  `"leave"` events — recorded when a visitor leaves a page, with the time it
+  was open — answer "how long do people stay" and "where do they leave"
+  (`engagement/1`, `exit_pages/2`, `page_engagement/2`). `"interaction"` events
+  are what they did there (`top_interactions/2`). `sessions/2` lists visits and
+  `session_timeline/1` replays one.
+
+  Bot traffic (stored only when `web_analytics_track_bots` is on) is left out
+  of every report unless the filter asks for it with `bots: true`.
 
   ## Failure behaviour
 
   Every query degrades to an empty result rather than raising — a module that
   is installed but whose migrations haven't run yet, or a momentarily
   unreachable database, renders as "no data yet" instead of a 500 on the admin
-  page.
+  page. The failure is logged.
   """
 
   import Ecto.Query
 
+  require Logger
+
+  alias PhoenixKitWebAnalytics.ReportCache
+  alias PhoenixKitWebAnalytics.RollupReader
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.SessionStats
 
   @type filter :: %{
           from: DateTime.t(),
           to: DateTime.t(),
           site: String.t() | nil,
           path: String.t() | nil,
-          period: String.t()
+          period: String.t(),
+          bots: boolean()
         }
 
   @default_limit 10
+  @slow_min_views 3
   @default_period "7d"
-  @empty_totals %{pageviews: 0, visitors: 0, avg_response_ms: nil}
   @empty_sessions %{sessions: 0, bounces: 0, total_seconds: 0}
 
   @periods [
@@ -101,6 +126,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     * `:period` — one of `periods/0`'s values; an unknown value falls back to
       the default rather than raising, since it arrives from a query parameter
     * `:site`, `:path` — optional restrictions
+    * `:bots` — include automated traffic (default `false`)
     * `:now` — reference time (tests)
   """
   @spec filter(keyword()) :: filter()
@@ -114,7 +140,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
       to: to,
       site: presence(Keyword.get(opts, :site)),
       path: presence(Keyword.get(opts, :path)),
-      period: period
+      period: period,
+      bots: Keyword.get(opts, :bots, false) == true
     }
   end
 
@@ -170,18 +197,22 @@ defmodule PhoenixKitWebAnalytics.Reports do
   """
   @spec overview(filter()) :: map()
   def overview(filter) do
-    totals = pageview_totals(filter)
-    sessions = session_totals(filter)
+    cached({:overview, filter}, fn ->
+      totals = RollupReader.totals(filter, &session_totals_query/1)
 
-    %{
-      pageviews: totals.pageviews,
-      visitors: totals.visitors,
-      events: event_count(filter),
-      avg_response_ms: to_float(totals.avg_response_ms),
-      sessions: sessions.sessions,
-      bounce_rate: percentage(sessions.bounces, sessions.sessions),
-      avg_session_seconds: average(sessions.total_seconds, sessions.sessions)
-    }
+      %{
+        pageviews: totals.pageviews,
+        visitors: totals.visitors,
+        events: totals.events,
+        avg_response_ms: average(totals.duration_ms_sum, totals.duration_count),
+        sessions: totals.sessions,
+        bounce_rate: percentage(totals.bounces, totals.sessions),
+        avg_session_seconds: average(totals.session_seconds, totals.sessions),
+        exits: totals.exits,
+        avg_time_ms: average(totals.engaged_ms_sum, totals.engaged_count),
+        avg_scroll: average(totals.scroll_sum, totals.scroll_count)
+      }
+    end)
   end
 
   @doc """
@@ -207,9 +238,11 @@ defmodule PhoenixKitWebAnalytics.Reports do
       to: DateTime.add(now, 60, :second),
       site: site,
       path: nil,
-      period: "custom"
+      period: "custom",
+      bots: false
     }
     |> base_query()
+    |> where([e], e.event_type != "leave")
     |> select([e], count(e.visitor_id, :distinct))
     |> one(0)
   end
@@ -224,52 +257,76 @@ defmodule PhoenixKitWebAnalytics.Reports do
   """
   @spec timeseries(filter(), :hour | :day | :month) :: [map()]
   def timeseries(filter, bucket \\ :day) do
-    rows =
-      filter
-      |> pageview_query()
-      |> bucketed(bucket)
-      |> all([])
-      |> Map.new(fn row -> {normalize_bucket(row.bucket), row} end)
+    cached({:timeseries, filter, bucket}, fn -> build_timeseries(filter, bucket) end)
+  end
+
+  defp build_timeseries(filter, bucket) do
+    # Hours are only ever read raw; days and months take the rolled-up days
+    # from rollups and only the rest from raw events.
+    {rolled, raw_filter} =
+      case bucket do
+        :hour -> {%{}, filter}
+        _ -> RollupReader.rolled_buckets(filter, bucket)
+      end
+
+    raw =
+      case raw_filter do
+        nil ->
+          %{}
+
+        raw_filter ->
+          raw_filter
+          |> pageview_query()
+          |> bucketed(bucket)
+          |> all([])
+          |> Map.new(fn row -> {normalize_bucket(row.bucket), row} end)
+      end
 
     filter
     |> bucket_starts(bucket)
     |> Enum.map(fn start ->
-      case Map.get(rows, start) do
-        nil -> %{bucket: start, pageviews: 0, visitors: 0}
-        row -> %{bucket: start, pageviews: row.pageviews, visitors: row.visitors}
-      end
+      from_rollup = Map.get(rolled, DateTime.to_date(start), %{pageviews: 0, visitors: 0})
+      from_raw = Map.get(raw, start, %{pageviews: 0, visitors: 0})
+
+      %{
+        bucket: start,
+        pageviews: from_rollup.pageviews + from_raw.pageviews,
+        visitors: from_rollup.visitors + from_raw.visitors
+      }
     end)
   end
 
   @doc """
-  Daily page views and visitors, backfilled from rollups where raw events are
-  gone.
-
-  Raw events win wherever they exist — a day still present in the events table
-  is always computed from it, and only fully pruned days come from
-  `PhoenixKitWebAnalytics.Schemas.DailyStat`. Each entry is
-  `%{date: Date.t(), pageviews: n, visitors: n, source: :events | :rollup}`.
+  Daily page views and visitors, rolled-up days included — each entry
+  `%{date: Date.t(), pageviews: n, visitors: n, source: :events | :rollup}`,
+  where `source` says which a day was read from.
   """
   @spec daily_timeseries(filter()) :: [map()]
   def daily_timeseries(filter) do
-    rollups = rollup_days(filter)
+    watermark = RollupReader.watermark()
 
     filter
     |> timeseries(:day)
     |> Enum.map(fn row ->
       date = DateTime.to_date(row.bucket)
-      day = %{date: date, pageviews: row.pageviews, visitors: row.visitors, source: :events}
+      rolled? = watermark && Date.compare(date, watermark) != :gt
 
-      if row.pageviews == 0, do: Map.get(rollups, date, day), else: day
+      %{
+        date: date,
+        pageviews: row.pageviews,
+        visitors: row.visitors,
+        source: if(rolled?, do: :rollup, else: :events)
+      }
     end)
   end
 
   # ── breakdowns ────────────────────────────────────────────────────────────
 
-  @doc "Most viewed paths."
+  @doc """
+  Most viewed paths. `:offset` pages through them (with `:limit`).
+  """
   @spec top_paths(filter(), keyword()) :: [map()]
-  def top_paths(filter, opts \\ []),
-    do: filter |> pageview_query() |> breakdown(:path, opts)
+  def top_paths(filter, opts \\ []), do: ranked(filter, "page", opts)
 
   @doc """
   Slowest paths by average server response time.
@@ -279,85 +336,60 @@ defmodule PhoenixKitWebAnalytics.Reports do
   popular and slow shows up in one query. Paths with fewer than three views are
   excluded, since one cold request would otherwise top the list.
   """
+  @spec slow_min_views() :: pos_integer()
+  def slow_min_views, do: @slow_min_views
+
   @spec slowest_paths(filter(), keyword()) :: [map()]
   def slowest_paths(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.duration_ms))
-    |> group_by([e], e.path)
-    |> having([e], count(e.uuid) >= 3)
-    |> select([e], %{
-      label: e.path,
-      pageviews: count(e.uuid),
-      avg_ms: avg(e.duration_ms),
-      max_ms: max(e.duration_ms)
-    })
-    |> order_by([e], desc: avg(e.duration_ms))
-    |> limit(^row_limit(opts))
-    |> all([])
-    |> Enum.map(&%{&1 | avg_ms: to_float(&1.avg_ms)})
+    cached({:slowest_paths, filter, opts}, fn ->
+      filter
+      |> RollupReader.dimension("page")
+      |> having([r], sum(r.hits) >= ^@slow_min_views and sum(r.duration_count) > 0)
+      |> order_by([r],
+        desc: fragment("SUM(?)::float / SUM(?)", r.duration_ms_sum, r.duration_count)
+      )
+      |> limit(^row_limit(opts))
+      |> all([])
+      |> Enum.map(fn row ->
+        row = RollupReader.numbers(row)
+
+        %{
+          label: row.value,
+          pageviews: row.hits,
+          avg_ms: average(row.duration_ms_sum, row.duration_count),
+          max_ms: row.duration_max
+        }
+      end)
+    end)
   end
 
   @doc "Top referring sources, excluding internal navigation and direct traffic."
   @spec top_referrers(filter(), keyword()) :: [map()]
-  def top_referrers(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.referrer_source))
-    |> where([e], e.referrer_medium not in ["internal", "none"])
-    |> breakdown(:referrer_source, opts)
-  end
+  def top_referrers(filter, opts \\ []), do: ranked(filter, "referrer", opts)
 
   @doc "Traffic grouped by channel — direct, organic, social, referral, email, paid."
   @spec channels(filter(), keyword()) :: [map()]
-  def channels(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], is_nil(e.referrer_medium) or e.referrer_medium != "internal")
-    |> breakdown(:referrer_medium, Keyword.put_new(opts, :default_label, "none"))
-  end
+  def channels(filter, opts \\ []), do: ranked(filter, "channel", opts)
 
   @doc "Top UTM campaigns."
   @spec top_campaigns(filter(), keyword()) :: [map()]
-  def top_campaigns(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.utm_campaign))
-    |> breakdown(:utm_campaign, opts)
-  end
+  def top_campaigns(filter, opts \\ []), do: ranked(filter, "campaign", opts)
 
   @doc "Top UTM sources."
   @spec top_utm_sources(filter(), keyword()) :: [map()]
-  def top_utm_sources(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.utm_source))
-    |> breakdown(:utm_source, opts)
-  end
+  def top_utm_sources(filter, opts \\ []), do: ranked(filter, "utm_source", opts)
 
   @doc "Browser breakdown."
   @spec browsers(filter(), keyword()) :: [map()]
-  def browsers(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> breakdown(:browser, Keyword.put_new(opts, :default_label, "Unknown"))
-  end
+  def browsers(filter, opts \\ []), do: ranked(filter, "browser", opts)
 
   @doc "Operating system breakdown."
   @spec operating_systems(filter(), keyword()) :: [map()]
-  def operating_systems(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> breakdown(:os, Keyword.put_new(opts, :default_label, "Unknown"))
-  end
+  def operating_systems(filter, opts \\ []), do: ranked(filter, "os", opts)
 
   @doc "Device class breakdown (desktop / mobile / tablet)."
   @spec devices(filter(), keyword()) :: [map()]
-  def devices(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> breakdown(:device_type, Keyword.put_new(opts, :default_label, "unknown"))
-  end
+  def devices(filter, opts \\ []), do: ranked(filter, "device", opts)
 
   @doc """
   Country breakdown.
@@ -366,45 +398,325 @@ defmodule PhoenixKitWebAnalytics.Reports do
   sets a country header — see `PhoenixKitWebAnalytics.Geo`.
   """
   @spec countries(filter(), keyword()) :: [map()]
-  def countries(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.country_code))
-    |> breakdown(:country_code, opts)
-  end
+  def countries(filter, opts \\ []), do: ranked(filter, "country", opts)
 
   @doc "Browser language breakdown."
   @spec languages(filter(), keyword()) :: [map()]
-  def languages(filter, opts \\ []) do
-    filter
-    |> pageview_query()
-    |> where([e], not is_nil(e.language))
-    |> breakdown(:language, opts)
-  end
+  def languages(filter, opts \\ []), do: ranked(filter, "language", opts)
 
   @doc "Hosts that received traffic, for the site selector."
   @spec sites(filter()) :: [String.t()]
-  def sites(filter) do
-    filter
-    |> base_query()
-    |> where([e], not is_nil(e.site))
-    |> group_by([e], e.site)
-    |> order_by([e], desc: count(e.uuid))
-    |> select([e], e.site)
-    |> limit(50)
+  def sites(filter), do: cached({:sites, filter}, fn -> RollupReader.sites(filter) end)
+
+  # ── engagement ────────────────────────────────────────────────────────────
+
+  @doc """
+  How long visitors stay: `exits` (pages left), `avg_time_ms` (average time
+  on a page, from leave events), and `avg_scroll` (average scroll depth, 0–100,
+  `nil` without the client script).
+  """
+  @spec engagement(filter()) :: %{
+          exits: non_neg_integer(),
+          avg_time_ms: float() | nil,
+          avg_scroll: float() | nil
+        }
+  def engagement(filter),
+    do: filter |> overview() |> Map.take([:exits, :avg_time_ms, :avg_scroll])
+
+  @doc "The pages visitors left the site from, ranked (`pageviews` holds the exit count)."
+  @spec exit_pages(filter(), keyword()) :: [map()]
+  def exit_pages(filter, opts \\ []) do
+    cached({:exit_pages, filter, opts}, fn ->
+      filter
+      |> RollupReader.dimension("page")
+      |> having([r], sum(r.exits) > 0)
+      |> order_by([r], desc: sum(r.exits), asc: r.value)
+      |> limit(^row_limit(opts))
+      |> all([])
+      |> Enum.map(fn row ->
+        row = RollupReader.numbers(row)
+        %{label: row.value, pageviews: row.exits, visitors: row.exit_visitors}
+      end)
+    end)
+  end
+
+  @doc """
+  Per-path engagement for the given paths: `%{path => %{exits, avg_time_ms,
+  avg_scroll}}`. Paths with no leave recorded are absent.
+  """
+  @spec page_engagement(filter(), [String.t()]) :: %{String.t() => map()}
+  def page_engagement(_filter, []), do: %{}
+
+  def page_engagement(filter, paths) when is_list(paths) do
+    cached({:page_engagement, filter, paths}, fn ->
+      filter
+      |> RollupReader.dimension("page", values: paths)
+      |> having([r], sum(r.exits) > 0)
+      |> all([])
+      |> Map.new(fn row ->
+        row = RollupReader.numbers(row)
+
+        {row.value,
+         %{
+           exits: row.exits,
+           avg_time_ms: average(row.engaged_ms_sum, row.engaged_count),
+           avg_scroll: average(row.scroll_sum, row.scroll_count)
+         }}
+      end)
+    end)
+  end
+
+  @doc """
+  What visitors did, ranked: LiveView events by name, and the client script's
+  clicks by kind and target (`"outbound · github.com/acme"`). Each row is
+  `%{label, name, target, pageviews: count, visitors}`.
+  """
+  @spec top_interactions(filter(), keyword()) :: [map()]
+  def top_interactions(filter, opts \\ []) do
+    cached({:top_interactions, filter, opts}, fn ->
+      filter
+      |> RollupReader.dimension("interaction")
+      |> order_by([r], desc: sum(r.hits), asc: r.value, asc: r.detail)
+      |> limit(^row_limit(opts))
+      |> all([])
+      |> Enum.map(fn row ->
+        row = RollupReader.numbers(row)
+        target = if row.detail in [nil, ""], do: nil, else: row.detail
+
+        %{
+          name: row.value,
+          target: target,
+          pageviews: row.hits,
+          visitors: row.visitors,
+          label: Enum.join(Enum.reject([row.value, target], &is_nil/1), " · ")
+        }
+      end)
+    end)
+  end
+
+  # ── sessions ──────────────────────────────────────────────────────────────
+
+  @doc """
+  Visits in the window, newest first — one row per visit that has at least
+  one page view:
+
+      %{session_id, started_at, ended_at, seconds, pageviews, interactions,
+        entry_path, exit_path, source, medium, browser, os, device_type,
+        country_code, user_uuid}
+
+  `source`/`medium` are the first page view's. `seconds` spans every event
+  type, so a visit that ended with a leave counts the time on its last page.
+
+  Built to stay cheap on a busy site: it pages through visit *starts* (the
+  indexed `session_start` rows) and only then sums up the visits on the page,
+  instead of grouping every event in the window. With a path filter it lists
+  visits that landed on that page.
+
+  ## Options
+
+    * `:limit` — default 50
+    * `:before` — a `DateTime`; only visits that started before it (paging)
+    * `:user_uuid` — only visits in which that signed-in user was active
+  """
+  @spec sessions(filter(), keyword()) :: [map()]
+  def sessions(filter, opts \\ []), do: filter |> sessions_page(opts) |> elem(0)
+
+  @doc """
+  `sessions/2`, plus the cursor for the next page: `{rows, next_before}`,
+  where `next_before` is `nil` on the last page.
+  """
+  @spec sessions_page(filter(), keyword()) :: {[map()], DateTime.t() | nil}
+  def sessions_page(filter, opts \\ []) do
+    limit = row_limit(opts, 50)
+
+    starts =
+      filter
+      |> base_query()
+      |> where([e], e.session_start == true)
+      |> sessions_for_user(Keyword.get(opts, :user_uuid), filter)
+      |> started_before(Keyword.get(opts, :before))
+      |> order_by([e], desc: e.inserted_at)
+      |> limit(^(limit + 1))
+      |> select([e], {e.session_id, e.inserted_at})
+      |> all([])
+
+    {page, rest} = Enum.split(starts, limit)
+    rows = page |> Enum.map(&elem(&1, 0)) |> summarize_sessions(filter)
+    next = if rest == [], do: nil, else: page |> List.last() |> elem(1) |> to_utc()
+
+    {Enum.sort_by(rows, & &1.started_at, {:desc, DateTime}), next}
+  end
+
+  @doc """
+  Visits with any activity in the last `minutes`, most recently active first
+  — `{rows, next_before}` like `sessions_page/2`.
+
+  Reads the newest events through the time index and keeps the first `limit`
+  distinct visits, so it costs the same with ten people online or ten
+  thousand.
+
+  ## Options
+
+    * `:limit` — default 50
+    * `:before` — a `DateTime`; only visits whose latest hit is older (paging)
+  """
+  @spec recent_sessions(pos_integer(), keyword()) :: {[map()], DateTime.t() | nil}
+  def recent_sessions(minutes, opts \\ []) do
+    limit = row_limit(opts, 50)
+    now = DateTime.utc_now()
+    from = DateTime.add(now, -minutes * 60, :second)
+
+    hits =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.is_bot == false,
+        order_by: [desc: e.inserted_at],
+        # Enough hits to find `limit + 1` distinct visits in any realistic mix.
+        limit: ^((limit + 1) * 20),
+        select: {e.session_id, e.inserted_at}
+      )
+      |> active_before(Keyword.get(opts, :before))
+      |> all([])
+
+    latest = hits |> Enum.uniq_by(&elem(&1, 0)) |> Enum.take(limit + 1)
+    {page, rest} = Enum.split(latest, limit)
+    last_seen = Map.new(page)
+
+    rows =
+      page
+      |> Enum.map(&elem(&1, 0))
+      |> summarize_sessions(%{bots: false})
+      |> Enum.map(&Map.put(&1, :last_seen, to_utc(last_seen[&1.session_id])))
+      |> Enum.sort_by(& &1.last_seen, {:desc, DateTime})
+
+    {rows, if(rest == [], do: nil, else: page |> List.last() |> elem(1) |> to_utc())}
+  end
+
+  # One row per visit for the given ids, over ALL their events (a visit that
+  # began before the window is still shown whole).
+  defp summarize_sessions([], _filter), do: []
+
+  defp summarize_sessions(ids, filter) do
+    from(e in Event, where: e.session_id in ^ids)
+    |> filter_bots(Map.get(filter, :bots, false))
+    |> group_by([e], e.session_id)
+    |> having([e], fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type) > 0)
+    |> select([e], %{
+      session_id: e.session_id,
+      started_at: min(e.inserted_at),
+      ended_at: max(e.inserted_at),
+      pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
+      interactions:
+        fragment("COUNT(*) FILTER (WHERE ? IN ('interaction', 'event'))", e.event_type),
+      entry_path:
+        fragment(
+          "(ARRAY_AGG(? ORDER BY ?) FILTER (WHERE ? = 'pageview'))[1]",
+          e.path,
+          e.inserted_at,
+          e.event_type
+        ),
+      exit_path:
+        fragment(
+          "(ARRAY_AGG(? ORDER BY ? DESC) FILTER (WHERE ? = 'pageview'))[1]",
+          e.path,
+          e.inserted_at,
+          e.event_type
+        ),
+      source:
+        fragment(
+          "(ARRAY_AGG(? ORDER BY ?) FILTER (WHERE ? = 'pageview'))[1]",
+          e.referrer_source,
+          e.inserted_at,
+          e.event_type
+        ),
+      medium:
+        fragment(
+          "(ARRAY_AGG(? ORDER BY ?) FILTER (WHERE ? = 'pageview'))[1]",
+          e.referrer_medium,
+          e.inserted_at,
+          e.event_type
+        ),
+      browser: max(e.browser),
+      os: max(e.os),
+      device_type: max(e.device_type),
+      country_code: max(e.country_code),
+      user_uuid:
+        type(
+          fragment("(ARRAY_AGG(?) FILTER (WHERE ? IS NOT NULL))[1]", e.user_uuid, e.user_uuid),
+          Ecto.UUID
+        )
+    })
     |> all([])
+    |> Enum.map(fn row ->
+      Map.put(row, :seconds, max(DateTime.diff(to_utc(row.ended_at), to_utc(row.started_at)), 0))
+    end)
+  end
+
+  @doc """
+  The events of one session, oldest first — the visit replayed. `:limit`
+  caps how many (default 1000; the visit page asks for 500 at a time); `[]`
+  for an id that isn't a UUID.
+  """
+  @spec session_timeline(String.t(), keyword()) :: [Event.t()]
+  def session_timeline(session_id, opts \\ []) do
+    case Ecto.UUID.cast(session_id) do
+      {:ok, uuid} ->
+        from(e in Event,
+          where: e.session_id == ^uuid,
+          order_by: [asc: e.inserted_at],
+          limit: ^row_limit(opts, 1000, 5_001)
+        )
+        |> all([])
+
+      :error ->
+        []
+    end
+  end
+
+  @doc """
+  One visit's totals over all its events, however long the visit —
+  `%{started, seconds, pageviews, actions, max_scroll, bot?, bot_reason}`,
+  or `nil`. `bot_reason` says why a visit counts as a bot's when its
+  behaviour gave it away (see `PhoenixKitWebAnalytics.BotSignals`).
+  """
+  @spec session_summary(String.t()) :: map() | nil
+  def session_summary(session_id) do
+    # Cached: the visit page asks twice per load (dead render, then
+    # connected), and a long visit is a big aggregate.
+    cached({:session_summary, session_id}, fn -> compute_session_summary(session_id) end)
+  end
+
+  defp compute_session_summary(session_id) do
+    with {:ok, uuid} <- Ecto.UUID.cast(session_id),
+         %{started: %{}} = row <-
+           from(e in Event,
+             where: e.session_id == ^uuid,
+             select: %{
+               started: min(e.inserted_at),
+               ended: max(e.inserted_at),
+               pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
+               actions:
+                 fragment("COUNT(*) FILTER (WHERE ? IN ('interaction', 'event'))", e.event_type),
+               max_scroll: max(e.scroll_depth),
+               bot?: fragment("bool_or(?)", e.is_bot),
+               bot_reason: fragment("max(?->>'bot')", e.metadata)
+             }
+           )
+           |> one(nil) do
+      started = to_utc(row.started)
+
+      row
+      |> Map.put(:started, started)
+      |> Map.put(:seconds, max(DateTime.diff(to_utc(row.ended), started), 0))
+    else
+      _ -> nil
+    end
   end
 
   # ── custom events ─────────────────────────────────────────────────────────
 
   @doc "Custom events, ranked by occurrence."
   @spec top_events(filter(), keyword()) :: [map()]
-  def top_events(filter, opts \\ []) do
-    filter
-    |> base_query()
-    |> where([e], e.event_type == "event" and not is_nil(e.event_name))
-    |> breakdown(:event_name, opts)
-  end
+  def top_events(filter, opts \\ []), do: ranked(filter, "event", opts)
 
   @doc """
   The most recent hits, newest first — the live feed.
@@ -415,7 +727,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
   ## Options
 
     * `:limit` — default 50
-    * `:event_type` — `"pageview"` or `"event"` to show one kind only
+    * `:event_type` — `"pageview"`, `"event"`, `"interaction"` or `"leave"`
+      to show one kind only
   """
   @spec recent_hits(filter(), keyword()) :: [Event.t()]
   def recent_hits(filter, opts \\ []) do
@@ -426,27 +739,115 @@ defmodule PhoenixKitWebAnalytics.Reports do
       |> limit(^row_limit(opts, 50))
 
     case Keyword.get(opts, :event_type) do
-      type when type in ["pageview", "event"] -> where(query, [e], e.event_type == ^type)
-      _ -> query
+      type when type in ["pageview", "event", "interaction", "leave"] ->
+        where(query, [e], e.event_type == ^type)
+
+      _ ->
+        query
     end
     |> all([])
   end
 
   @doc """
-  Total stored rows and the oldest retained timestamp — shown on the settings
-  page so an operator can see what retention is actually doing.
+  Stored rows and the oldest retained timestamp — shown on the settings page
+  so an operator can see what retention is actually doing.
+
+  The event count is exact below 100,000 rows and Postgres's planner estimate
+  above that (`events_estimated?: true`): an exact `count(*)` over a large
+  append-only table is a full scan, and this runs on every settings and
+  Modules page load.
   """
   @spec storage_stats() :: %{
           events: non_neg_integer(),
+          events_estimated?: boolean(),
           rollup_days: non_neg_integer(),
           oldest: DateTime.t() | nil
         }
   def storage_stats do
+    {events, estimated?} = event_count_estimate()
+
     %{
-      events: Event |> select([e], count(e.uuid)) |> one(0),
+      events: events,
+      events_estimated?: estimated?,
       rollup_days: DailyStat |> select([s], count(s.uuid)) |> one(0),
       oldest: Event |> select([e], min(e.inserted_at)) |> one(nil)
     }
+  end
+
+  @exact_count_limit 100_000
+
+  defp event_count_estimate do
+    capped =
+      from(e in subquery(from(e in Event, select: e.uuid, limit: @exact_count_limit + 1)),
+        select: count()
+      )
+      |> one(0)
+
+    if capped <= @exact_count_limit do
+      {capped, false}
+    else
+      {planner_estimate() || capped, true}
+    end
+  end
+
+  defp planner_estimate do
+    table =
+      case Event.__schema__(:prefix) do
+        nil -> "phoenix_kit_web_analytics_events"
+        prefix -> "#{prefix}.phoenix_kit_web_analytics_events"
+      end
+
+    case repo().query(
+           "SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass($1)",
+           [table],
+           log: false
+         ) do
+      {:ok, %{rows: [[count]]}} when is_integer(count) and count > 0 -> count
+      _ -> nil
+    end
+  rescue
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.debug("[WebAnalytics] row estimate failed: #{Exception.message(error)}")
+      nil
+  end
+
+  # ── rollup-backed helpers ─────────────────────────────────────────────────
+
+  # A ranked "label + counts" list for one dimension, rollups and raw
+  # combined, ordered and paged in the database.
+  defp ranked(filter, dimension, opts) do
+    cached({:ranked, dimension, filter, opts}, fn ->
+      default_label = Keyword.get(opts, :default_label)
+
+      filter
+      |> RollupReader.dimension(dimension)
+      |> order_by([r], desc: sum(r.hits), asc: r.value)
+      |> limit(^row_limit(opts))
+      |> offset(^Keyword.get(opts, :offset, 0))
+      |> all([])
+      |> Enum.map(fn row ->
+        row = RollupReader.numbers(row)
+        %{label: row.value || default_label, pageviews: row.hits, visitors: row.visitors}
+      end)
+    end)
+  end
+
+  defp cached(key, fun), do: ReportCache.fetch({__MODULE__, key}, fun)
+
+  # Session totals over an already-restricted raw query (the remainder the
+  # rollups don't cover).
+  defp session_totals_query(query) do
+    per_session = SessionStats.per_session(query)
+
+    from(s in subquery(per_session),
+      select: %{
+        sessions: count(s.session_id),
+        bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", s.hits),
+        total_seconds: sum(s.seconds)
+      }
+    )
+    |> one(@empty_sessions)
+    |> Map.update!(:total_seconds, &to_float/1)
   end
 
   # ── query building ────────────────────────────────────────────────────────
@@ -456,7 +857,45 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> where([e], e.inserted_at >= ^filter.from and e.inserted_at < ^filter.to)
     |> filter_site(filter.site)
     |> filter_path(filter[:path])
+    |> filter_bots(Map.get(filter, :bots, false))
   end
+
+  defp filter_bots(query, true), do: query
+  defp filter_bots(query, _bots), do: where(query, [e], e.is_bot == false)
+
+  defp sessions_for_user(query, nil, _filter), do: query
+
+  defp sessions_for_user(query, user_uuid, filter) do
+    case Ecto.UUID.cast(user_uuid) do
+      {:ok, uuid} ->
+        # Only visits that start in the period are listed, so the user's hits
+        # in them are never older than the period's start: a busy account
+        # costs its recent activity, not its whole history.
+        user_sessions =
+          from(u in Event,
+            where: u.user_uuid == ^uuid and u.inserted_at >= ^filter.from,
+            select: u.session_id
+          )
+
+        where(query, [e], e.session_id in subquery(user_sessions))
+
+      :error ->
+        where(query, [e], false)
+    end
+  end
+
+  defp started_before(query, %DateTime{} = before),
+    do: where(query, [e], e.inserted_at < ^before)
+
+  defp started_before(query, _before), do: query
+
+  defp active_before(query, %DateTime{} = before),
+    do: where(query, [e], e.inserted_at < ^before)
+
+  defp active_before(query, _before), do: query
+
+  defp to_utc(%DateTime{} = at), do: at
+  defp to_utc(%NaiveDateTime{} = at), do: DateTime.from_naive!(at, "Etc/UTC")
 
   defp pageview_query(filter) do
     filter |> base_query() |> where([e], e.event_type == "pageview")
@@ -467,27 +906,6 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
   defp filter_path(query, nil), do: query
   defp filter_path(query, path), do: where(query, [e], e.path == ^path)
-
-  # One shape for every "label + counts, ranked" table. The grouped column is
-  # passed as a field atom (never interpolated SQL), and NULL labels are
-  # replaced in Elixir rather than with a coalesce, which keeps the query
-  # identical for every dimension.
-  defp breakdown(query, field, opts) do
-    default_label = Keyword.get(opts, :default_label)
-
-    query
-    |> group_by([e], field(e, ^field))
-    |> select([e], %{
-      label: field(e, ^field),
-      pageviews: count(e.uuid),
-      visitors: count(e.visitor_id, :distinct)
-    })
-    |> order_by([e], desc: count(e.uuid))
-    |> limit(^row_limit(opts))
-    |> all([])
-    |> Enum.map(fn row -> %{row | label: row.label || default_label} end)
-    |> Enum.reject(&is_nil(&1.label))
-  end
 
   # `date_trunc`'s unit must be a literal — never interpolate one — so each
   # supported bucket gets its own clause.
@@ -521,76 +939,6 @@ defmodule PhoenixKitWebAnalytics.Reports do
     })
   end
 
-  defp pageview_totals(filter) do
-    filter
-    |> pageview_query()
-    |> select([e], %{
-      pageviews: count(e.uuid),
-      visitors: count(e.visitor_id, :distinct),
-      avg_response_ms: avg(e.duration_ms)
-    })
-    |> one(@empty_totals)
-  end
-
-  defp event_count(filter) do
-    filter
-    |> base_query()
-    |> where([e], e.event_type == "event")
-    |> select([e], count(e.uuid))
-    |> one(0)
-  end
-
-  # Bounce rate and session length both need per-session facts first, so they
-  # share one grouped subquery rather than scanning the window twice.
-  defp session_totals(filter) do
-    per_session =
-      filter
-      |> pageview_query()
-      |> group_by([e], e.session_id)
-      |> select([e], %{
-        session_id: e.session_id,
-        hits: count(e.uuid),
-        seconds: fragment("EXTRACT(EPOCH FROM (MAX(?) - MIN(?)))", e.inserted_at, e.inserted_at)
-      })
-
-    from(s in subquery(per_session),
-      select: %{
-        sessions: count(s.session_id),
-        bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", s.hits),
-        total_seconds: sum(s.seconds)
-      }
-    )
-    |> one(@empty_sessions)
-  end
-
-  defp rollup_days(filter) do
-    from_date = DateTime.to_date(filter.from)
-    to_date = DateTime.to_date(filter.to)
-
-    query =
-      from(s in DailyStat,
-        where: s.date >= ^from_date and s.date <= ^to_date,
-        group_by: s.date,
-        select: %{date: s.date, pageviews: sum(s.pageviews), visitors: sum(s.visitors)}
-      )
-
-    query
-    |> filter_rollup_site(filter.site)
-    |> all([])
-    |> Map.new(fn row ->
-      {row.date,
-       %{
-         date: row.date,
-         pageviews: row.pageviews || 0,
-         visitors: row.visitors || 0,
-         source: :rollup
-       }}
-    end)
-  end
-
-  defp filter_rollup_site(query, nil), do: query
-  defp filter_rollup_site(query, site), do: where(query, [s], s.site == ^site)
-
   # The bucket starts a chart should show, whether or not they hold data.
   # Future buckets inside today are dropped — an empty bar for 11pm reads as
   # "no traffic" rather than "hasn't happened yet".
@@ -616,7 +964,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
   end
 
   defp bucket_starts(filter, :month) do
-    from_month = filter.from |> DateTime.to_date() |> Date.beginning_of_month()
+    from_month = filter |> first_month() |> Date.beginning_of_month()
     to_month = filter.to |> DateTime.add(-1, :second) |> DateTime.to_date()
 
     from_month
@@ -624,6 +972,21 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> Enum.take_while(&(Date.compare(&1, to_month) != :gt))
     |> Enum.map(&start_of_day/1)
   end
+
+  # "All time" starts at the oldest data, not at the 1970 lower bound of its
+  # window — otherwise the chart is 680 empty months and one sliver.
+  defp first_month(%{period: "all"} = filter) do
+    oldest_event = Event |> select([e], min(e.inserted_at)) |> one(nil)
+    oldest_rollup = DailyStat |> select([s], min(s.date)) |> one(nil)
+
+    [oldest_event && to_utc(oldest_event) |> DateTime.to_date(), oldest_rollup]
+    |> Enum.reject(&is_nil/1)
+    # `to` is exclusive (tomorrow's midnight for "all"), so with no data the
+    # series starts at the month of its last included instant — today's.
+    |> Enum.min(Date, fn -> filter.to |> DateTime.add(-1, :second) |> DateTime.to_date() end)
+  end
+
+  defp first_month(filter), do: DateTime.to_date(filter.from)
 
   # `date_trunc` returns a timestamptz, which Postgrex decodes to a DateTime
   # (microsecond precision); bucket keys are compared at second precision.
@@ -638,9 +1001,13 @@ defmodule PhoenixKitWebAnalytics.Reports do
   defp all(query, fallback) do
     repo().all(query)
   rescue
-    _ -> fallback
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("[WebAnalytics] report query failed: #{Exception.message(error)}")
+      fallback
   catch
-    :exit, _ -> fallback
+    :exit, reason ->
+      Logger.warning("[WebAnalytics] report query exited: #{inspect(reason)}")
+      fallback
   end
 
   defp one(query, fallback) do
@@ -649,14 +1016,18 @@ defmodule PhoenixKitWebAnalytics.Reports do
       result -> result
     end
   rescue
-    _ -> fallback
+    error in [DBConnection.ConnectionError, Postgrex.Error] ->
+      Logger.warning("[WebAnalytics] report query failed: #{Exception.message(error)}")
+      fallback
   catch
-    :exit, _ -> fallback
+    :exit, reason ->
+      Logger.warning("[WebAnalytics] report query exited: #{inspect(reason)}")
+      fallback
   end
 
-  defp row_limit(opts, default \\ @default_limit) do
+  defp row_limit(opts, default \\ @default_limit, max \\ 1_000) do
     case Keyword.get(opts, :limit, default) do
-      value when is_integer(value) and value > 0 and value <= 1_000 -> value
+      value when is_integer(value) and value > 0 and value <= max -> value
       _ -> default
     end
   end

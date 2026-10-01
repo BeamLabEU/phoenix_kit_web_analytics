@@ -20,6 +20,45 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `0` — tables absent (not installed)
     * `1` — `phoenix_kit_web_analytics_events` +
       `phoenix_kit_web_analytics_daily_stats`, UUIDv7 primary keys
+    * `2` — engagement columns on events (`engaged_ms`, `scroll_depth`,
+      `target`) for the `"interaction"` and `"leave"` event types, and a
+      `(session_id, inserted_at)` index for session timelines
+    * `3` — `session_start` on events (the first hit of each visit) with a
+      partial index on `inserted_at`, so the visits list pages through visit
+      starts instead of grouping every event in the period. Existing rows are
+      marked afterwards, in batches, by the retention pass
+      (`PhoenixKitWebAnalytics.Retention`) — not here, where one statement over
+      a large table would hold the migration's lock for its whole run
+    * `4` — engagement totals on `daily_stats` and the `daily_dims` table
+      (one row per day, site and breakdown value), so every report reads
+      finished days from rollups; the rollup watermark is reset so the days
+      still in raw events are rolled up again with the new detail
+    * `5` — index changes for the paths that must not grow with the table:
+      `(path, inserted_at)` for page drill-downs and `(user_uuid,
+      inserted_at)` for a user's visits; the plain `session_id` index goes
+      (`(session_id, inserted_at)` already serves it)
+    * `6` — `phoenix_kit_web_analytics_recordings`: optional session
+      recordings (pointer movement, clicks, hovers, scrolling), in chunks per
+      page view — see `PhoenixKitWebAnalytics.Recordings`
+
+  ## Large existing tables
+
+  Creating an index blocks writes to its table while it builds, and inside a
+  migration it can't be built `CONCURRENTLY`. On a busy install with a large
+  events table, create V3's and V5's event indexes by hand first, under the
+  same names — the migration then finds them and skips the build:
+
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_session_starts_index
+        ON phoenix_kit_web_analytics_events (inserted_at) WHERE session_start;
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_path_inserted_at_index
+        ON phoenix_kit_web_analytics_events (path, inserted_at);
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_user_uuid_inserted_at_index
+        ON phoenix_kit_web_analytics_events (user_uuid, inserted_at)
+        WHERE user_uuid IS NOT NULL;
+
+  (`session_start` must exist before the first; add it with `ALTER TABLE …
+  ADD COLUMN session_start boolean NOT NULL DEFAULT false`, which is
+  instant.)
 
   ## Prefix safety
 
@@ -34,7 +73,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 1
+  @current_version 6
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -227,6 +266,249 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     )
   end
 
+  # ── v2 ────────────────────────────────────────────────────────────────────
+
+  defp up_v2(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      # Time spent on the page, for "leave" events.
+      add_if_not_exists(:engaged_ms, :integer)
+      # Furthest scroll position reached, 0–100, from the optional client script.
+      add_if_not_exists(:scroll_depth, :smallint)
+      # What was clicked, for client-reported interactions (a link's href, a
+      # button's label) — never form contents.
+      add_if_not_exists(:target, :text)
+    end
+
+    # A session's timeline is read in order; the v1 index on session_id alone
+    # would sort every hit of a long session in memory.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:session_id, :inserted_at], prefix: prefix)
+    )
+  end
+
+  defp down_v2(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:session_id, :inserted_at], prefix: prefix)
+    )
+
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:target, :text)
+      remove_if_exists(:scroll_depth, :smallint)
+      remove_if_exists(:engaged_ms, :integer)
+    end
+  end
+
+  # ── v3 ────────────────────────────────────────────────────────────────────
+
+  defp up_v3(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      add_if_not_exists(:session_start, :boolean, null: false, default: false)
+    end
+
+    # Only visit starts are indexed — a small slice of the table, read newest
+    # first by the visits list.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:inserted_at],
+        prefix: prefix,
+        name: :phoenix_kit_web_analytics_events_session_starts_index,
+        where: "session_start"
+      )
+    )
+
+    # Existing sessions get their first hit marked by the retention pass, in
+    # batches (`Retention.backfill_session_starts/0`).
+  end
+
+  defp down_v3(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:inserted_at],
+        prefix: prefix,
+        name: :phoenix_kit_web_analytics_events_session_starts_index
+      )
+    )
+
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:session_start, :boolean)
+    end
+  end
+
+  # ── v4 ────────────────────────────────────────────────────────────────────
+
+  defp up_v4(prefix) do
+    alter table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix) do
+      add_if_not_exists(:exits, :integer, null: false, default: 0)
+      add_if_not_exists(:engaged_ms_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:engaged_count, :integer, null: false, default: 0)
+      add_if_not_exists(:scroll_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:scroll_count, :integer, null: false, default: 0)
+      add_if_not_exists(:duration_ms_sum, :bigint, null: false, default: 0)
+      add_if_not_exists(:duration_count, :integer, null: false, default: 0)
+    end
+
+    create_if_not_exists table(:phoenix_kit_web_analytics_daily_dims,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:date, :date, null: false)
+      add(:site, :string, size: 255, null: false, default: "")
+      # page, referrer, channel, campaign, utm_source, browser, os, device,
+      # language, country, event, interaction
+      add(:dimension, :string, size: 20, null: false)
+      add(:value, :text, null: false)
+      # A second key where a value isn't enough: an interaction's target.
+      add(:detail, :text, null: false, default: "")
+
+      add(:hits, :integer, null: false, default: 0)
+      add(:visitors, :integer, null: false, default: 0)
+      add(:exits, :integer, null: false, default: 0)
+      add(:exit_visitors, :integer, null: false, default: 0)
+      add(:engaged_ms_sum, :bigint, null: false, default: 0)
+      add(:engaged_count, :integer, null: false, default: 0)
+      add(:scroll_sum, :bigint, null: false, default: 0)
+      add(:scroll_count, :integer, null: false, default: 0)
+      add(:duration_ms_sum, :bigint, null: false, default: 0)
+      add(:duration_count, :integer, null: false, default: 0)
+      add(:duration_max, :integer, null: false, default: 0)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(
+        :phoenix_kit_web_analytics_daily_dims,
+        [:date, :site, :dimension, :value, :detail],
+        prefix: prefix
+      )
+    )
+
+    # Reports read one dimension over a date range.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_daily_dims, [:dimension, :date], prefix: prefix)
+    )
+
+    # Roll every day still in raw events up again, now with the breakdowns.
+    execute("""
+    DELETE FROM #{Helpers.qualify_table("phoenix_kit_settings", prefix)}
+    WHERE key = 'web_analytics_rolled_through'
+    """)
+  end
+
+  defp down_v4(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_daily_dims, prefix: prefix))
+
+    alter table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix) do
+      remove_if_exists(:exits, :integer)
+      remove_if_exists(:engaged_ms_sum, :bigint)
+      remove_if_exists(:engaged_count, :integer)
+      remove_if_exists(:scroll_sum, :bigint)
+      remove_if_exists(:scroll_count, :integer)
+      remove_if_exists(:duration_ms_sum, :bigint)
+      remove_if_exists(:duration_count, :integer)
+    end
+  end
+
+  # ── v5 ────────────────────────────────────────────────────────────────────
+
+  defp up_v5(prefix) do
+    # A page drill-down (and the visits that landed on a page) reads one
+    # path over a period — without this, a scan of every event in it.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:path, :inserted_at], prefix: prefix)
+    )
+
+    # A user's visits, bounded by the period like every other report.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid, :inserted_at],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    # (session_id, inserted_at) leads with session_id: one index less to
+    # write on every hit.
+    drop_if_exists(index(:phoenix_kit_web_analytics_events, [:session_id], prefix: prefix))
+  end
+
+  defp down_v5(prefix) do
+    create_if_not_exists(index(:phoenix_kit_web_analytics_events, [:session_id], prefix: prefix))
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid],
+        prefix: prefix,
+        where: "user_uuid IS NOT NULL"
+      )
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:user_uuid, :inserted_at], prefix: prefix)
+    )
+
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:path, :inserted_at], prefix: prefix)
+    )
+  end
+
+  # ── v6 ────────────────────────────────────────────────────────────────────
+
+  defp up_v6(prefix) do
+    create_if_not_exists table(:phoenix_kit_web_analytics_recordings,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:session_id, :uuid, null: false)
+      # The page view a chunk belongs to: a random key the recorder picks
+      # per page, and the chunk's place in it.
+      add(:page_key, :string, size: 32, null: false)
+      add(:seq, :integer, null: false)
+      add(:path, :text, null: false)
+      add(:site, :string, size: 255)
+      add(:viewport_w, :integer)
+      add(:viewport_h, :integer)
+      # %{"v" => 1, "f" => [[ms_since_page_start, type, ...], ...]} — see
+      # Recordings.
+      add(:frames, :map, null: false)
+      add(:frame_count, :integer, null: false, default: 0)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(:phoenix_kit_web_analytics_recordings, [:page_key, :seq], prefix: prefix)
+    )
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_recordings, [:session_id, :inserted_at], prefix: prefix)
+    )
+
+    # Pruning walks the oldest first.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_recordings, [:inserted_at], prefix: prefix)
+    )
+  end
+
+  defp down_v6(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_recordings, prefix: prefix))
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -245,6 +527,16 @@ defmodule PhoenixKitWebAnalytics.Migrations do
 
   defp apply_step(:up, 1, prefix), do: up_v1(prefix)
   defp apply_step(:down, 1, prefix), do: down_v1(prefix)
+  defp apply_step(:up, 2, prefix), do: up_v2(prefix)
+  defp apply_step(:down, 2, prefix), do: down_v2(prefix)
+  defp apply_step(:up, 3, prefix), do: up_v3(prefix)
+  defp apply_step(:down, 3, prefix), do: down_v3(prefix)
+  defp apply_step(:up, 4, prefix), do: up_v4(prefix)
+  defp apply_step(:down, 4, prefix), do: down_v4(prefix)
+  defp apply_step(:up, 5, prefix), do: up_v5(prefix)
+  defp apply_step(:down, 5, prefix), do: down_v5(prefix)
+  defp apply_step(:up, 6, prefix), do: up_v6(prefix)
+  defp apply_step(:down, 6, prefix), do: down_v6(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

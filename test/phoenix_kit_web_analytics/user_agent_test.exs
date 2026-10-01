@@ -102,9 +102,9 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       for ua <- [nil, "", "???", 12_345, %{}] do
         parsed = UserAgent.parse(ua)
 
-        assert is_map(parsed)
-        assert is_binary(parsed.browser)
-        assert is_boolean(parsed.bot?)
+        # Nothing to go on is "Unknown"; something unrecognisable is "Other".
+        assert parsed.browser == if(ua == "???", do: "Other", else: "Unknown")
+        refute parsed.bot?
       end
     end
 

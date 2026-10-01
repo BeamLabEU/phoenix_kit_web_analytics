@@ -1,16 +1,18 @@
 defmodule PhoenixKitWebAnalytics.Web.EventsLive do
   @moduledoc """
-  Custom events and the live hit feed.
+  What visitors do — interactions (LiveView events, and the client script's
+  clicks), custom events, and the live hit feed.
 
   The feed polls every 10 seconds while the page is open — it's the one view
   where "what's happening right now" is the point, and one indexed
-  `ORDER BY inserted_at DESC LIMIT 50` is cheap enough to repeat. Everything
-  displayed is already non-identifying, so there is nothing to redact: the
-  visitor column shows the first characters of the daily hash purely so you can
-  see two hits belonging to one person.
+  `ORDER BY inserted_at DESC LIMIT 50` is cheap enough to repeat. Every row
+  links to its session, the whole visit in order.
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKitWebAnalytics.Gettext
+
+  require Logger
 
   import PhoenixKitWebAnalytics.Web.Components
 
@@ -19,6 +21,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
   alias PhoenixKitWebAnalytics.Web.Filters
 
   @refresh_ms 10_000
+  @feed_types ~w(all pageview interaction leave event)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -26,7 +29,9 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "Events · Web Analytics")
+     |> Filters.track_online()
+     |> assign(:page_title, gettext("Events"))
+     |> assign(:refresh_seconds, div(@refresh_ms, 1000))
      |> assign(:feed_type, "all")}
   end
 
@@ -40,123 +45,195 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
     {:noreply, push_patch(socket, to: Filters.patch_to(Paths.events(), params))}
   end
 
-  def handle_event("feed_type", %{"feed_type" => type}, socket) do
+  def handle_event("feed_type", %{"feed_type" => type}, socket) when type in @feed_types do
     {:noreply, socket |> assign(:feed_type, type) |> load_feed()}
   end
 
+  def handle_event("feed_type", _params, socket), do: {:noreply, socket}
+
   @impl true
   def handle_info(:refresh, socket), do: {:noreply, load_feed(socket)}
+  def handle_info(:refresh_online, socket), do: {:noreply, Filters.refresh_online(socket)}
+
+  def handle_info(message, socket) do
+    Logger.debug("[WebAnalytics] EventsLive ignored #{inspect(message)}")
+    {:noreply, socket}
+  end
 
   defp load(socket) do
     filter = socket.assigns.filter
 
     socket
     |> assign(:events, Reports.top_events(filter, limit: 25))
+    |> assign(:interactions, Reports.top_interactions(filter, limit: 25))
     |> assign(:overview, Reports.overview(filter))
     |> load_feed()
   end
 
   defp load_feed(socket) do
+    # The window is re-read on every refresh, so "today" keeps up past
+    # midnight instead of freezing at the filter built on load.
+    filter =
+      Reports.filter(
+        period: socket.assigns.period,
+        site: socket.assigns.site,
+        path: socket.assigns.path
+      )
+
     opts =
       case socket.assigns.feed_type do
-        "pageview" -> [limit: 50, event_type: "pageview"]
-        "event" -> [limit: 50, event_type: "event"]
-        _ -> [limit: 50]
+        "all" -> [limit: 50]
+        type -> [limit: 50, event_type: type]
       end
 
-    assign(socket, :feed, Reports.recent_hits(socket.assigns.filter, opts))
+    assign(socket, :feed, Reports.recent_hits(filter, opts))
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p class="text-sm text-base-content/60">
-            {format_number(@overview.events)} custom events in this period.
-          </p>
-        </div>
-        <.filter_bar period={@period} site={@site} sites={@sites} />
+      <.top_row
+        period={@period}
+        site={@site}
+        sites={@sites}
+        path={@path}
+        base_path={Paths.events()}
+        online={@online}
+        live_path={Paths.live()}
+      />
+
+      <div class="grid gap-4 lg:grid-cols-2">
+        <.breakdown_card
+          id="card-interactions"
+          title={gettext("What visitors do")}
+          icon="hero-cursor-arrow-rays"
+          rows={label_interactions(@interactions)}
+          label_header={gettext("Action")}
+          metric_header={gettext("Times")}
+          empty_message={gettext("No clicks or form submits recorded in this period.")}
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Buttons clicked and forms sent on LiveView pages, by the name the page gives them — plus outbound links and downloads when the optional client script is on."
+              )}
+            </p>
+            <p>
+              {gettext(
+                "Visitors: how many different people did it. Times: how often it was done in total."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
+        <.breakdown_card
+          id="card-custom-events"
+          title={gettext("Custom events")}
+          icon="hero-bolt"
+          rows={@events}
+          label_header={gettext("Event")}
+          metric_header={gettext("Times")}
+          empty_message={gettext("No custom events recorded in this period.")}
+          info_align="end"
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Events the site reports itself, with a name of its choosing — an order placed, a sign-up finished. They come from PhoenixKitWebAnalytics.track_event/2 in the app, or phoenixKitAnalytics(name, props) in the browser."
+              )}
+            </p>
+            <p>
+              {gettext(
+                "Visitors: how many different people did it. Times: how often it was done in total."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
       </div>
 
-      <div class="grid gap-4 lg:grid-cols-3">
-        <div class="lg:col-span-1">
-          <.breakdown_card
-            title="Custom events"
-            icon="hero-bolt"
-            rows={@events}
-            metric_header="Count"
-            empty_message="No custom events recorded. Send them with PhoenixKitWebAnalytics.track_event/2 or the beacon snippet."
-          />
-        </div>
-
-        <div class="rounded-xl border border-base-300 bg-base-100 lg:col-span-2">
-          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-4 py-3">
-            <div>
-              <h2 class="text-sm font-semibold">Live feed</h2>
-              <p class="text-xs text-base-content/50">
-                Most recent hits, refreshed every 10 seconds.
-              </p>
-            </div>
-            <form phx-change="feed_type">
-              <select name="feed_type" class="select select-xs" aria-label="Hit type">
-                <option value="all" selected={@feed_type == "all"}>All hits</option>
-                <option value="pageview" selected={@feed_type == "pageview"}>Page views</option>
-                <option value="event" selected={@feed_type == "event"}>Custom events</option>
-              </select>
-            </form>
-          </div>
-
-          <p :if={@feed == []} class="px-4 py-10 text-center text-sm text-base-content/50">
-            Nothing recorded in this period yet.
+      <.report_card id="live-feed" title={gettext("Live feed")} icon="hero-signal">
+        <:info>
+          <p>
+            {gettext("Every hit as it arrives, newest first — updated every %{seconds} seconds.",
+              seconds: @refresh_seconds
+            )}
           </p>
+          <p>
+            {gettext(
+              "Page views, actions, exits (with how long the page was open) and custom events. The last column opens the whole visit."
+            )}
+          </p>
+        </:info>
+        <:actions>
+          <form id="web-analytics-feed-type" phx-change="feed_type">
+            <.select
+              name="feed_type"
+              value={@feed_type}
+              options={[
+                {gettext("All hits"), "all"},
+                {gettext("Page views"), "pageview"},
+                {gettext("Interactions"), "interaction"},
+                {gettext("Exits"), "leave"},
+                {gettext("Custom events"), "event"}
+              ]}
+              class="select-xs w-auto"
+              aria-label={gettext("Hit type")}
+            />
+          </form>
+        </:actions>
+        <.empty_state
+          :if={@feed == []}
+          title={gettext("Nothing recorded in this period yet.")}
+          icon="hero-signal"
+          class="py-10 px-6"
+        />
 
-          <div :if={@feed != []} class="overflow-x-auto">
-            <table class="table table-xs">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>What</th>
-                  <th>Source</th>
-                  <th>Client</th>
-                  <th>Visitor</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={hit <- @feed} class="hover">
-                  <td class="whitespace-nowrap text-base-content/60">
-                    {Calendar.strftime(hit.inserted_at, "%H:%M:%S")}
-                  </td>
-                  <td class="max-w-xs truncate">
-                    <span :if={hit.event_type == "event"} class="badge badge-xs badge-primary mr-1">
-                      {hit.event_name}
-                    </span>
-                    <span class="font-mono text-xs" title={hit.path}>{hit.path}</span>
-                  </td>
-                  <td class="max-w-[10rem] truncate text-base-content/60">
-                    {hit.referrer_source || channel_label(hit.referrer_medium)}
-                  </td>
-                  <td class="whitespace-nowrap text-base-content/60">
-                    {hit.browser} · {hit.os}
-                  </td>
-                  <td
-                    class="font-mono text-[11px] text-base-content/40"
-                    title="Daily rotating hash — not an identifier"
-                  >
-                    {String.slice(hit.visitor_id || "", 0, 8)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+        <.table_default :if={@feed != []} size="xs" wrapper_class="overflow-x-auto">
+          <.table_default_header>
+            <.table_default_row>
+              <.table_default_header_cell>{gettext("Time")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("What")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Page")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Source")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Client")}</.table_default_header_cell>
+              <.table_default_header_cell>{gettext("Visit")}</.table_default_header_cell>
+            </.table_default_row>
+          </.table_default_header>
+          <.table_default_body>
+            <.table_default_row :for={hit <- @feed}>
+              <.table_default_cell class="whitespace-nowrap text-base-content/60">
+                {Calendar.strftime(hit.inserted_at, "%H:%M:%S")}
+              </.table_default_cell>
+              <.table_default_cell class="max-w-xs truncate">
+                <.hit_summary hit={hit} />
+              </.table_default_cell>
+              <.table_default_cell class="max-w-[14rem] truncate font-mono text-xs">
+                {hit.path}
+              </.table_default_cell>
+              <.table_default_cell class="max-w-[10rem] truncate text-base-content/60">
+                {if hit.event_type == "pageview",
+                  do: hit.referrer_source || channel_label(hit.referrer_medium)}
+              </.table_default_cell>
+              <.table_default_cell class="whitespace-nowrap text-base-content/60">
+                {Enum.join(
+                  Enum.reject([client_label(hit.browser), client_label(hit.os)], &is_nil/1),
+                  " · "
+                )}
+              </.table_default_cell>
+              <.table_default_cell>
+                <.link
+                  navigate={Paths.session(hit.session_id)}
+                  class="font-mono text-[11px] text-primary hover:underline"
+                  title={gettext("Open this visit")}
+                >
+                  {String.slice(to_string(hit.session_id), -8, 8)}
+                </.link>
+              </.table_default_cell>
+            </.table_default_row>
+          </.table_default_body>
+        </.table_default>
+      </.report_card>
     </div>
     """
   end
-
-  defp channel_label("none"), do: "Direct"
-  defp channel_label(nil), do: "Direct"
-  defp channel_label(medium), do: String.capitalize(medium)
 end

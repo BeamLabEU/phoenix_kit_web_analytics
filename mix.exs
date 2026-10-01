@@ -84,7 +84,7 @@ defmodule PhoenixKitWebAnalytics.MixProject do
       # admin shell, and `PhoenixKit.Migrations.Postgres.Helpers` (used by the
       # migration coordinator). 1.7.189 adds the runtime schema-prefix support
       # `PhoenixKit.SchemaPrefix` relies on.
-      pk_dep(:phoenix_kit, "~> 2.0"),
+      pk_dep(:phoenix_kit, "~> 2.38"),
 
       # Admin LiveViews.
       {:phoenix_live_view, "~> 1.1"},
@@ -107,11 +107,8 @@ defmodule PhoenixKitWebAnalytics.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      # No `priv` — this package has no priv/ directory, and listing a missing
-      # path makes `mix hex.build` refuse ("Missing files: priv"), which is why
-      # no release of this package ever reached Hex. Add it back if priv/ ever
-      # gains content.
-      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
+      # `priv` holds the gettext catalogues and the optional client script.
+      files: ~w(lib priv .formatter.exs mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 

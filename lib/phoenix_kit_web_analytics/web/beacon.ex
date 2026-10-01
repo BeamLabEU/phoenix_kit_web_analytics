@@ -8,8 +8,11 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   events** from the browser (a signup completing, a video finishing) or when
   pages are served from a full-page cache that bypasses Elixir entirely.
 
-  Both components require `web_analytics_beacon_enabled` to be on; the
-  endpoints ignore hits otherwise.
+  Page views (`<.pixel />`, or `phoenixKitAnalytics()` with no name) need
+  `web_analytics_beacon_enabled`; named custom events are accepted with that
+  switch or `web_analytics_client_script` on. The endpoints ignore hits
+  otherwise. Import the components where you render them:
+  `import PhoenixKitWebAnalytics.Web.Beacon`.
 
   ## Custom events
 
@@ -67,6 +70,7 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   attr :auto_pageview, :boolean, default: false
   attr :nonce, :string, default: nil
 
+  @spec beacon(map()) :: Phoenix.LiveView.Rendered.t()
   def beacon(assigns) do
     assigns = assign(assigns, :endpoint, Paths.beacon_endpoint())
 
@@ -113,8 +117,13 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   """
   attr :cache_buster, :string, default: nil
 
+  attr :path, :string,
+    default: nil,
+    doc: "the page's path; without it the endpoint falls back to the Referer header"
+
+  @spec pixel(map()) :: Phoenix.LiveView.Rendered.t()
   def pixel(assigns) do
-    assigns = assign(assigns, :src, Paths.pixel_endpoint(assigns.cache_buster))
+    assigns = assign(assigns, :src, Paths.pixel_endpoint(assigns.cache_buster, assigns.path))
 
     ~H"""
     <img src={@src} alt="" width="1" height="1" style="position:absolute;left:-9999px" />

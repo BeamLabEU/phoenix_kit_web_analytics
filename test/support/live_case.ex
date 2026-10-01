@@ -30,6 +30,7 @@ defmodule PhoenixKitWebAnalytics.LiveCase do
 
       import PhoenixKitWebAnalytics.DataCase,
         only: [
+          await_fresh_minute: 0,
           clear_settings_cache: 0,
           days_ago: 1,
           enable_tracking: 0,
@@ -39,6 +40,7 @@ defmodule PhoenixKitWebAnalytics.LiveCase do
           insert_event: 1
         ]
 
+      import PhoenixKitWebAnalytics.ActivityLogAssertions
       import PhoenixKitWebAnalytics.LiveCase
     end
   end
