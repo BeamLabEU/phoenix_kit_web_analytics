@@ -3,6 +3,80 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.6.0 - 2026-10-07
+
+### ⚠️ Upgrade
+
+- **Run `mix phoenix_kit.update`** — migration V08 adds `traffic_flags
+  smallint NOT NULL DEFAULT 0` to the events table (a catalogue change, no
+  table rewrite, no index, no backfill).
+- **Rows stored before the upgrade are not marked.** Own traffic from before
+  it stays in the reports, and in the rollups of the days already rolled up.
+- **Your own traffic is now left out by default** — from every report, the
+  rollups, "Right now", alerts and recordings — so the numbers drop by your
+  team's visits from the day of the deploy. Each kind has a **Leave out**
+  switch in Settings.
+- **Visits before a staff member shows up are not marked afterwards.** A visit
+  becomes a staff member's whole once they sign in during it, but earlier
+  visits from the same address are not: no address is stored to match them.
+- **Staff networks behind NAT.** A staff sign-in marks its network (an IPv4
+  address, an IPv6 /64) for 24 hours by default; behind a mobile network,
+  carrier-grade NAT or an office gateway, that leaves out everyone sharing
+  the address. Count them back in, or set `web_analytics_admin_network_hours`
+  to `0`.
+- **Recording chunks stored before a visit was marked stay**; the visit is
+  recorded no further from the moment it is.
+- **A report counting any own traffic in reads raw events** (as bot traffic
+  always has): the rollups hold only unmarked traffic, so days older than the
+  raw-event retention show no data in that view.
+
+### Added
+
+- **Your own traffic, marked and left out** (`PhoenixKitWebAnalytics.TrafficFlags`,
+  `PhoenixKitWebAnalytics.InternalTraffic`). Three marks, stored as bits on
+  each event — never the address behind them:
+  - **Internal network** — the address is in
+    `config :phoenix_kit_web_analytics, internal_networks: [...]` (CIDR,
+    IPv4/IPv6; app config, not a setting, so your addresses never reach the
+    activity log). Settings shows how many are configured.
+  - **Site staff** — the signed-in user holds a role in
+    `web_analytics_internal_roles` (Owner, Admin by default), by the roles
+    they really hold. A hit naming only a user is judged by a 5-minute cache
+    of their roles, filled off the hit's path.
+  - **Staff network** — the address's network had a staff sign-in (from
+    core's session broadcast and the token's address) or a staff request (any
+    path, excluded ones included) within `web_analytics_admin_network_hours`;
+    in memory only, shared between nodes when new. Private and loopback
+    addresses are never taken.
+- A visit is marked whole: later hits inherit its marks, and a mark that
+  first appears mid-visit is written back to its earlier hits, in the same
+  transaction and under the same lock as the hit.
+- Settings: a **Leave out** switch per mark (all on), the staff roles, the
+  staff-network hours, and a note on NAT.
+- Reports: **Own traffic** and **Bots** switches next to the period, kept in
+  the URL; either reads raw events, with a note that days past the
+  raw-event retention have no data there. The visit page names a visit's
+  marks.
+- "Right now" leaves out open pages and recent visits with a left-out mark.
+
+### Changed
+
+- Rollups hold only unmarked, non-bot traffic (the watermark is not reset:
+  days already rolled up keep what they had).
+- `Reports.filter/1` takes `flagged:` and carries the mask it leaves out
+  (`excluded_flags`), so a cached report is keyed by it; `recent_sessions/2`
+  takes `bots:` and `excluded_flags:` (bots were hard-coded out).
+- Alerts and recordings skip marked traffic.
+- The plug ignores requests with an `x-tidewave-diagnostic` header: Tidewave
+  re-fetches each page after a live navigation in development, which counted
+  every navigation twice.
+
+### Fixed
+
+- The test helper `LiveCase.fake_scope/1` built a scope whose roles core's
+  own checks couldn't read (`Scope.owner?/1` was false for an "owner"); it
+  now stores role names as core does.
+
 ## 0.5.0 - 2026-10-07
 
 ### ⚠️ Upgrade
