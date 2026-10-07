@@ -35,12 +35,27 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_recording` | `false` | Record pointer movement, clicks, hovers and scrolling (session recordings) |
   | `web_analytics_recording_sample` | `100` | Percent of visitors recorded while recording is on |
   | `web_analytics_recording_retention_days` | `30` | Age at which recordings are deleted |
+  | `web_analytics_exclude_internal_network` | `true` | Leave internal-network traffic out of the statistics |
+  | `web_analytics_exclude_admin` | `true` | Leave the site staff's own visits out of the statistics |
+  | `web_analytics_exclude_admin_network` | `true` | Leave visits from the staff's networks out of the statistics |
+  | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated) |
+  | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network; `0` turns that off |
   | `web_analytics_hash_secret` | generated | Secret mixed into the daily visitor hash |
+
+  The flags behind the three `exclude_*` keys are described in
+  `PhoenixKitWebAnalytics.TrafficFlags`. The internal networks themselves are
+  not a setting: every settings change is a permanent activity-log entry, and
+  this one would be the operator's own addresses. They come from the host's
+  runtime config instead:
+
+      config :phoenix_kit_web_analytics,
+        internal_networks: ["203.0.113.0/24", "2001:db8::/48"]
   """
 
   require Logger
 
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Role
 
   @enabled_key "web_analytics_enabled"
   @track_bots_key "web_analytics_track_bots"
@@ -63,6 +78,18 @@ defmodule PhoenixKitWebAnalytics.Config do
   @recording_key "web_analytics_recording"
   @recording_sample_key "web_analytics_recording_sample"
   @recording_retention_key "web_analytics_recording_retention_days"
+  @exclude_internal_network_key "web_analytics_exclude_internal_network"
+  @exclude_admin_key "web_analytics_exclude_admin"
+  @exclude_admin_network_key "web_analytics_exclude_admin_network"
+  @internal_roles_key "web_analytics_internal_roles"
+  @admin_network_hours_key "web_analytics_admin_network_hours"
+
+  # One "leave this flag out of the statistics" switch per TrafficFlags bit.
+  @exclude_flag_keys [
+    internal_network: @exclude_internal_network_key,
+    admin: @exclude_admin_key,
+    admin_network: @exclude_admin_network_key
+  ]
 
   @module_key "web_analytics"
 
@@ -72,6 +99,8 @@ defmodule PhoenixKitWebAnalytics.Config do
   @default_ignore_events "validate"
   @default_event_params "tab, view, section, step, sort, filter, period"
   @default_recording_retention_days 30
+  @default_admin_network_hours 24
+  @max_admin_network_hours 720
 
   @hot_keys [
     @enabled_key,
@@ -86,7 +115,12 @@ defmodule PhoenixKitWebAnalytics.Config do
     @event_params_key,
     @client_script_key,
     @recording_key,
-    @recording_sample_key
+    @recording_sample_key,
+    @exclude_internal_network_key,
+    @exclude_admin_key,
+    @exclude_admin_network_key,
+    @internal_roles_key,
+    @admin_network_hours_key
   ]
 
   @type collection_config :: %{
@@ -102,7 +136,10 @@ defmodule PhoenixKitWebAnalytics.Config do
           recording?: boolean(),
           recording_sample: 1..100,
           ignore_events: [String.t()],
-          event_params: [String.t()]
+          event_params: [String.t()],
+          excluded_flags: non_neg_integer(),
+          internal_roles: [String.t()],
+          admin_network_hours: non_neg_integer()
         }
 
   @doc "Settings key for the module's master switch."
@@ -137,7 +174,10 @@ defmodule PhoenixKitWebAnalytics.Config do
       recording?: truthy?(values[@recording_key], false),
       recording_sample: values[@recording_sample_key] |> positive_integer(100) |> min(100),
       ignore_events: parse_list(values[@ignore_events_key] || @default_ignore_events),
-      event_params: parse_list(values[@event_params_key] || @default_event_params)
+      event_params: parse_list(values[@event_params_key] || @default_event_params),
+      excluded_flags: excluded_flags(values),
+      internal_roles: parse_roles(values[@internal_roles_key]),
+      admin_network_hours: admin_network_hours(values[@admin_network_hours_key])
     }
   rescue
     error ->
@@ -150,6 +190,35 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "Whether tracking is switched on."
   @spec enabled?() :: boolean()
   def enabled?, do: collection_config().enabled?
+
+  @doc """
+  The `PhoenixKitWebAnalytics.TrafficFlags` bits the statistics leave out —
+  every bit unless a setting counts that kind of traffic in.
+  """
+  @spec excluded_flags() :: non_neg_integer()
+  def excluded_flags, do: collection_config().excluded_flags
+
+  @doc """
+  The networks whose traffic is the site's own, from the host's runtime
+  config (`config :phoenix_kit_web_analytics, internal_networks: [...]`) —
+  CIDR strings, IPv4 or IPv6. Read as configured; see
+  `PhoenixKitWebAnalytics.InternalTraffic` for how they are matched.
+  """
+  @spec internal_networks() :: [String.t()]
+  def internal_networks do
+    case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
+      networks when is_list(networks) -> Enum.filter(networks, &is_binary/1)
+      _ -> []
+    end
+  end
+
+  @doc "The default staff roles: core's Owner and Admin."
+  @spec default_internal_roles() :: String.t()
+  def default_internal_roles, do: Enum.join(system_staff_roles(), ", ")
+
+  @doc "Default hours a staff sign-in marks its network for."
+  @spec default_admin_network_hours() :: pos_integer()
+  def default_admin_network_hours, do: @default_admin_network_hours
 
   @doc "Whether the beacon / pixel endpoints accept hits."
   @spec beacon_enabled?() :: boolean()
@@ -350,7 +419,12 @@ defmodule PhoenixKitWebAnalytics.Config do
       client_script: @client_script_key,
       recording: @recording_key,
       recording_sample: @recording_sample_key,
-      recording_retention_days: @recording_retention_key
+      recording_retention_days: @recording_retention_key,
+      exclude_internal_network: @exclude_internal_network_key,
+      exclude_admin: @exclude_admin_key,
+      exclude_admin_network: @exclude_admin_network_key,
+      internal_roles: @internal_roles_key,
+      admin_network_hours: @admin_network_hours_key
     }
   end
 
@@ -370,8 +444,51 @@ defmodule PhoenixKitWebAnalytics.Config do
       recording?: false,
       recording_sample: 100,
       ignore_events: parse_list(@default_ignore_events),
-      event_params: []
+      event_params: [],
+      excluded_flags: PhoenixKitWebAnalytics.TrafficFlags.all(),
+      internal_roles: system_staff_roles(),
+      admin_network_hours: 0
     }
+  end
+
+  # A bit is left out unless its setting says to count it in.
+  defp excluded_flags(values) do
+    @exclude_flag_keys
+    |> Enum.filter(fn {_name, key} -> truthy?(values[key], true) end)
+    |> Enum.map(&elem(&1, 0))
+    |> PhoenixKitWebAnalytics.TrafficFlags.mask()
+  end
+
+  # Role names can hold spaces ("Content Editor"), so only commas and line
+  # breaks separate them. An emptied setting means "no one", not the default.
+  defp parse_roles(nil), do: system_staff_roles()
+
+  defp parse_roles(value) when is_binary(value) do
+    value
+    |> String.split([",", "\n", "\r"], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_roles(_value), do: system_staff_roles()
+
+  defp admin_network_hours(nil), do: @default_admin_network_hours
+
+  defp admin_network_hours(value) when is_integer(value) and value >= 0,
+    do: min(value, @max_admin_network_hours)
+
+  defp admin_network_hours(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {hours, ""} when hours >= 0 -> min(hours, @max_admin_network_hours)
+      _ -> @default_admin_network_hours
+    end
+  end
+
+  defp admin_network_hours(_value), do: @default_admin_network_hours
+
+  defp system_staff_roles do
+    roles = Role.system_roles()
+    [roles.owner, roles.admin]
   end
 
   # Settings values arrive as strings ("true"/"false"); a missing key is nil.

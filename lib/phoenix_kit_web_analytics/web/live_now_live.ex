@@ -15,6 +15,10 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
   there — open pages from an ordered in-memory index, recent visits from the
   newest events — so the cost doesn't grow with the number of people online.
 
+  The traffic the settings leave out of the statistics — the site's own
+  people and networks (`PhoenixKitWebAnalytics.TrafficFlags`) — is left out
+  here too, from the open pages and from the recent visits alike.
+
   The "for how long" times tick every second (only the clock changes, no
   query); the lists themselves refresh every five seconds.
   """
@@ -26,6 +30,7 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
 
   import PhoenixKitWebAnalytics.Web.Components
 
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Reports
@@ -108,20 +113,26 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
   end
 
   defp load(socket) do
-    {open, open_next} = LivePresence.page(limit: @page_size, after: socket.assigns.open_after)
+    # Re-read every refresh, so a settings change shows without a reload.
+    mask = Config.excluded_flags()
+
+    {open, open_next} =
+      LivePresence.page(limit: @page_size, after: socket.assigns.open_after, mask: mask)
 
     {recent, recent_next} =
       Reports.recent_sessions(@recent_minutes,
         limit: @page_size,
-        before: socket.assigns.recent_before
+        before: socket.assigns.recent_before,
+        excluded_flags: mask
       )
 
     names =
       UserNames.for_uuids(Enum.map(open, & &1.user_uuid) ++ Enum.map(recent, & &1.user_uuid))
 
     socket
-    |> assign(:online, Filters.online(nil))
-    |> assign(:open_total, LivePresence.count(nil))
+    |> assign(:excluded_flags, mask)
+    |> assign(:online, Filters.online(nil, mask))
+    |> assign(:open_total, LivePresence.count(nil, mask))
     |> assign(:now, DateTime.utc_now())
     |> assign(:open, open)
     |> assign(:open_next, open_next)
@@ -133,7 +144,15 @@ defmodule PhoenixKitWebAnalytics.Web.LiveNowLive do
 
   # Only counted while its tab is showing.
   defp assign_by_path(%{assigns: %{open_tab: "pages"}} = socket),
-    do: assign(socket, :open_by_path, LivePresence.by_path(@page_size))
+    do:
+      assign(
+        socket,
+        :open_by_path,
+        LivePresence.by_path(
+          @page_size,
+          socket.assigns[:excluded_flags] || Config.excluded_flags()
+        )
+      )
 
   defp assign_by_path(socket), do: assign(socket, :open_by_path, [])
 

@@ -13,8 +13,10 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   # itself changes every day; that is what makes the split lossless.
   #
   # Rollups don't apply — and the whole window is read raw — for hourly
-  # periods (today / yesterday, which need hours), a single-page filter, and
-  # bot traffic, none of which the rollups break down by.
+  # periods (today / yesterday, which need hours), a single-page filter, bot
+  # traffic, and flagged traffic (any TrafficFlags bit counted in, by a
+  # setting or by `flagged: true`): the rollups hold only unflagged, non-bot
+  # hits, and break down by none of these.
 
   import Ecto.Query
 
@@ -22,10 +24,12 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
 
   alias PhoenixKitWebAnalytics.Dimensions
   alias PhoenixKitWebAnalytics.ReportCache
+  alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Retention
   alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.TrafficFlags
 
   @doc """
   How a filter's window is read: `%{dates: {first, last} | nil, raw: filter
@@ -338,6 +342,12 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
     |> then(fn q ->
       if Map.get(filter, :bots, false), do: q, else: where(q, [e], not e.is_bot)
     end)
+    |> then(fn q ->
+      case Reports.excluded_flags(filter) do
+        0 -> q
+        mask -> where(q, [e], fragment("(? & ?) = 0", e.traffic_flags, ^mask))
+      end
+    end)
   end
 
   @doc "A combined row's sums as plain integers."
@@ -346,6 +356,8 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
 
   defp rollups_apply?(filter) do
     is_nil(filter[:path]) and not Map.get(filter, :bots, false) and
+      not Map.get(filter, :flagged, false) and
+      Reports.excluded_flags(filter) == TrafficFlags.all() and
       filter[:period] not in ["today", "yesterday"] and
       match?(%DateTime{hour: 0, minute: 0, second: 0}, filter.from)
   end

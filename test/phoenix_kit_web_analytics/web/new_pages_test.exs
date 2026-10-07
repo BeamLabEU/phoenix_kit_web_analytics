@@ -100,6 +100,38 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       refute html =~ "Live presence isn"
     end
 
+    test "leaves out the site's own open pages and visits", %{conn: conn} do
+      enable_tracking()
+      server = start_supervised!(LivePresence)
+
+      for {path, flags} <- [{"/visitor-page", 0}, {"/staff-page", 2}] do
+        page = spawn(fn -> Process.sleep(:infinity) end)
+        on_exit(fn -> Process.exit(page, :kill) end)
+
+        LivePresence.watch(page, %{ip: {1, 2, 3, 4}, user_agent: @ua}, %{
+          path: path,
+          site: "example.com",
+          flags: flags
+        })
+      end
+
+      insert_event(%{path: "/recent-visitor", inserted_at: DateTime.utc_now()})
+      insert_event(%{path: "/recent-staff", traffic_flags: 4, inserted_at: DateTime.utc_now()})
+      _ = :sys.get_state(server)
+
+      {:ok, view, html} = live(conn, "#{@base}/live")
+
+      assert html =~ "/visitor-page"
+      refute html =~ "/staff-page"
+      assert html =~ "/recent-visitor"
+      refute html =~ "/recent-staff"
+      assert html =~ "1 page open"
+
+      html = view |> element("button[phx-value-tab='pages']") |> render_click()
+      assert html =~ "/visitor-page"
+      refute html =~ "/staff-page"
+    end
+
     test "warns when presence isn't running", %{conn: conn} do
       {:ok, _view, html} = live(conn, "#{@base}/live")
 

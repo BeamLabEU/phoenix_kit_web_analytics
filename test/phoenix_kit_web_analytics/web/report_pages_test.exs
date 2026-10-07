@@ -88,6 +88,40 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert html =~ "Last 30 days"
     end
 
+    test "the own-traffic and bot switches go into the URL and count that traffic in",
+         %{conn: conn} do
+      enable_tracking()
+      insert_event(%{path: "/visitor", visitor_id: "v"})
+      insert_event(%{path: "/staff-page", visitor_id: "s", traffic_flags: 2})
+
+      {:ok, view, html} = live(conn, Paths.pages())
+      refute html =~ "/staff-page"
+      refute has_element?(view, "#web-analytics-filter-raw-note")
+
+      view
+      |> element("form[phx-change='filter']")
+      |> render_change(%{"period" => "7d", "flagged" => "true"})
+
+      assert_patch(view, Paths.pages() <> "?flagged=1&period=7d")
+      assert render(view) =~ "/staff-page"
+      assert has_element?(view, "#web-analytics-filter-raw-note")
+      assert has_element?(view, "input[name='flagged'][checked]")
+
+      view
+      |> element("form[phx-change='filter']")
+      |> render_change(%{"period" => "7d", "flagged" => "", "bots" => "true"})
+
+      assert_patch(view, Paths.pages() <> "?bots=1&period=7d")
+      refute render(view) =~ "/staff-page"
+    end
+
+    test "a setting counting a flag in shows the raw-events note too", %{conn: conn} do
+      enable_tracking(%{"web_analytics_exclude_admin" => "false"})
+
+      {:ok, view, _html} = live(conn, Paths.pages())
+      assert has_element?(view, "#web-analytics-filter-raw-note")
+    end
+
     test "an unknown period in the URL falls back instead of crashing", %{conn: conn} do
       assert {:ok, _view, html} = live(conn, @base <> "?period=nonsense")
       assert html =~ "Last 7 days"
@@ -185,6 +219,30 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
 
       # The pass runs in start_async, off the LiveView's own process.
       assert render_async(view, 2_000) =~ "Rolled up 1 day(s)"
+    end
+
+    test "the own-traffic section shows the configured networks and saves the switches",
+         %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, [
+        "203.0.113.0/24",
+        "2001:db8::/48"
+      ])
+
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+      enable_tracking()
+
+      {:ok, view, html} = live(conn, "#{@base}/settings")
+      assert html =~ "Your own traffic"
+      assert html =~ "2 networks listed"
+      refute html =~ "203.0.113.0"
+
+      view
+      |> element("form[phx-submit='save']")
+      |> render_submit(%{"exclude_admin_network" => "false", "admin_network_hours" => "12"})
+
+      clear_settings_cache()
+      assert PhoenixKitWebAnalytics.Config.excluded_flags() == 3
+      assert PhoenixKitWebAnalytics.Config.collection_config().admin_network_hours == 12
     end
 
     test "warns when LiveView visits behind a proxy are being skipped", %{conn: conn} do

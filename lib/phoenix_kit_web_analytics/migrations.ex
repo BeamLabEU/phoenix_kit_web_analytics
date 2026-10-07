@@ -44,6 +44,13 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       identifier and which parameter carried it (`gclid`, `gbraid`, …, so an
       offline conversion upload knows its kind), with partial indexes on each
       (only a visit that lands with a click identifier carries one)
+    * `8` — `traffic_flags` on events: the bits of
+      `PhoenixKitWebAnalytics.TrafficFlags` (the site's own people and their
+      networks), `smallint NOT NULL DEFAULT 0`. A constant default is only
+      catalogue metadata, so the column is added without rewriting the table.
+      No index (unflagged traffic is nearly every row, and the filter always
+      runs with `inserted_at`) and no backfill: rows stored before it stay
+      unflagged
 
   ## Large existing tables
 
@@ -84,7 +91,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 7
+  @current_version 8
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -564,6 +571,21 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # What kind of traffic a hit is beyond "a visitor": the site's own people
+  # and their networks (see TrafficFlags). Reports and rollups leave flagged
+  # rows out; nothing is deleted.
+  defp up_v8(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      add_if_not_exists(:traffic_flags, :smallint, null: false, default: 0)
+    end
+  end
+
+  defp down_v8(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:traffic_flags, :smallint)
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -594,6 +616,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 6, prefix), do: down_v6(prefix)
   defp apply_step(:up, 7, prefix), do: up_v7(prefix)
   defp apply_step(:down, 7, prefix), do: down_v7(prefix)
+  defp apply_step(:up, 8, prefix), do: up_v8(prefix)
+  defp apply_step(:down, 8, prefix), do: down_v8(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

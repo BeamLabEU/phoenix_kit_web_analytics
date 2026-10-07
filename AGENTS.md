@@ -45,6 +45,11 @@ can't, stays optional, and never writes a cookie or storage.
   validation (the frame format is documented there), sampling, the
   per-visitor rate, replay assembly, pruning. The player is the
   `PhoenixKitWebAnalyticsReplay` hook in the client script.
+- `traffic_flags.ex` + `internal_traffic.ex` — the own-traffic bits
+  (internal network, staff, staff network) and how a hit gets them: CIDRs
+  from app config, staff roles from the scope (or a 5-minute per-user role
+  cache), staff networks in ETS learnt from core's `session_created` and
+  from staff requests in the plug, shared over `PubSub.Manager` when new.
 - `alerts.ex` — the "Website activity" notification type; turns stored hits
   and core's `{:user_created, user}` broadcast into activity entries per
   recipient (core routes them to inbox / email / Telegram / digests).
@@ -76,7 +81,17 @@ can't, stays optional, and never writes a cookie or storage.
 - **Never store an IP address, a raw User-Agent, or a query string** — in a
   path *or* a referrer. The schema has no column for the first two; the
   collector strips the third from both. Campaign parameters get their own
-  columns before that point.
+  columns before that point. An operator's own addresses in the host's app
+  config (`internal_networks`) aren't storage, and staff networks
+  (`InternalTraffic`) live in ETS only; what reaches a row is the
+  `traffic_flags` bits, never the address that set them. Don't put either in
+  a setting — every settings write is a permanent activity entry.
+- **Own traffic is marked, not dropped.** `traffic_flags` (bits in
+  `TrafficFlags`) is worked out before the collector's transaction from
+  memory only; a bit new to a visit is written back to the visit's rows in
+  that transaction. Rollups hold only `traffic_flags = 0` and `not is_bot`;
+  a report filter carries its `excluded_flags` mask, and any mask other than
+  "every bit" (or `flagged: true`) reads raw.
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.
@@ -107,7 +122,8 @@ Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
 `(session_id, inserted_at)` index; V03 `session_start` (backfilled in batches by
 the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
-`recordings`; V07 `click_id`, `click_param` + their partial indexes. Adding a
+`recordings`; V07 `click_id`, `click_param` + their partial indexes; V08
+`traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill). Adding a
 version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`, add the
 `apply_step/3` clauses, and keep every statement prefix-safe (pass `prefix:`
 through, bare index names, schema-anchored existence checks).
@@ -185,11 +201,13 @@ reading it back, or it will see the stale value.
 **Hits are written inline in tests** (`config :phoenix_kit_web_analytics,
 async_tracking: false` in `config/test.exs`), so a plug request, a beacon POST
 or a LiveView click can be asserted on in the database directly.
-`LivePresence`, `Alerts`, `ReportCache` and `BotSignals` aren't started by the
-test helper — use `start_supervised!/1` where a test needs them. `config/test.exs`
-also turns the report cache off (`report_cache_ms: 0`), and the presence
-reconnect grace and supersede windows to 0; tests of those set them
-explicitly.
+`LivePresence`, `Alerts`, `ReportCache`, `BotSignals` and `InternalTraffic`
+aren't started by the test helper — use `start_supervised!/1` where a test
+needs them. `config/test.exs` also turns the report cache off
+(`report_cache_ms: 0`), and the presence reconnect grace and supersede
+windows to 0; tests of those set them explicitly. `LiveCase.fake_scope/1`
+builds a scope core's own role checks read (`roles:` / `held_roles:` as
+`:owner`-style keys or names).
 
 **`mix.lock` reflects the Hex pin.** Running `mix deps.get` with
 `PHOENIX_KIT_PATH` set can rewrite it for local core's transitive deps — don't

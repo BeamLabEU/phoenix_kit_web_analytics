@@ -77,7 +77,9 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
       Reports.filter(
         period: socket.assigns.period,
         site: socket.assigns.site,
-        path: socket.assigns.path
+        path: socket.assigns.path,
+        flagged: socket.assigns.filter.flagged,
+        bots: socket.assigns.filter.bots
       )
 
     opts =
@@ -98,6 +100,9 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
         site={@site}
         sites={@sites}
         path={@path}
+        flagged={@filter.flagged}
+        bots={@filter.bots}
+        raw={Filters.raw?(@filter)}
         base_path={Paths.events()}
         online={@online}
         live_path={Paths.live()}

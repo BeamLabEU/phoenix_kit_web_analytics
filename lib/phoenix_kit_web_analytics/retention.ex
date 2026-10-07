@@ -202,9 +202,14 @@ defmodule PhoenixKitWebAnalytics.Retention do
     from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
     to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
 
-    # Bot traffic (stored only with track_bots on) stays out of the rollups,
-    # as it stays out of every report unless asked for.
-    day = from(e in Event, where: e.inserted_at >= ^from and e.inserted_at < ^to and not e.is_bot)
+    # Bot traffic (stored only with track_bots on) and the site's own
+    # (TrafficFlags) stay out of the rollups, as they stay out of every report
+    # unless asked for — a report that asks reads raw events instead.
+    day =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: not e.is_bot and e.traffic_flags == 0
+      )
 
     totals = day |> Dimensions.totals() |> repo().all() |> Map.new(&{&1.site, &1})
     sessions = day_sessions(day)

@@ -31,7 +31,12 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   only when the app actually served more than one host (an app on one domain
   has nothing to choose), and the page-filter chip when one is active.
 
-  Emits `phx-change="filter"` with `period`, `site` and `path` params.
+  Two switches widen what is counted — the traffic the settings leave out
+  (the site's own people and networks) and bot traffic. Either reads the
+  period from raw events, which retention prunes, so a note says so.
+
+  Emits `phx-change="filter"` with `period`, `site`, `path`, `flagged` and
+  `bots` params.
   """
   attr :id, :string, default: "web-analytics-filter"
   attr :period, :string, required: true
@@ -39,6 +44,12 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   attr :sites, :list, default: []
   attr :path, :string, default: nil, doc: "the active path filter, if any"
   attr :base_path, :string, default: nil, doc: "this report's URL, to clear the path filter"
+  attr :flagged, :boolean, default: false, doc: "showing the traffic the settings leave out"
+  attr :bots, :boolean, default: false, doc: "showing bot traffic"
+
+  attr :raw, :boolean,
+    default: false,
+    doc: "read from raw events for the switches' sake (theirs, or a setting counting a flag in)"
 
   def filter_bar(assigns) do
     ~H"""
@@ -59,12 +70,47 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
         class="select-sm w-auto"
         aria-label={gettext("Site")}
       />
+      <label
+        class="flex cursor-pointer items-center gap-1.5 text-sm"
+        title={
+          gettext(
+            "Also count the traffic Settings leave out of the statistics: the site's own people and their networks."
+          )
+        }
+      >
+        <input
+          type="checkbox"
+          name="flagged"
+          value="1"
+          checked={@flagged}
+          class="checkbox checkbox-sm"
+        />
+        {gettext("Own traffic")}
+      </label>
+      <label
+        class="flex cursor-pointer items-center gap-1.5 text-sm"
+        title={gettext("Also count bot traffic (stored only when Settings record it).")}
+      >
+        <input type="checkbox" name="bots" value="1" checked={@bots} class="checkbox checkbox-sm" />
+        {gettext("Bots")}
+      </label>
+      <span
+        :if={@flagged or @bots or @raw}
+        id={"#{@id}-raw-note"}
+        class="text-xs text-base-content/50"
+      >
+        {gettext(
+          "Read from raw events: days older than the raw-event retention have no data here, rather than zero visits."
+        )}
+      </span>
       <.link
         :if={@path && @base_path}
         patch={
           PhoenixKitWebAnalytics.Web.Filters.patch_to(@base_path, %{
             "period" => @period,
-            "site" => @site
+            "site" => @site,
+            "flagged" => @flagged,
+            "bots" => @bots
           })
         }
         class="badge badge-primary gap-1 font-mono"
@@ -126,6 +172,9 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   attr :base_path, :string, default: nil
   attr :online, :integer, required: true
   attr :live_path, :string, default: nil
+  attr :flagged, :boolean, default: false
+  attr :bots, :boolean, default: false
+  attr :raw, :boolean, default: false
 
   def top_row(assigns) do
     ~H"""
@@ -137,6 +186,9 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
         sites={@sites}
         path={@path}
         base_path={@base_path}
+        flagged={@flagged}
+        bots={@bots}
+        raw={@raw}
       />
       <span :if={is_nil(@period)}></span>
       <.online_badge count={@online} path={@live_path} />

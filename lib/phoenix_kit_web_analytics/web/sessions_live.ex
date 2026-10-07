@@ -77,6 +77,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
         site={@site}
         sites={@sites}
         path={@path}
+        flagged={@filter.flagged}
+        bots={@filter.bots}
+        raw={Filters.raw?(@filter)}
         base_path={Paths.sessions()}
         online={@online}
         live_path={Paths.live()}

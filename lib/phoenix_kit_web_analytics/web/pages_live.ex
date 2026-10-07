@@ -81,6 +81,9 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
         site={@site}
         sites={@sites}
         path={@path}
+        flagged={@filter.flagged}
+        bots={@filter.bots}
+        raw={Filters.raw?(@filter)}
         base_path={Paths.pages()}
         online={@online}
         live_path={Paths.live()}
@@ -130,11 +133,10 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
               <.table_default_cell class="max-w-md truncate font-mono text-xs">
                 <.link
                   navigate={
-                    Filters.patch_to(Paths.dashboard(), %{
-                      "period" => @period,
-                      "site" => @site,
-                      "path" => row.label
-                    })
+                    Filters.patch_to(
+                      Paths.dashboard(),
+                      Map.put(Filters.to_params(@filter), "path", row.label)
+                    )
                   }
                   class="hover:underline"
                   title={gettext("Show this page's traffic")}
@@ -228,11 +230,7 @@ defmodule PhoenixKitWebAnalytics.Web.PagesLive do
 
   defp page_path(assigns, page) do
     base =
-      Filters.patch_to(Paths.pages(), %{
-        "period" => assigns.period,
-        "site" => assigns.site,
-        "path" => assigns.path
-      })
+      Filters.patch_to(Paths.pages(), Filters.to_params(assigns.filter))
 
     if page <= 1,
       do: base,

@@ -246,6 +246,65 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     end
   end
 
+  describe "the site's own people" do
+    test "a staff member's page views and clicks are flagged admin, and so is their open page",
+         %{conn: conn} do
+      start_supervised!(PhoenixKitWebAnalytics.InternalTraffic)
+      start_supervised!(LivePresence)
+      enable_tracking()
+
+      {:ok, view, _html} =
+        conn
+        |> put_test_scope(fake_scope(roles: [:admin]))
+        |> with_client()
+        |> put_connect_params(%{"_live_referer" => "http://www.example.com/"})
+        |> live("/shop")
+
+      view |> element("#add") |> render_click()
+      :sys.get_state(LivePresence)
+
+      # The peer 1.2.3.4 is public: the staff member's network is marked too.
+      assert Enum.map(events(), & &1.traffic_flags) == [6, 6]
+      assert [%{flags: flags}] = LivePresence.list()
+      assert Bitwise.band(flags, 2) == 2
+      assert LivePresence.list(nil, 7) == []
+    end
+
+    test "an ordinary signed-in visitor isn't flagged", %{conn: conn} do
+      start_supervised!(PhoenixKitWebAnalytics.InternalTraffic)
+      enable_tracking()
+
+      {:ok, view, _html} =
+        conn
+        |> put_test_scope(fake_scope(roles: [:user]))
+        |> with_client()
+        |> put_connect_params(%{"_live_referer" => "http://www.example.com/"})
+        |> live("/shop")
+
+      view |> element("#add") |> render_click()
+
+      assert Enum.map(events(), & &1.traffic_flags) == [0, 0]
+    end
+  end
+
+  describe "fake_scope/1" do
+    test "answers core's role checks as a real scope would" do
+      alias PhoenixKit.Users.Auth.Scope
+
+      assert Scope.owner?(fake_scope())
+      assert Scope.has_role?(fake_scope(roles: [:admin]), "Admin")
+      refute Scope.owner?(fake_scope(roles: [:user]))
+
+      assert Scope.held_roles(fake_scope(roles: ["User"], held_roles: [:owner, "User"])) == [
+               "Owner",
+               "User"
+             ]
+
+      assert Tracking.current_roles(%{phoenix_kit_current_scope: fake_scope(roles: [:admin])}) ==
+               ["Admin"]
+    end
+  end
+
   describe "when the hook stays inert" do
     test "a Do Not Track session records nothing at all", %{conn: conn} do
       enable_tracking()

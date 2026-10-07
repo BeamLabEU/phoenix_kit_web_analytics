@@ -220,6 +220,62 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
     end
   end
 
+  describe "save_settings/2 own-traffic settings" do
+    alias PhoenixKitWebAnalytics.Config
+
+    test "by default every flag is left out, staff are Owner and Admin, networks kept 24 h" do
+      enable_tracking()
+      config = Config.collection_config()
+
+      assert config.excluded_flags == 7
+      assert config.internal_roles == ["Owner", "Admin"]
+      assert config.admin_network_hours == 24
+    end
+
+    test "are saved, and read back as the mask, the roles and the hours" do
+      enable_tracking()
+
+      assert {:ok, changed} =
+               Admin.save_settings(%{
+                 "_form" => "settings",
+                 "exclude_internal_network" => "true",
+                 "exclude_admin" => "false",
+                 "exclude_admin_network" => "true",
+                 "internal_roles" => "Owner, Content Editor",
+                 "admin_network_hours" => "0"
+               })
+
+      assert "web_analytics_exclude_admin" in changed
+      assert read("web_analytics_exclude_admin") == "false"
+      assert read("web_analytics_internal_roles") == "Owner, Content Editor"
+
+      clear_settings_cache()
+      config = Config.collection_config()
+      assert config.excluded_flags == 5
+      assert config.internal_roles == ["Owner", "Content Editor"]
+      assert config.admin_network_hours == 0
+    end
+
+    test "out-of-range hours are refused by name" do
+      assert {:error, [:admin_network_hours]} =
+               Admin.save_settings(%{"admin_network_hours" => "721"})
+
+      assert {:error, [:admin_network_hours]} =
+               Admin.save_settings(%{"admin_network_hours" => "-1"})
+    end
+
+    test "internal networks come from the app config, never the settings" do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["203.0.113.0/24", 42])
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+      assert Config.internal_networks() == ["203.0.113.0/24"]
+
+      refute Enum.any?(Config.setting_keys(), fn {_name, key} ->
+               key =~ "network" and key =~ "internal_networks"
+             end)
+    end
+  end
+
   describe "save_settings/2 alert channels" do
     test "a list is saved as a comma list of the known channels" do
       assert {:ok, [@channels_key]} =

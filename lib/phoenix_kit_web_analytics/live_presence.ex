@@ -42,6 +42,14 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   reload — one view, one leave, as above. If it is still open after that, it
   is a real second tab and is shown again.
 
+  ## The site's own people
+
+  Each open page carries its `PhoenixKitWebAnalytics.TrafficFlags`, worked
+  out by the hook as for a hit. The readers take a `mask` and leave out
+  pages with any of its bits — "Right now" passes the bits the statistics
+  leave out. Counts per path keep the flagged pages apart, so leaving them
+  out stays as cheap as counting everything.
+
   ## Scope
 
   The table is per node. On a multi-node deployment each node reports the
@@ -61,6 +69,9 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   @index :phoenix_kit_web_analytics_live_presence_index
   # {path, open page count} — the "by page" view without scanning every page.
   @paths :phoenix_kit_web_analytics_live_presence_paths
+  # {{path, flags}, open page count} for flagged pages only — few, so a
+  # reader leaving them out subtracts them from @paths.
+  @flagged :phoenix_kit_web_analytics_live_presence_flagged
   # Four hours: longer than any real reading session, short enough that a tab
   # abandoned overnight doesn't turn "average time on page" into nonsense.
   @max_engaged_ms 4 * 60 * 60 * 1000
@@ -75,7 +86,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
           browser: String.t() | nil,
           os: String.t() | nil,
           device_type: String.t() | nil,
-          referrer: String.t() | nil
+          referrer: String.t() | nil,
+          flags: non_neg_integer()
         }
 
   # ── client API ────────────────────────────────────────────────────────────
@@ -126,37 +138,65 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
   instead of the whole table.
 
   Returns `{visits, next_cursor}`; pass `next_cursor` as `:after` for the
-  following page (`nil` when there is none).
+  following page (`nil` when there is none). `:mask` leaves out pages with
+  any of its `TrafficFlags` bits (none by default).
   """
   @spec page(keyword()) :: {[visit()], term() | nil}
   def page(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
-    keys = index_keys(Keyword.get(opts, :after), limit + 1)
-    {page_keys, rest} = Enum.split(keys, limit)
+    mask = Keyword.get(opts, :mask, 0)
 
-    visits =
-      Enum.flat_map(page_keys, fn {_since, pid} = _key ->
-        case :ets.lookup(@table, pid) do
-          [{^pid, visit}] -> [visit]
-          [] -> []
-        end
-      end)
+    start =
+      case Keyword.get(opts, :after) do
+        nil -> :ets.first(@index)
+        after_key -> :ets.next(@index, after_key)
+      end
 
-    {visits, if(rest == [], do: nil, else: List.last(page_keys))}
+    {found, more?} = collect(start, mask, limit, [])
+    {Enum.map(found, &elem(&1, 1)), if(more?, do: found |> List.last() |> elem(0))}
   rescue
     ArgumentError -> {[], nil}
   end
 
+  # Walks the index newest first, keeping `limit` shown pages and looking one
+  # further to tell whether there is another page.
+  defp collect(:"$end_of_table", _mask, _limit, acc), do: {Enum.reverse(acc), false}
+
+  defp collect({_since, pid} = key, mask, limit, acc) do
+    case :ets.lookup(@table, pid) do
+      [{^pid, visit}] ->
+        cond do
+          not shown?(visit, mask) -> collect(:ets.next(@index, key), mask, limit, acc)
+          length(acc) >= limit -> {Enum.reverse(acc), true}
+          true -> collect(:ets.next(@index, key), mask, limit, [{key, visit} | acc])
+        end
+
+      [] ->
+        collect(:ets.next(@index, key), mask, limit, acc)
+    end
+  end
+
+  defp shown?(visit, mask),
+    do: not PhoenixKitWebAnalytics.TrafficFlags.excluded?(Map.get(visit, :flags, 0), mask)
+
   @doc """
   Open pages counted per path, most open first — `{path, count}` pairs,
-  read from counters kept as pages open and close. `limit` caps the list.
+  read from counters kept as pages open and close. `limit` caps the list;
+  `mask` leaves out pages with any of its `TrafficFlags` bits.
 
   One pass over the counters keeping only the top `limit` — no copy or sort
   of every open path, which on a big site can be most of the open pages.
   """
-  @spec by_path(pos_integer()) :: [{String.t(), pos_integer()}]
-  def by_path(limit \\ 50) do
-    keep = &keep_top(&1, &2, limit)
+  @spec by_path(pos_integer(), non_neg_integer()) :: [{String.t(), pos_integer()}]
+  def by_path(limit \\ 50, mask \\ 0) do
+    left_out = left_out_by_path(mask)
+
+    keep = fn {path, count}, acc ->
+      case count - Map.get(left_out, path, 0) do
+        shown when shown > 0 -> keep_top({path, shown}, acc, limit)
+        _none -> acc
+      end
+    end
 
     keep
     |> :ets.foldl({:gb_sets.empty(), 0}, @paths)
@@ -181,35 +221,60 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       else: {set, size}
   end
 
+  # Flagged pages under `mask`, counted per path.
+  defp left_out_by_path(0), do: %{}
+
+  defp left_out_by_path(mask) do
+    :ets.foldl(
+      fn {{path, flags}, count}, acc ->
+        if PhoenixKitWebAnalytics.TrafficFlags.excluded?(flags, mask),
+          do: Map.update(acc, path, count, &(&1 + count)),
+          else: acc
+      end,
+      %{},
+      @flagged
+    )
+  end
+
   @doc """
-  Pages open right now, newest first. `site` restricts to one host.
+  Pages open right now, newest first. `site` restricts to one host; `mask`
+  leaves out pages with any of its `TrafficFlags` bits.
 
   Reads every open page — fine for a test or a small site; the admin page
   uses `page/1` and `by_path/1`, which stay cheap at any size.
   """
-  @spec list(String.t() | nil) :: [visit()]
-  def list(site \\ nil) do
+  @spec list(String.t() | nil, non_neg_integer()) :: [visit()]
+  def list(site \\ nil, mask \\ 0) do
     @table
     |> :ets.tab2list()
     |> Enum.map(fn {_pid, visit} -> visit end)
     |> filter_site(site)
+    |> Enum.filter(&shown?(&1, mask))
     |> Enum.sort_by(& &1.since, {:desc, DateTime})
   rescue
     ArgumentError -> []
   end
 
-  @doc "How many pages are open right now."
-  @spec count(String.t() | nil) :: non_neg_integer()
-  def count(nil) do
+  @doc "How many pages are open right now — leaving out `mask`'s flagged ones."
+  @spec count(String.t() | nil, non_neg_integer()) :: non_neg_integer()
+  def count(site, mask \\ 0)
+
+  def count(nil, mask) do
     # `:ets.info/2` answers :undefined (it doesn't raise) when the table is
     # gone — the server not running on this node.
     case :ets.info(@table, :size) do
-      size when is_integer(size) -> size
-      _ -> 0
+      size when is_integer(size) ->
+        left_out = mask |> left_out_by_path() |> Map.values() |> Enum.sum()
+        max(size - left_out, 0)
+
+      _ ->
+        0
     end
+  rescue
+    ArgumentError -> 0
   end
 
-  def count(site), do: site |> list() |> length()
+  def count(site, mask), do: site |> list(mask) |> length()
 
   @doc "Whether the presence server is running on this node."
   @spec running?() :: boolean()
@@ -226,6 +291,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     table = :ets.new(@table, [:named_table, :protected, :set, read_concurrency: true])
     :ets.new(@index, [:named_table, :protected, :ordered_set, read_concurrency: true])
     :ets.new(@paths, [:named_table, :protected, :set, read_concurrency: true])
+    :ets.new(@flagged, [:named_table, :protected, :set, read_concurrency: true])
     {:ok, %{table: table, clients: %{}, pending: %{}, by_key: %{}, shadowed: %{}}}
   end
 
@@ -265,7 +331,7 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
       [{^pid, visit}] ->
         client = state.clients[pid]
-        moved = %{visit | path: path, since: now}
+        moved = %{visit | path: path, since: now, flags: Map.get(attrs, :flags, visit.flags)}
         record_leave(visit, client, now)
         remove_visit(pid, visit)
         insert_visit(pid, moved)
@@ -455,11 +521,14 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
     end
   end
 
-  # The three tables change together, only here, in the server process.
+  # The four tables change together, only here, in the server process.
   defp insert_visit(pid, visit) do
     :ets.insert(@table, {pid, visit})
     :ets.insert(@index, {index_key(pid, visit)})
     :ets.update_counter(@paths, visit.path, {2, 1}, {visit.path, 0})
+
+    with key when is_tuple(key) <- flagged_key(visit),
+         do: :ets.update_counter(@flagged, key, {2, 1}, {key, 0})
   end
 
   defp remove_visit(pid, visit) do
@@ -468,16 +537,18 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
     if :ets.update_counter(@paths, visit.path, {2, -1}, {visit.path, 1}) <= 0,
       do: :ets.delete(@paths, visit.path)
+
+    with key when is_tuple(key) <- flagged_key(visit),
+         true <- :ets.update_counter(@flagged, key, {2, -1}, {key, 1}) <= 0,
+         do: :ets.delete(@flagged, key)
   end
 
+  defp flagged_key(%{flags: flags, path: path}) when is_integer(flags) and flags > 0,
+    do: {path, flags}
+
+  defp flagged_key(_visit), do: nil
+
   defp index_key(pid, visit), do: {-DateTime.to_unix(visit.since, :microsecond), pid}
-
-  defp index_keys(nil, count), do: walk(:ets.first(@index), count, [])
-  defp index_keys(after_key, count), do: walk(:ets.next(@index, after_key), count, [])
-
-  defp walk(:"$end_of_table", _count, acc), do: Enum.reverse(acc)
-  defp walk(_key, 0, acc), do: Enum.reverse(acc)
-  defp walk(key, count, acc), do: walk(:ets.next(@index, key), count - 1, [key | acc])
 
   # The leave is recorded when the grace period ends, unless the same visitor
   # rejoins the same page first. It keeps the time it actually happened.
@@ -512,7 +583,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       browser: ua.browser,
       os: ua.os,
       device_type: ua.device_type,
-      referrer: attrs[:referrer]
+      referrer: attrs[:referrer],
+      flags: attrs[:flags] || 0
     }
   end
 

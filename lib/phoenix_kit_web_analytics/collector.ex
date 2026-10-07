@@ -36,6 +36,16 @@ defmodule PhoenixKitWebAnalytics.Collector do
   queue on the advisory lock, each holding a database connection while it
   waits, until the pool is theirs.
 
+  ## Traffic flags
+
+  A hit's `PhoenixKitWebAnalytics.TrafficFlags` — the site's own people and
+  their networks — are worked out before the transaction, from memory only
+  (`PhoenixKitWebAnalytics.InternalTraffic`). Inside it, the hit also takes
+  every bit its session already has, so a visit is flagged whole going
+  forward; and when a bit first appears in a visit (an anonymous visitor
+  signs in as an admin), the visit's earlier hits get it too, in the same
+  transaction and under the same lock.
+
   ## Raw hit shape
 
   Every key is optional except `:path`:
@@ -52,6 +62,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         user_agent: "Mozilla/5.0 …",
         language: "en-US",
         user_uuid: "018e…",
+        roles: ["Admin"],                   # the user's held roles (a scope)
         status: 200,
         duration_ms: 12,                    # server render time (page views)
         engaged_ms: 45_000,                 # time on page ("leave")
@@ -65,6 +76,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
   `:ip` and `:user_agent` are used for the daily visitor hash and the client
   classification, then discarded — see `PhoenixKitWebAnalytics.Visitor`.
 
+  `:roles` is only read for the hit's traffic flags (below), never stored.
+
   `:session_anchor` is for hits reported *after* the page they belong to — a
   leave recorded when a tab closes an hour after it opened. The visitor hash
   and the session lookup use the anchor instead of the insert time, so the
@@ -73,14 +86,17 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   require Logger
 
+  import Bitwise
   import Ecto.Query
 
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Geo
+  alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Tracking
+  alias PhoenixKitWebAnalytics.TrafficFlags
   alias PhoenixKitWebAnalytics.UserAgent
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -261,10 +277,11 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
       visitor_id ->
         site = Referrer.normalize_host(hit[:site])
+        flags = hit_flags(hit, config)
 
         result =
           through_gate(visitor_id, fn ->
-            insert_stitched(hit, config, ua, visitor_id, site, now, anchor)
+            insert_stitched(hit, config, ua, {visitor_id, flags}, site, now, anchor)
           end)
 
         case result do
@@ -282,7 +299,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
-  defp insert_stitched(hit, config, ua, visitor_id, site, now, anchor) do
+  # A staff member's hit also marks their network (the plug does the same for
+  # requests to excluded paths, before this point).
+  defp hit_flags(hit, config) do
+    flags = InternalTraffic.flags(hit, config)
+
+    if (flags &&& TrafficFlags.bit(:admin)) != 0,
+      do: InternalTraffic.note_admin_network(hit[:ip], config)
+
+    flags
+  end
+
+  defp insert_stitched(hit, config, ua, {visitor_id, flags}, site, now, anchor) do
     speed = speed(hit, config, visitor_id)
 
     repo().transaction(fn ->
@@ -301,6 +329,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         |> Map.merge(location_attrs(hit))
         |> carry_language(stitch)
         |> Map.put(:session_start, stitch.new?)
+        |> Map.put(:traffic_flags, flags ||| stitch.flags)
 
       judge_and_store(attrs, stitch, speed, config)
     end)
@@ -334,8 +363,35 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   defp store(attrs, stitch) do
     case %Event{} |> Event.changeset(attrs) |> repo().insert() do
-      {:ok, event} -> {event, stitch.new?}
-      {:error, changeset} -> repo().rollback(changeset)
+      {:ok, event} ->
+        flag_session(stitch, attrs.traffic_flags)
+        {event, stitch.new?}
+
+      {:error, changeset} ->
+        repo().rollback(changeset)
+    end
+  end
+
+  # A bit the visit didn't have yet goes to its earlier hits too: the visit
+  # is one person's, and an anonymous start followed by an admin sign-in is
+  # an admin's visit. One session's rows, through the (session_id,
+  # inserted_at) index; inside the hit's transaction, under its lock.
+  defp flag_session(%{new?: true}, _flags), do: :ok
+
+  defp flag_session(%{session_id: session_id, flags: previous}, flags) do
+    case flags &&& bnot(previous) do
+      0 ->
+        :ok
+
+      added ->
+        from(e in Event,
+          where: e.session_id == ^session_id,
+          where: fragment("(? & ?) <> ?", e.traffic_flags, ^added, ^added),
+          update: [set: [traffic_flags: fragment("? | ?", e.traffic_flags, ^added)]]
+        )
+        |> repo().update_all([])
+
+        :ok
     end
   end
 
@@ -436,22 +492,26 @@ defmodule PhoenixKitWebAnalytics.Collector do
         select: %{
           session_id: e.session_id,
           language: e.language,
-          bot: fragment("?->>'bot'", e.metadata)
+          bot: fragment("?->>'bot'", e.metadata),
+          flags: e.traffic_flags
         }
       )
       |> where_site(site)
       |> until_anchor(now, Keyword.get(opts, :anchored?, false))
 
     case repo().one(query) do
-      nil -> %{session_id: UUIDv7.generate(), language: nil, bot: nil, new?: true}
-      previous -> Map.put(previous, :new?, false)
+      nil -> new_session()
+      previous -> Map.merge(previous, %{new?: false, flags: previous.flags || 0})
     end
   rescue
     # A failed stitch must not lose the event — start a new session instead.
     error in [DBConnection.ConnectionError, Postgrex.Error] ->
       Logger.debug("[WebAnalytics] session stitch failed: #{Exception.message(error)}")
-      %{session_id: UUIDv7.generate(), language: nil, bot: nil, new?: true}
+      new_session()
   end
+
+  defp new_session,
+    do: %{session_id: UUIDv7.generate(), language: nil, bot: nil, flags: 0, new?: true}
 
   defp until_anchor(query, _anchor, false), do: query
 

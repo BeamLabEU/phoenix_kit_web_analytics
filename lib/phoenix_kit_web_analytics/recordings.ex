@@ -16,6 +16,12 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   button:nth-of-type(2)`). Visitors sending Do Not Track or Global Privacy
   Control, bots, and excluded paths are never recorded.
 
+  Neither is the site's own traffic, by the `PhoenixKitWebAnalytics.TrafficFlags`
+  bits the statistics leave out: an address in an internal or staff network
+  is refused up front, and a chunk is dropped when its visit carries such a
+  bit — a visit that becomes an admin's (a sign-in) stops being recorded
+  from there; what was stored before stays.
+
   ## Volume
 
   A recorded page view is a chunk every ~10 seconds while something happens,
@@ -55,7 +61,10 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Schemas.Recording
+  alias PhoenixKitWebAnalytics.TrafficFlags
   alias PhoenixKitWebAnalytics.UserAgent
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -73,7 +82,8 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   @doc """
   Whether this request's visitor should be recorded on `path`: recording on,
-  the visitor sampled in, not a bot, not opted out, the path not excluded.
+  the visitor sampled in, not a bot, not opted out, the path not excluded,
+  the address not in a network whose traffic the statistics leave out.
   """
   @spec record?(map(), String.t() | nil) :: boolean()
   def record?(client, path) do
@@ -83,6 +93,10 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       not Config.excluded?(path, config.exclusions) and
       not (config.respect_dnt? and client[:opted_out?] == true) and
       not UserAgent.bot?(client[:user_agent]) and
+      not TrafficFlags.excluded?(
+        InternalTraffic.network_flags(client[:ip], config),
+        config.excluded_flags
+      ) and
       sampled?(visitor_id(client), config.recording_sample)
   end
 
@@ -211,12 +225,36 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   defp dimension(_value), do: nil
 
+  # The visit is only known here, off the request: one whose hits carry a
+  # bit the statistics leave out (the visitor signed in as an admin) isn't
+  # recorded any further.
   defp insert(client, visitor_id, chunk) do
     now = DateTime.utc_now()
     site = client[:site]
+    session_id = session_for(chunk.page_key, visitor_id, now, site)
+
+    if TrafficFlags.excluded?(session_flags(session_id), Config.excluded_flags()),
+      do: :excluded,
+      else: insert_chunk(client, chunk, session_id, now)
+  end
+
+  # The visit's latest hit carries every bit the visit has (the collector
+  # writes a new one back to the earlier hits).
+  defp session_flags(session_id) do
+    from(e in Event,
+      where: e.session_id == ^session_id,
+      order_by: [desc: e.inserted_at],
+      limit: 1,
+      select: e.traffic_flags
+    )
+    |> repo().one()
+  end
+
+  defp insert_chunk(client, chunk, session_id, now) do
+    site = client[:site]
 
     %{
-      session_id: session_for(chunk.page_key, visitor_id, now, site),
+      session_id: session_id,
       page_key: chunk.page_key,
       seq: chunk.seq,
       path: chunk.path,
@@ -372,7 +410,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       {:ok, uuid} ->
         # Page views the server itself saw (the plug, a live navigation) —
         # never one the visitor's browser reported through the beacon.
-        from(e in PhoenixKitWebAnalytics.Schemas.Event,
+        from(e in Event,
           where: e.session_id == ^uuid and e.event_type == "pageview",
           where: fragment("COALESCE(?->>'source', '') <> 'beacon'", e.metadata),
           distinct: true,

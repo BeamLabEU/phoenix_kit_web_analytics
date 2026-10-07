@@ -7,16 +7,24 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
   survives a refresh. A third, optional `path` narrows every report to one page
   (set by clicking a path on the Pages report). This module owns that plumbing so the five pages don't
   each reimplement it.
+
+  Two switches widen what is counted: `flagged` shows the traffic the
+  settings leave out (the site's own people and networks — see
+  `PhoenixKitWebAnalytics.TrafficFlags`), `bots` shows bot traffic. Either
+  one reads the period from raw events.
   """
 
   import Phoenix.Component, only: [assign: 2]
 
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Reports
+  alias PhoenixKitWebAnalytics.TrafficFlags
 
   @doc """
-  Reads `period`, `site` and `path` from the URL params and assigns `:filter`,
-  `:period`, `:site`, `:path`, `:sites`, and `:bucket`.
+  Reads `period`, `site`, `path`, `flagged` and `bots` from the URL params
+  and assigns `:filter`, `:period`, `:site`, `:path`, `:sites`, and
+  `:bucket`.
 
   Unknown period values fall back to the default rather than erroring — these
   come from a URL anyone can edit.
@@ -27,7 +35,9 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
       Reports.filter(
         period: params["period"],
         site: params["site"],
-        path: path_param(params["path"])
+        path: path_param(params["path"]),
+        flagged: switch?(params["flagged"]),
+        bots: switch?(params["bots"])
       )
 
     assign(socket,
@@ -40,7 +50,7 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
       # would scan the entire events table on every page load, which is the one
       # query on these pages that has no time bound to keep it cheap.
       sites: Reports.sites(filter),
-      online: online(filter.site)
+      online: online(filter.site, filter.excluded_flags)
     )
   end
 
@@ -55,7 +65,9 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
       %{
         "period" => params["period"],
         "site" => params["site"],
-        "path" => path_param(params["path"])
+        "path" => path_param(params["path"]),
+        "flagged" => switch_param(params["flagged"]),
+        "bots" => switch_param(params["bots"])
       }
       |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
       |> URI.encode_query()
@@ -72,7 +84,13 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
   """
   @spec to_params(Reports.filter()) :: map()
   def to_params(filter) do
-    %{"period" => filter.period, "site" => filter.site, "path" => filter[:path]}
+    %{
+      "period" => filter.period,
+      "site" => filter.site,
+      "path" => filter[:path],
+      "flagged" => switch_param(filter[:flagged]),
+      "bots" => switch_param(filter[:bots])
+    }
     |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
     |> Map.new()
   end
@@ -98,17 +116,38 @@ defmodule PhoenixKitWebAnalytics.Web.Filters do
 
   @doc "Re-reads the online count for the page's current site filter."
   @spec refresh_online(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
-  def refresh_online(socket), do: assign(socket, online: online(socket.assigns[:site]))
+  def refresh_online(socket) do
+    mask = Reports.excluded_flags(socket.assigns[:filter] || %{})
+    assign(socket, online: online(socket.assigns[:site], mask))
+  end
 
   @doc """
   How many people are on the site now: the larger of the pages open over a
   LiveView socket (exact) and the visitors with a hit in the last five minutes
-  (covers pages without a LiveView).
+  (covers pages without a LiveView). Traffic flagged with a bit of
+  `excluded_flags` (the settings' mask by default) isn't counted.
   """
-  @spec online(String.t() | nil) :: non_neg_integer()
-  def online(site) do
-    max(LivePresence.count(site), Reports.active_visitors(5, site))
+  @spec online(String.t() | nil, non_neg_integer() | nil) :: non_neg_integer()
+  def online(site, excluded_flags \\ nil) do
+    mask = excluded_flags || Config.excluded_flags()
+    max(LivePresence.count(site, mask), Reports.active_visitors(5, site, mask))
   end
+
+  @doc """
+  Whether the filter reads its whole period from raw events because it
+  counts in traffic the rollups don't hold — bots, or a `TrafficFlags` bit
+  (by the report's switch or a setting).
+  """
+  @spec raw?(Reports.filter()) :: boolean()
+  def raw?(filter) do
+    filter[:bots] == true or filter[:flagged] == true or
+      Reports.excluded_flags(filter) != TrafficFlags.all()
+  end
+
+  # A checkbox submits "true" (or "on"); the URL carries "1".
+  defp switch?(value), do: value in ["1", "true", "on", true]
+
+  defp switch_param(value), do: if(switch?(value), do: "1")
 
   # Only an absolute path is a path filter; anything else from the URL is
   # ignored rather than matching nothing.

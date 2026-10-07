@@ -27,17 +27,21 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :beacon,
     :track_interactions,
     :client_script,
-    :recording
+    :recording,
+    :exclude_internal_network,
+    :exclude_admin,
+    :exclude_admin_network
   ]
   @alert_booleans [:visitors, :signups, :skip_users]
-  @lists [:exclude_paths, :ignore_events, :event_params]
+  @lists [:exclude_paths, :ignore_events, :event_params, :internal_roles]
   @max_setting_length 1000
   @alert_lists [:paths, :events]
   @integers %{
     session_timeout: {1, 1440},
     retention_days: {0, 3650},
     recording_sample: {1, 100},
-    recording_retention_days: {1, 3650}
+    recording_retention_days: {1, 3650},
+    admin_network_hours: {0, 720}
   }
 
   @doc """

@@ -239,6 +239,7 @@ defmodule PhoenixKitWebAnalytics do
       ),
       Collector.gate_spec(),
       PhoenixKitWebAnalytics.BotSignals,
+      PhoenixKitWebAnalytics.InternalTraffic,
       Collector.task_supervisor_spec(),
       PhoenixKitWebAnalytics.LivePresence,
       PhoenixKitWebAnalytics.ReportCache,
