@@ -173,6 +173,24 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       assert nets() == []
     end
 
+    test "a settings read that fails (tracking reads as off) forgets nothing" do
+      enable_tracking(%{"web_analytics_admin_network_hours" => "72"})
+      seen = System.system_time(:millisecond) - :timer.hours(30)
+      send(InternalTraffic, {:admin_network, "198.51.100.13", seen})
+      :sys.get_state(InternalTraffic)
+
+      # What a failed read gives: tracking off, default hours (24 < 30).
+      Repo.query!("DELETE FROM phoenix_kit_settings WHERE key LIKE 'web_analytics_%'")
+      clear_settings_cache()
+      refute Config.collection_config().enabled?
+      InternalTraffic.forget_expired()
+      :sys.get_state(InternalTraffic)
+
+      # Back: the network still counts by the 72 hours.
+      enable_tracking(%{"web_analytics_admin_network_hours" => "72"})
+      assert InternalTraffic.admin_network?({198, 51, 100, 13}, Config.collection_config())
+    end
+
     test "a sighting dated in the future counts as now" do
       later = System.system_time(:millisecond) + :timer.hours(100)
       send(InternalTraffic, {:admin_network, "198.51.100.10", later})

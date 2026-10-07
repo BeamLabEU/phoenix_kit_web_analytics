@@ -528,15 +528,20 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   end
 
   # A network goes once a staff member hasn't been seen on it for the hours
-  # set now — at 0 at once: nothing is kept that no longer counts.
+  # set now — at 0 at once: nothing is kept that no longer counts. Only while
+  # tracking reads as on: a failed settings read reads as off (with default
+  # hours), and must not wipe what was learnt. Kept while tracking is off,
+  # a network is judged by the hours set when it is read again.
   defp prune do
     now = now_ms()
-    oldest = now - Config.collection_config().admin_network_hours * 3_600_000
+    config = Config.collection_config()
 
-    :ets.select_delete(@table, [
-      {{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]},
-      {{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}
-    ])
+    if config.enabled? do
+      oldest = now - config.admin_network_hours * 3_600_000
+      :ets.select_delete(@table, [{{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]}])
+    end
+
+    :ets.select_delete(@table, [{{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}])
   end
 
   defp subscribe do
