@@ -10,16 +10,39 @@ All notable changes to this project are documented here. This project follows
 - **Add `:x_headers` to the LiveView socket's `connect_info` first, then
   deploy** — on both transports:
   `connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]`.
-  Behind a reverse proxy, a socket without it can no longer name its visitor,
-  and the hook now records nothing for it (no live navigation, interaction or
-  "Right now" entry) instead of recording the proxy as the visitor. Settings
-  warns while that happens, and the "no JavaScript" bot check pauses.
-- **`X-Forwarded-For` from a private or loopback peer is always read, and its
-  LAST entry is taken** — the one the proxy appended, as PhoenixKit core reads
-  it for a login. Before, the FIRST entry was read, and only with
-  `trust_x_forwarded_for: true`. Behind a chain (a CDN in front of a load
-  balancer) the last entry is the CDN's: rewrite `remote_ip` with
-  [`remote_ip`](https://hex.pm/packages/remote_ip) before the tracking plug.
+  Without it, a socket whose peer is a private or loopback address — a
+  reverse proxy, a container network, a LAN, `localhost` in development — can
+  no longer name its visitor, and the hook records nothing for it (no live
+  navigation, interaction or "Right now" entry) instead of recording the
+  peer as the visitor. Settings warns while that happens, and the "no
+  JavaScript" bot check pauses while such skips are at least 5 % of a node's
+  live visits in the last 24 hours. The skip count lives in memory, so after
+  a restart the node that runs the check leaves alone every visit that
+  started before it had been up for 30 minutes.
+- **`X-Forwarded-For` from a private or loopback peer is now trusted with no
+  configuration, and its LAST entry is taken** — the one the proxy appended,
+  as PhoenixKit core reads it for a login; `X-Real-IP` only when there is no
+  readable `X-Forwarded-For`. Before, the FIRST entry was read, and only with
+  `trust_x_forwarded_for: true`. The proxy must therefore set or append
+  `X-Forwarded-For` itself: one that only sets `X-Real-IP` (nginx with just
+  `proxy_set_header X-Real-IP`) passes a visitor's own header through, and
+  the visitor can name any address. The same holds on an intranet where
+  visitors have private addresses and reach the app directly.
+- **Had `trust_x_forwarded_for: true` behind a CDN or a proxy with a public
+  address** (a CDN in front of the origin)? Add a `RemoteIp` plug
+  ([`remote_ip`](https://hex.pm/packages/remote_ip)) before
+  `PhoenixKitWebAnalytics.Plug`: a public peer's headers are ignored now, so
+  without it every visitor is one of the CDN's addresses. Behind a chain (a
+  CDN in front of a load balancer) the last entry is the CDN's, so `RemoteIp`
+  is needed there as well.
+- **LiveView behind a CDN and a load balancer:** `RemoteIp` fixes the plug
+  but not the socket, which reads `:x_headers` by the rule above and sees
+  the CDN's edge. Page load and live connection then hash to different
+  visitors, and every LiveView visit is flagged a "no JavaScript" bot after
+  30 minutes. On such a site switch **Spot bots by behaviour** off
+  (`web_analytics_detect_bots`). With `trust_x_forwarded_for: true` and
+  `:x_headers`, 0.4.0 read the first entry for both and didn't have this
+  problem.
 - **Expect more visitors and fewer bots from the day of the deploy.** Behind a
   proxy every visitor used to hash to the proxy's address: visitors sharing a
   browser were merged into one, and the merged "visitor" was often flagged
@@ -29,32 +52,28 @@ All notable changes to this project are documented here. This project follows
 ### Fixed
 
 - **Behind a reverse proxy every visitor was the proxy.** The plug, the beacon
-  and the LiveView hook now delegate to core's
-  `PhoenixKit.Utils.IpAddress.client_address/1` /
-  `client_address_from_socket/1`, and when core answers with the proxy's own
-  address although a forwarded header is there (a core release that doesn't
-  parse ports), read the headers themselves by the same rule: the last
-  `X-Forwarded-For` entry across all its lines, then `X-Real-IP`. A port the
-  proxy appended is dropped from `a.b.c.d:port` and `[v6]:port` (Caddy's
-  `{remote}`); a bare IPv6 address is never cut (`2001:db8::1:443` is an
-  address). `::ffff:a.b.c.d` is read as IPv4. A public peer is the visitor and
-  its forwarded headers are ignored.
-- The "no JavaScript" judgement no longer flags LiveView visits the hook had
-  to skip: while at least 5 % of a node's live visits in the last 24 hours
-  were skipped, the node tells the cluster and no visit is judged.
+  and the LiveView hook read the client address by core's rule
+  (`PhoenixKit.Utils.IpAddress.client_address/1` /
+  `client_address_from_socket/1`, whose answer is taken for a public peer):
+  behind a private or loopback peer, the last `X-Forwarded-For` entry across
+  all its lines, then `X-Real-IP`. The headers are read by the module itself
+  there, because a core that can't parse a port (2.55 and earlier) passes
+  over such an `X-Forwarded-For` and answers with `X-Real-IP`, which a
+  visitor can send. A port the proxy appended is dropped from `a.b.c.d:port`
+  and `[v6]:port` (Caddy's `{remote}`); a bare IPv6 address is never cut
+  (`2001:db8::1:443` is an address). `::ffff:a.b.c.d` is read as IPv4. A
+  public peer is the visitor and its forwarded headers are ignored.
 
 ### Changed
 
-- With `:x_headers` listed and no forwarded header (development, a LAN without
-  a proxy), a private peer is the visitor, as for the plug.
 - The `connect_info` snippets (README, Settings, `LiveHook` docs) list
   `:x_headers`. The README has a "Behind a reverse proxy" section, including
   the proxy-side fix for Caddy (`{remote_host}`, or no `header_up` at all).
 
 ### Deprecated
 
-- `config :phoenix_kit_web_analytics, trust_x_forwarded_for:` has no effect; a
-  warning is logged at start while it is set.
+- `config :phoenix_kit_web_analytics, trust_x_forwarded_for:` has no effect.
+  `true` is warned about once as the module starts; `false` is ignored.
 
 ## 0.4.0 - 2026-10-07
 

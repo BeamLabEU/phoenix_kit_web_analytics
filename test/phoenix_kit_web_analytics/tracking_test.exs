@@ -229,6 +229,25 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
       assert Tracking.client_ip(conn) == {203, 0, 113, 9}
     end
 
+    # Core 2.55 can't parse the port, skips X-Forwarded-For and answers with
+    # X-Real-IP — which the visitor sent, when the proxy only appends XFF.
+    test "a readable X-Forwarded-For beats an X-Real-IP the visitor may have sent" do
+      conn =
+        behind(@proxy, [
+          {"x-forwarded-for", "203.0.113.9:5555"},
+          {"x-real-ip", "198.51.100.66"}
+        ])
+
+      assert Tracking.client_ip(conn) == {203, 0, 113, 9}
+    end
+
+    test "a peer it can't even read falls back to remote_ip rather than raising" do
+      mapped_proxy = {0, 0, 0, 0, 0, 65_535, 44_050, 8}
+      broken = %{conn(:get, "/") | remote_ip: mapped_proxy, req_headers: nil}
+
+      assert Tracking.client_ip(broken) == {172, 18, 0, 8}
+    end
+
     test "a public peer is the visitor; its forwarded headers are ignored" do
       conn =
         behind({198, 51, 100, 4}, [
@@ -247,9 +266,8 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
       assert Tracking.client_ip(behind(@proxy, [])) == @proxy
     end
 
-    test "trust_x_forwarded_for no longer changes anything" do
+    test "trust_x_forwarded_for no longer changes anything, and only true is warned about" do
       previous = Application.fetch_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
-      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, false)
 
       on_exit(fn ->
         case previous do
@@ -261,13 +279,17 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
         end
       end)
 
+      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, false)
       assert Tracking.client_ip(xff("198.51.100.1, 203.0.113.9")) == {203, 0, 113, 9}
+      assert ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end) == ""
 
-      assert ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end) =~
-               "trust_x_forwarded_for is deprecated"
+      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, true)
+      assert Tracking.client_ip(xff("198.51.100.1, 203.0.113.9")) == {203, 0, 113, 9}
+      log = ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end)
+      assert log =~ "trust_x_forwarded_for: true is deprecated"
+      assert log =~ "RemoteIp"
 
       Application.delete_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
-
       assert ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end) == ""
     end
   end
@@ -287,6 +309,15 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
 
       info = [peer_data: peer(@proxy), x_headers: [{"x-real-ip", "[2001:db8::7]:443"}]]
       assert Tracking.socket_ip(socket(info)) == {8193, 3512, 0, 0, 0, 0, 0, 7}
+    end
+
+    test "a readable X-Forwarded-For beats an X-Real-IP the visitor may have sent" do
+      info = [
+        peer_data: peer(@proxy),
+        x_headers: [{"x-forwarded-for", "203.0.113.9:5555"}, {"x-real-ip", "198.51.100.66"}]
+      ]
+
+      assert Tracking.socket_ip(socket(info)) == {203, 0, 113, 9}
     end
 
     test "a private peer with no :x_headers in connect_info can't name its visitor" do

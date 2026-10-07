@@ -41,7 +41,7 @@ msgstr "Luba beacon ja piksel"
 msgid "Accept the client script"
 msgstr "Luba kliendiskript"
 
-#: lib/phoenix_kit_web_analytics.ex:170
+#: lib/phoenix_kit_web_analytics.ex:171
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Acquisition"
@@ -203,7 +203,7 @@ msgstr "Komadega eraldatud. Loetletud parameetrite väärtused (ainult lühikese
 msgid "Contact link"
 msgstr "Kontaktlink"
 
-#: lib/phoenix_kit_web_analytics.ex:114
+#: lib/phoenix_kit_web_analytics.ex:115
 #, elixir-autogen, elixir-format
 msgid "Cookieless, server-side traffic analytics"
 msgstr "Küpsisteta serveripoolne liiklusanalüütika"
@@ -301,7 +301,7 @@ msgstr "Säilitatavad sündmuse väärtused"
 msgid "Event “%{event}”"
 msgstr "Sündmus „%{event}“"
 
-#: lib/phoenix_kit_web_analytics.ex:184
+#: lib/phoenix_kit_web_analytics.ex:185
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:501
 #, elixir-autogen, elixir-format
@@ -610,7 +610,7 @@ msgstr "Väljaminev link"
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr "Väljaminevad lingid, allalaadimised, tavanupud, kerimissügavus ja lahkumised lehtedelt, millel pole LiveView'd. Skript tuleb mooduliga kaasa; see lüliti otsustab, kas selle aruandeid salvestatakse."
 
-#: lib/phoenix_kit_web_analytics.ex:141
+#: lib/phoenix_kit_web_analytics.ex:142
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Ülevaade"
@@ -643,7 +643,7 @@ msgstr "Lehevaatamised ajas"
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr "Brauserist teatatud lehevaatamised lehtede kohta, mida CDN serveerib rakenduseni jõudmata. Lõpp-punktid on avalikud — jäta välja, kui sa neid ei kasuta."
 
-#: lib/phoenix_kit_web_analytics.ex:163
+#: lib/phoenix_kit_web_analytics.ex:164
 #: lib/phoenix_kit_web_analytics/web/components.ex:597
 #: lib/phoenix_kit_web_analytics/web/components.ex:619
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
@@ -707,7 +707,7 @@ msgstr "Austa Do Not Track soovi"
 msgid "Retention"
 msgstr "Säilitamine"
 
-#: lib/phoenix_kit_web_analytics.ex:149
+#: lib/phoenix_kit_web_analytics.ex:150
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Right now"
@@ -769,7 +769,7 @@ msgstr "Otsing"
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr "Saadetakse kõigile, kes saavad veebianalüütikat avada. Igaüks valib rakendusesisese teavituse, e-kirja või Telegrami ning soovi korral tunni- või päevakokkuvõtte asukohas"
 
-#: lib/phoenix_kit_web_analytics.ex:191
+#: lib/phoenix_kit_web_analytics.ex:192
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -866,7 +866,7 @@ msgstr "Salvestatud andmed"
 msgid "Tablet"
 msgstr "Tahvelarvuti"
 
-#: lib/phoenix_kit_web_analytics.ex:177
+#: lib/phoenix_kit_web_analytics.ex:178
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Technology"
@@ -1012,9 +1012,9 @@ msgstr "Külastajad, registreerumised ja jälgitavad sündmused saidil"
 msgid "Visits are being recorded."
 msgstr "Külastusi salvestatakse."
 
-#: lib/phoenix_kit_web_analytics.ex:71
-#: lib/phoenix_kit_web_analytics.ex:112
-#: lib/phoenix_kit_web_analytics.ex:127
+#: lib/phoenix_kit_web_analytics.ex:72
+#: lib/phoenix_kit_web_analytics.ex:113
+#: lib/phoenix_kit_web_analytics.ex:128
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Web Analytics"
@@ -1315,7 +1315,7 @@ msgstr "Külastajad: mitu erinevat inimest sealt lahkus. Lahkumised: mitu külas
 msgid "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
 msgstr "Külastajad: mitu erinevat inimest. Vaatamised: mitu korda, arvestades iga inimese iga vaatamist — üks inimene, kes avab lehe kolm korda, on 1 külastaja ja 3 vaatamist."
 
-#: lib/phoenix_kit_web_analytics.ex:156
+#: lib/phoenix_kit_web_analytics.ex:157
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:130
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:321
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:105
@@ -1635,12 +1635,12 @@ msgstr "Mõnda seadet ei saanud salvestada. Kontrolli neid ja proovi uuesti."
 msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr "Tasuline — reklaamiklikid, automaatselt märgistatud (gclid, msclkid…) või märgitud utm_medium=cpc"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
-#, elixir-autogen, elixir-format
-msgid "Behind a proxy without :x_headers, LiveView visits are not recorded. Add :x_headers to the LiveView socket's connect_info, on both transports — see Installation below."
-msgstr "Proksi taga ilma :x_headers'ita LiveView külastusi ei salvestata. Lisa :x_headers LiveView sokli connect_info'sse, mõlemal transpordil — vaata allpool „Paigaldus“."
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
 msgstr "Samas masinas või võrgus oleva pöördproksi taga loetakse külastaja aadress X-Forwarded-For päisest (proksi lisatud port jäetakse ära). Ahela taga — CDN koormusjaoturi ees — pane jälgimis-plugi ette plug, mis kirjutab remote_ip ümber (näiteks remote_ip)."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
+msgstr "Privaat- või loopback-aadressilt tulevaid LiveView külastusi — pöördproksi, konteinervõrk, localhost arenduses — ei salvestata: LiveView sokli connect_info'st puudub :x_headers. Lisa see mõlemale transpordile — vaata allpool „Paigaldus“."

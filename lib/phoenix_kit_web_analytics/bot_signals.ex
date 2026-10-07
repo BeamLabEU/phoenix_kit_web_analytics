@@ -35,7 +35,10 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   `PhoenixKitWebAnalytics.LiveHook`), so every such visit would look like
   one that never connected. When the hook skipped at least 5 % of a node's
   live visits in the last 24 hours, that node tells the cluster, and no
-  visit is judged until no node does.
+  visit is judged until no node does. The count lives in memory, so a node
+  that just started knows nothing of the visits before it: the node that
+  runs the judgement leaves alone every visit that started before it had
+  been up for 30 minutes.
   """
 
   use GenServer
@@ -134,21 +137,22 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
   @doc """
   Counts a connected LiveView mount on this node: `:tracked` when the hook
-  could name the visitor, `:skipped` when it couldn't (a proxy's address and
-  no `:x_headers`).
+  could name the visitor, `:skipped` when it couldn't (a private peer and no
+  `:x_headers`). `at` (Unix seconds, now by default) picks the hour.
   """
-  @spec count_live_visit(:tracked | :skipped) :: :ok
-  def count_live_visit(kind) when kind in [:tracked, :skipped] do
-    key = {:live, kind, hour()}
+  @spec count_live_visit(:tracked | :skipped, integer()) :: :ok
+  def count_live_visit(kind, at \\ System.system_time(:second))
+      when kind in [:tracked, :skipped] do
+    key = {:live, kind, div(at, 3600)}
     :ets.update_counter(@table, key, {2, 1}, {key, 0})
     :ok
   rescue
     ArgumentError -> :ok
   end
 
-  @doc "Live visits this node skipped in the last #{@live_window_hours} hours."
-  @spec skipped_live_visits() :: non_neg_integer()
-  def skipped_live_visits, do: live_counts().skipped
+  @doc "Live visits this node tracked and skipped in the last #{@live_window_hours} hours."
+  @spec live_visits() :: %{tracked: non_neg_integer(), skipped: non_neg_integer()}
+  def live_visits, do: live_counts()
 
   @doc """
   Whether live visits are being skipped often enough to pause the
@@ -193,13 +197,18 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
       Logger.debug("[WebAnalytics] could not announce skipped live visits: #{inspect(error)}")
   end
 
+  # The PubSub's registry links to its subscribers, so if it goes down this
+  # process goes with it and subscribes again on its restart. What is left is
+  # a PubSub that isn't up yet when this starts: retried on every sweep.
   defp subscribe_to_live_skips do
-    Manager.subscribe(@live_topic)
+    Manager.subscribe(@live_topic) == :ok
   rescue
     error ->
       Logger.warning(
         "[WebAnalytics] could not subscribe to skipped live visits: #{inspect(error)}"
       )
+
+      false
   end
 
   defp hour, do: div(System.system_time(:second), 3600)
@@ -284,6 +293,10 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   JavaScript stays clear) — so no watermark is written, which would add an
   activity-log entry every hour. Pages through the window in batches
   (`:batch`, #{@batch} by default), so a busy hour is judged whole.
+
+  Judges nothing while the hook is skipping live visits
+  (`skipping_live_visits?/0`), and no visit that started before this node's
+  `BotSignals` had been up for #{@judge_after_minutes} minutes.
   """
   @spec judge_no_js(DateTime.t(), keyword()) :: non_neg_integer()
   def judge_no_js(now \\ DateTime.utc_now(), opts \\ []) do
@@ -293,8 +306,8 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
       skipping_live_visits?() ->
         Logger.info(
-          "[WebAnalytics] no-JavaScript judgement paused: LiveView visits behind a proxy " <>
-            "are not being recorded — list :x_headers in the LiveView socket's connect_info"
+          "[WebAnalytics] no-JavaScript judgement paused: LiveView visits from a private " <>
+            "peer are not being recorded — list :x_headers in the LiveView socket's connect_info"
         )
 
         0
@@ -302,12 +315,40 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
       true ->
         to = DateTime.add(now, -@judge_after_minutes * 60, :second)
         from = DateTime.add(to, -@window_hours * 3600, :second)
-        judge_batches(from, to, nil, Keyword.get(opts, :batch, @batch), 0)
+        judge_window(from, to, Keyword.get(opts, :batch, @batch))
     end
   rescue
     error ->
       Logger.warning("[WebAnalytics] bot judgement failed: #{Exception.message(error)}")
       0
+  end
+
+  # Visits that started before this node had been up for the time a visit is
+  # given to connect are not judged: whether the hook was skipping them was
+  # counted (if at all) by a process that is gone. Unknown start — the
+  # counters aren't running — judges nothing.
+  defp judge_window(from, to, batch) do
+    case started_at() do
+      nil ->
+        0
+
+      started ->
+        settled = DateTime.add(started, @judge_after_minutes * 60, :second)
+        from = if DateTime.compare(settled, from) == :gt, do: settled, else: from
+
+        if DateTime.compare(from, to) == :lt,
+          do: judge_batches(from, to, nil, batch, 0),
+          else: 0
+    end
+  end
+
+  defp started_at do
+    case :ets.lookup(@table, :started_at) do
+      [{:started_at, at}] -> at
+      [] -> nil
+    end
+  rescue
+    ArgumentError -> nil
   end
 
   # Keyset paging over visit starts, oldest first; each batch flagged in one
@@ -379,14 +420,18 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
   # ── server ────────────────────────────────────────────────────────────────
 
+  # `:started_at` lets a test start the process as if it had been up a while.
   @impl GenServer
-  def init(_opts) do
+  def init(opts) do
     :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
-    subscribe_to_live_skips()
-    PhoenixKitWebAnalytics.Tracking.warn_deprecated_config()
+    :ets.insert(@table, {:started_at, Keyword.get(opts, :started_at, DateTime.utc_now())})
     Process.send_after(self(), :sweep, @sweep_ms)
-    {:ok, %{}}
+    {:ok, %{subscribed?: false}, {:continue, :subscribe}}
   end
+
+  @impl GenServer
+  def handle_continue(:subscribe, state),
+    do: {:noreply, %{state | subscribed?: subscribe_to_live_skips()}}
 
   @impl GenServer
   def handle_info(:sweep, state) do
@@ -402,7 +447,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
     announce_live_skips()
     Process.send_after(self(), :sweep, @sweep_ms)
-    {:noreply, state}
+    {:noreply, %{state | subscribed?: state.subscribed? or subscribe_to_live_skips()}}
   end
 
   def handle_info({:live_visits_skipped, from_node, until}, state) when is_integer(until) do

@@ -55,14 +55,21 @@ defmodule PhoenixKitWebAnalytics.Plug do
   proxy on the same box or network, and the visitor is the **last**
   `X-Forwarded-For` entry — the one that proxy appended; a visitor can send
   their own header, but not control what the proxy adds after it — then
-  `X-Real-IP`. A proxy that appends the port (`203.0.113.7:51234`,
-  `[2001:db8::7]:443`) is read too.
+  `X-Real-IP` when there is no readable `X-Forwarded-For`. A proxy that
+  appends the port (`203.0.113.7:51234`, `[2001:db8::7]:443`) is read too.
+
+  That trust needs no configuration, so the proxy must set or append
+  `X-Forwarded-For` itself: one that only sets `X-Real-IP` passes the
+  visitor's own header through. On an intranet where visitors have private
+  addresses and reach the app directly, each of them can send it.
 
   Behind a chain — a CDN in front of a load balancer — the last entry is the
   CDN's address, not the visitor's. There, put a plug that rewrites
   `remote_ip` from the headers your infrastructure controls —
   [`remote_ip`](https://hex.pm/packages/remote_ip) — **before** this one; a
-  public `remote_ip` is taken as is.
+  public `remote_ip` is taken as is. The same goes for a CDN or proxy with a
+  public address in front of the app: as a public peer its headers are
+  ignored, and without `RemoteIp` every visitor is one of its addresses.
 
   `config :phoenix_kit_web_analytics, trust_x_forwarded_for: true` is
   deprecated and does nothing: the forwarded header from a private peer is

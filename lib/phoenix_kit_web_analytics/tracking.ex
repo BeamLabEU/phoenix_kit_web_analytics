@@ -97,59 +97,76 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   end
 
   @doc """
-  The client address used for the visitor hash — core's
-  `PhoenixKit.Utils.IpAddress.client_address/1`, so a page view and a login
-  name the same address: `conn.remote_ip` when it is public (a `RemoteIp`
-  plug may already have rewritten it), and behind a private or loopback peer
-  — a reverse proxy on the same box or network — the **last**
-  `X-Forwarded-For` entry (the one that proxy appended), then `X-Real-IP`.
+  The client address used for the visitor hash, by the rule core's
+  `PhoenixKit.Utils.IpAddress.client_address/1` follows for a login: a
+  public `conn.remote_ip` is the visitor (core's answer; a `RemoteIp` plug
+  may already have rewritten it), and behind a private or loopback peer — a
+  reverse proxy on the same box or network — the **last** `X-Forwarded-For`
+  entry (the one that proxy appended), then `X-Real-IP` when there is no
+  readable `X-Forwarded-For`.
 
   A proxy that appends the port (`203.0.113.7:51234`, `[2001:db8::7]:443`)
-  is read too: when core answers with the proxy's own address although a
-  forwarded header is there, the headers are read here by the same rule,
-  with the port dropped. An IPv4-mapped address (`::ffff:a.b.c.d`) comes
-  back as IPv4. One implementation for the plug and the beacon, so a page
-  load and its beacon hits hash to the same visitor.
+  is read too. An IPv4-mapped address (`::ffff:a.b.c.d`) comes back as IPv4.
+  One implementation for the plug and the beacon, so a page load and its
+  beacon hits hash to the same visitor.
   """
   @spec client_ip(Plug.Conn.t()) :: :inet.ip_address()
-  def client_ip(%Plug.Conn{remote_ip: peer, req_headers: headers} = conn) do
-    conn |> IpAddress.client_address() |> resolve(peer, headers)
+  def client_ip(%Plug.Conn{remote_ip: peer} = conn) do
+    ip =
+      if local?(peer),
+        do: forwarded_ip(conn.req_headers),
+        else: conn |> IpAddress.client_address() |> parse_ip()
+
+    unmap(ip || peer)
   rescue
     _ -> unmap(conn.remote_ip)
   end
 
   @doc """
   The same rule for a LiveView socket, read from its connect info during
-  mount: core's `PhoenixKit.Utils.IpAddress.client_address_from_socket/1`,
-  with the same fallback for a proxy that appends the port.
+  mount; a public peer is core's
+  `PhoenixKit.Utils.IpAddress.client_address_from_socket/1` answer.
 
   `nil` when the socket can't name the visitor: no `:peer_data`, or a
-  private or loopback peer — a proxy — on an endpoint whose `connect_info`
-  doesn't list `:x_headers`. The proxy is not the visitor, so the caller
-  records nothing rather than a wrong address. With `:x_headers` listed and
-  no forwarded header in them (development, a LAN without a proxy), the peer
-  is the visitor, as it is for the plug.
+  private or loopback peer on an endpoint whose `connect_info` doesn't list
+  `:x_headers` — a proxy, a container network or localhost, which can't be
+  told apart without the headers. The caller records nothing rather than a
+  wrong address. With `:x_headers` listed and no forwarded header in them
+  (development, a LAN without a proxy), the peer is the visitor, as it is
+  for the plug.
   """
   @spec socket_ip(Phoenix.LiveView.Socket.t()) :: :inet.ip_address() | nil
   def socket_ip(socket) do
     case get_connect_info(socket, :peer_data) do
-      %{address: peer} when is_tuple(peer) ->
-        headers = get_connect_info(socket, :x_headers)
-
-        if is_nil(headers) and local?(peer) do
-          nil
-        else
-          socket |> IpAddress.client_address_from_socket() |> resolve(peer, headers || [])
-        end
-
-      _ ->
-        nil
+      %{address: peer} when is_tuple(peer) -> socket_peer_ip(socket, peer)
+      _ -> nil
     end
   rescue
     _ -> nil
   end
 
-  # The ranges core's `PhoenixKit.Utils.IpAddress` takes for a proxy.
+  defp socket_peer_ip(socket, peer) do
+    headers = get_connect_info(socket, :x_headers)
+
+    cond do
+      not local?(peer) ->
+        unmap(parse_ip(IpAddress.client_address_from_socket(socket)) || peer)
+
+      is_nil(headers) ->
+        nil
+
+      true ->
+        unmap(forwarded_ip(headers) || peer)
+    end
+  end
+
+  # Behind a private peer the headers are read here, not taken from core: a
+  # core that can't parse a port (2.55 and earlier) passes over such an
+  # `X-Forwarded-For` and answers with `X-Real-IP` — a header the visitor may
+  # have sent themselves. The rule is core's own, so on a core that parses
+  # ports the two agree.
+  #
+  # A copy of core's ranges for a proxy — `local?/1` is private there.
   defp local?({127, _, _, _}), do: true
   defp local?({10, _, _, _}), do: true
   defp local?({192, 168, _, _}), do: true
@@ -158,21 +175,6 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   defp local?({0, 0, 0, 0, 0, 65_535, _, _} = mapped), do: local?(unmap(mapped))
   defp local?({a, _, _, _, _, _, _, _}) when a in 0xFC00..0xFDFF, do: true
   defp local?(_ip), do: false
-
-  # Core's answer, unless it is the private peer itself (or nothing) — then a
-  # forwarded header core couldn't parse, such as one with a port, is read
-  # here. Deciding by the answer, not by core's version, keeps this right on
-  # a core that already drops the port.
-  defp resolve(answer, peer, headers) do
-    core = parse_ip(answer)
-
-    cond do
-      not local?(peer) -> core || peer
-      core != nil and unmap(core) != unmap(peer) -> core
-      true -> forwarded_ip(headers) || peer
-    end
-    |> unmap()
-  end
 
   # Every `X-Forwarded-For` line, in order, as one list: the last entry is the
   # one the nearest proxy appended. `X-Real-IP` after that.
@@ -224,16 +226,19 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   defp unmap(ip), do: ip
 
   @doc """
-  Logs once, at start, that `trust_x_forwarded_for` no longer does anything:
-  a forwarded header from a private peer is always read now.
+  Warns, once at start, about `trust_x_forwarded_for: true`: it no longer
+  does anything. A forwarded header from a private peer is always read, and
+  one from a public peer (a CDN in front of the site) never is — that needs
+  a `RemoteIp` plug. An explicit `false` asks for nothing that changed.
   """
   @spec warn_deprecated_config() :: :ok
   def warn_deprecated_config do
-    if Application.get_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for) != nil do
+    if Application.get_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for) == true do
       Logger.warning(
-        "[WebAnalytics] config :phoenix_kit_web_analytics, :trust_x_forwarded_for is " <>
-          "deprecated and has no effect: X-Forwarded-For from a private or loopback peer " <>
-          "is always read (its last entry). Remove the setting."
+        "[WebAnalytics] config :phoenix_kit_web_analytics, trust_x_forwarded_for: true is " <>
+          "deprecated and has no effect. X-Forwarded-For from a private or loopback peer is " <>
+          "always read (its last entry); behind a CDN or a proxy with a public address, add " <>
+          "a RemoteIp plug before PhoenixKitWebAnalytics.Plug. Remove the setting."
       )
     end
 

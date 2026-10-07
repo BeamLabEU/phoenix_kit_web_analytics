@@ -43,7 +43,7 @@ msgstr "Принимать beacon и пиксель"
 msgid "Accept the client script"
 msgstr "Принимать клиентский скрипт"
 
-#: lib/phoenix_kit_web_analytics.ex:170
+#: lib/phoenix_kit_web_analytics.ex:171
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Acquisition"
@@ -205,7 +205,7 @@ msgstr "Через запятую. Значения перечисленных �
 msgid "Contact link"
 msgstr "Ссылка для связи"
 
-#: lib/phoenix_kit_web_analytics.ex:114
+#: lib/phoenix_kit_web_analytics.ex:115
 #, elixir-autogen, elixir-format
 msgid "Cookieless, server-side traffic analytics"
 msgstr "Серверная аналитика трафика без cookie"
@@ -303,7 +303,7 @@ msgstr "Сохраняемые значения событий"
 msgid "Event “%{event}”"
 msgstr "Событие «%{event}»"
 
-#: lib/phoenix_kit_web_analytics.ex:184
+#: lib/phoenix_kit_web_analytics.ex:185
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:501
 #, elixir-autogen, elixir-format
@@ -612,7 +612,7 @@ msgstr "Внешняя ссылка"
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr "Внешние ссылки, скачивания, обычные кнопки, глубина прокрутки и выходы со страниц без LiveView. Скрипт поставляется с модулем; этот переключатель определяет, сохраняются ли его данные."
 
-#: lib/phoenix_kit_web_analytics.ex:141
+#: lib/phoenix_kit_web_analytics.ex:142
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Обзор"
@@ -645,7 +645,7 @@ msgstr "Просмотры страниц по времени"
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr "Просмотры страниц, передаваемые из браузера, — для страниц, которые CDN отдаёт без обращения к приложению. Эти эндпоинты публичные — не включайте, если не используете их."
 
-#: lib/phoenix_kit_web_analytics.ex:163
+#: lib/phoenix_kit_web_analytics.ex:164
 #: lib/phoenix_kit_web_analytics/web/components.ex:597
 #: lib/phoenix_kit_web_analytics/web/components.ex:619
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
@@ -709,7 +709,7 @@ msgstr "Учитывать Do Not Track"
 msgid "Retention"
 msgstr "Хранение данных"
 
-#: lib/phoenix_kit_web_analytics.ex:149
+#: lib/phoenix_kit_web_analytics.ex:150
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Right now"
@@ -771,7 +771,7 @@ msgstr "Поиск"
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr "Отправляется всем, у кого есть доступ к веб-аналитике. Каждый выбирает доставку в приложении, по email или в Telegram, а также ежечасную или ежедневную сводку вместо них, в"
 
-#: lib/phoenix_kit_web_analytics.ex:191
+#: lib/phoenix_kit_web_analytics.ex:192
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -868,7 +868,7 @@ msgstr "Сохранённые данные"
 msgid "Tablet"
 msgstr "Планшет"
 
-#: lib/phoenix_kit_web_analytics.ex:177
+#: lib/phoenix_kit_web_analytics.ex:178
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Technology"
@@ -1014,9 +1014,9 @@ msgstr "Посетители, регистрации и отслеживаемы
 msgid "Visits are being recorded."
 msgstr "Визиты записываются."
 
-#: lib/phoenix_kit_web_analytics.ex:71
-#: lib/phoenix_kit_web_analytics.ex:112
-#: lib/phoenix_kit_web_analytics.ex:127
+#: lib/phoenix_kit_web_analytics.ex:72
+#: lib/phoenix_kit_web_analytics.ex:113
+#: lib/phoenix_kit_web_analytics.ex:128
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Web Analytics"
@@ -1317,7 +1317,7 @@ msgstr "Посетители: сколько разных людей ушли о
 msgid "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
 msgstr "Посетители: сколько разных людей. Просмотры: сколько раз, считая каждый просмотр каждого человека — один человек, трижды открывший страницу, это 1 посетитель и 3 просмотра."
 
-#: lib/phoenix_kit_web_analytics.ex:156
+#: lib/phoenix_kit_web_analytics.ex:157
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:130
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:321
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:105
@@ -1638,12 +1638,12 @@ msgstr "Некоторые настройки не удалось сохрани
 msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr "Реклама — клики по объявлениям с автопометкой (gclid, msclkid…) или с utm_medium=cpc"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
-#, elixir-autogen, elixir-format
-msgid "Behind a proxy without :x_headers, LiveView visits are not recorded. Add :x_headers to the LiveView socket's connect_info, on both transports — see Installation below."
-msgstr "За прокси без :x_headers визиты LiveView не записываются. Добавьте :x_headers в connect_info сокета LiveView, на обоих транспортах — см. «Установка» ниже."
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
 msgstr "За обратным прокси на том же хосте или в той же сети адрес посетителя читается из X-Forwarded-For (порт, добавленный прокси, отбрасывается). За цепочкой — CDN перед балансировщиком — поставьте перед plug отслеживания plug, переписывающий remote_ip (например, remote_ip)."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
+msgstr "Визиты LiveView с частного или loopback-адреса — обратный прокси, сеть контейнеров, localhost при разработке — не записываются: в connect_info сокета LiveView нет :x_headers. Добавьте его на обоих транспортах — см. «Установка» ниже."

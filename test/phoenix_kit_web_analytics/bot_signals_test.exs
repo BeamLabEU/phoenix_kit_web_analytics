@@ -18,8 +18,11 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
   defp reasons,
     do: Repo.all(from(e in Event, order_by: e.inserted_at, select: {e.is_bot, e.metadata["bot"]}))
 
+  # Up for a day: visits from before a node's start aren't judged.
   setup do
-    unless Process.whereis(BotSignals), do: start_supervised!(BotSignals)
+    start_supervised!({BotSignals, started_at: DateTime.add(DateTime.utc_now(), -86_400)})
+    # Past the subscription in handle_continue.
+    :sys.get_state(BotSignals)
     :ok
   end
 
@@ -266,8 +269,23 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
       live_visits(20, 1)
 
       refute BotSignals.skipping_live_visits?()
-      assert BotSignals.skipped_live_visits() == 1
+      assert BotSignals.live_visits() == %{tracked: 20, skipped: 1}
       assert BotSignals.judge_no_js() == 1
+    end
+
+    test "counts only the last 24 hours; the sweep drops older hours" do
+      now = System.system_time(:second)
+      BotSignals.count_live_visit(:skipped, now - 24 * 3600)
+      BotSignals.count_live_visit(:tracked, now - 23 * 3600)
+
+      assert BotSignals.live_visits() == %{tracked: 1, skipped: 0}
+      refute BotSignals.skipping_live_visits?()
+
+      send(BotSignals, :sweep)
+      :sys.get_state(BotSignals)
+
+      stored = :ets.match_object(:phoenix_kit_web_analytics_bot_signals, {{:live, :_, :_}, :_})
+      assert [{{:live, :tracked, _hour}, 1}] = stored
     end
 
     test "pauses on another node's word, until it lapses" do
@@ -284,6 +302,29 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
 
       refute BotSignals.skipping_live_visits?()
       assert BotSignals.judge_no_js() == 1
+    end
+
+    test "a visit that started before the node had been up for 30 minutes isn't judged" do
+      stop_supervised!(BotSignals)
+      start_supervised!({BotSignals, started_at: hours_ago(2)})
+
+      # Started at the node's start (setup's page) and 20 minutes after: both
+      # before it had been up for 30 minutes. One 40 minutes after is judged.
+      page("early", DateTime.add(hours_ago(2), 20 * 60, :second))
+      judged = page("settled", DateTime.add(hours_ago(2), 40 * 60, :second))
+
+      assert BotSignals.judge_no_js() == 1
+
+      assert Repo.all(from(e in Event, where: e.is_bot, select: e.session_id)) == [
+               judged.session_id
+             ]
+    end
+
+    test "with the counters not running, nothing is judged" do
+      stop_supervised!(BotSignals)
+
+      assert BotSignals.judge_no_js() == 0
+      assert flagged() == 0
     end
 
     test "a skipping node tells the cluster on its sweep; a node that isn't, doesn't" do

@@ -59,6 +59,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
+  alias PhoenixKitWebAnalytics.Tracking
 
   @version "0.5.0"
 
@@ -227,10 +228,14 @@ defmodule PhoenixKitWebAnalytics do
   @impl PhoenixKit.Module
   @doc """
   Background workers: the task supervisor that absorbs writes off the request
-  path, and the hourly rollup/prune pass.
+  path, and the hourly rollup/prune pass — plus a one-off check of the
+  application config, logged once as the module starts.
   """
   def children do
     [
+      Supervisor.child_spec({Task, &Tracking.warn_deprecated_config/0},
+        id: {__MODULE__, :config_check}
+      ),
       Collector.gate_spec(),
       PhoenixKitWebAnalytics.BotSignals,
       Collector.task_supervisor_spec(),

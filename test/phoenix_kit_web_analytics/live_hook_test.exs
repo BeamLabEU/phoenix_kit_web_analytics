@@ -282,7 +282,7 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     @proxy_peer %{address: {172, 18, 0, 8}, port: 4000, ssl_cert: nil}
 
     setup do
-      unless Process.whereis(BotSignals), do: start_supervised!(BotSignals)
+      start_supervised!(BotSignals)
       start_supervised!(LivePresence)
       enable_tracking()
     end
@@ -313,7 +313,7 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert Enum.map(events("pageview"), & &1.visitor_id) |> Enum.sort() ==
                Enum.sort([visitor({203, 0, 113, 9}), visitor({198, 51, 100, 4})])
 
-      assert BotSignals.skipped_live_visits() == 0
+      assert BotSignals.live_visits() == %{tracked: 2, skipped: 0}
     end
 
     test "without :x_headers in connect_info, records nothing and counts the skip",
@@ -323,7 +323,7 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
 
       assert events() == []
       assert LivePresence.list() == []
-      assert BotSignals.skipped_live_visits() == 1
+      assert BotSignals.live_visits() == %{tracked: 0, skipped: 1}
     end
 
     test "with :x_headers listed but no forwarded header (no proxy), the peer is the visitor",
@@ -335,7 +335,7 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert pageview.visitor_id == visitor({172, 18, 0, 8})
       assert interaction.visitor_id == pageview.visitor_id
       assert [_open] = LivePresence.list()
-      assert BotSignals.skipped_live_visits() == 0
+      assert BotSignals.live_visits() == %{tracked: 1, skipped: 0}
     end
   end
 

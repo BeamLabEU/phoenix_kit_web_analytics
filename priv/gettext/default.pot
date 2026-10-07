@@ -40,7 +40,7 @@ msgstr ""
 msgid "Accept the client script"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:170
+#: lib/phoenix_kit_web_analytics.ex:171
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Acquisition"
@@ -202,7 +202,7 @@ msgstr ""
 msgid "Contact link"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:114
+#: lib/phoenix_kit_web_analytics.ex:115
 #, elixir-autogen, elixir-format
 msgid "Cookieless, server-side traffic analytics"
 msgstr ""
@@ -300,7 +300,7 @@ msgstr ""
 msgid "Event “%{event}”"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:184
+#: lib/phoenix_kit_web_analytics.ex:185
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:501
 #, elixir-autogen, elixir-format
@@ -609,7 +609,7 @@ msgstr ""
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:141
+#: lib/phoenix_kit_web_analytics.ex:142
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr ""
@@ -642,7 +642,7 @@ msgstr ""
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:163
+#: lib/phoenix_kit_web_analytics.ex:164
 #: lib/phoenix_kit_web_analytics/web/components.ex:597
 #: lib/phoenix_kit_web_analytics/web/components.ex:619
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
@@ -706,7 +706,7 @@ msgstr ""
 msgid "Retention"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:149
+#: lib/phoenix_kit_web_analytics.ex:150
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Right now"
@@ -768,7 +768,7 @@ msgstr ""
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:191
+#: lib/phoenix_kit_web_analytics.ex:192
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -865,7 +865,7 @@ msgstr ""
 msgid "Tablet"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:177
+#: lib/phoenix_kit_web_analytics.ex:178
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Technology"
@@ -1011,9 +1011,9 @@ msgstr ""
 msgid "Visits are being recorded."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:71
-#: lib/phoenix_kit_web_analytics.ex:112
-#: lib/phoenix_kit_web_analytics.ex:127
+#: lib/phoenix_kit_web_analytics.ex:72
+#: lib/phoenix_kit_web_analytics.ex:113
+#: lib/phoenix_kit_web_analytics.ex:128
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Web Analytics"
@@ -1314,7 +1314,7 @@ msgstr ""
 msgid "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics.ex:156
+#: lib/phoenix_kit_web_analytics.ex:157
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:130
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:321
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:105
@@ -1634,12 +1634,12 @@ msgstr ""
 msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
-#, elixir-autogen, elixir-format
-msgid "Behind a proxy without :x_headers, LiveView visits are not recorded. Add :x_headers to the LiveView socket's connect_info, on both transports — see Installation below."
-msgstr ""
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
+msgstr ""
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
 msgstr ""

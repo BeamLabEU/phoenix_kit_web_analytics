@@ -110,8 +110,9 @@ Then enable **Web Analytics** on the admin Modules page, and:
 
    Without `:peer_data` and `:user_agent` the hook stays inert rather than
    recording visitors it would hash wrongly. `:x_headers` carries the
-   forwarded address behind a reverse proxy; without it a socket behind one
-   is skipped, and Settings warns about it.
+   forwarded address behind a reverse proxy; without it a socket with a
+   private or loopback peer (a proxy, a container network, `localhost` in
+   development) is skipped, and Settings warns about it.
 
 4. **Behind a reverse proxy** on the same box or network (nginx, Caddy,
    Traefik, a container network) nothing more is needed: the visitor's
@@ -381,8 +382,23 @@ beacon and the LiveView hook read it the way PhoenixKit reads it for a login
   `127/8`, `::1`, `fc00::/7`) is a proxy, and the visitor is the **last**
   entry of `X-Forwarded-For` — the one that proxy appended; a visitor can
   send their own header, but can't control what the proxy adds after it —
-  then `X-Real-IP`;
+  then `X-Real-IP` when there is no readable `X-Forwarded-For`;
 - `::ffff:a.b.c.d` counts as the IPv4 address it carries.
+
+**Forwarded headers from a private peer are trusted with no configuration,**
+so the proxy must set or append `X-Forwarded-For` itself. One that only sets
+`X-Real-IP` — nginx with just `proxy_set_header X-Real-IP $remote_addr` —
+passes the visitor's own `X-Forwarded-For` through untouched, and a visitor
+can name any address; add
+`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. The same
+holds on an intranet where visitors have private addresses themselves and
+reach the app directly: each of them can send the header.
+
+A proxy or CDN with a **public** address in front of the app (a CDN
+forwarding to the origin) is a public peer: its headers are ignored and
+every visitor counts as one of its edge addresses. Rewrite `remote_ip` with
+a `RemoteIp` plug — see [Behind a CDN and a load
+balancer](#behind-a-cdn-and-a-load-balancer).
 
 ### Behind a reverse proxy that appends the port (e.g. Caddy `{remote}`)
 
@@ -393,12 +409,13 @@ address with or without one (`[2001:db8::7]:443`), lose the port. A bare IPv6
 address is never cut — `2001:db8::1:443` is a valid address.
 
 For LiveView, list `:x_headers` in the socket's `connect_info` (on both
-transports, see Installation). Without it, a socket whose peer is the proxy
-has no way to name its visitor, so the hook records nothing for it — no live
-navigation, interaction or "Right now" entry — and counts the skip; Settings
-then warns, and the "no JavaScript" bot check pauses so the missed visits
-aren't taken for bots. **Add `:x_headers` to the endpoint first, then deploy
-0.5.0 or later.**
+transports, see Installation). Without it, a socket with a private or
+loopback peer — a proxy, a container network, localhost in development —
+has no way to name its visitor, so the hook records nothing for it — no
+live navigation, interaction or "Right now" entry — and counts the skip;
+Settings then warns, and the "no JavaScript" bot check pauses so the missed
+visits aren't taken for bots. **Add `:x_headers` to the endpoint first,
+then deploy 0.5.0 or later.**
 
 The cleaner fix is on the proxy: forward the address without the port. In
 Caddy that is `{remote_host}` instead of `{remote}`, or no
@@ -423,8 +440,17 @@ plug RemoteIp, proxies: ["198.51.100.0/24"]
 plug PhoenixKitWebAnalytics.Plug
 ```
 
-A public `remote_ip` is taken as is. A LiveView socket doesn't go through
-plugs, so its address still comes from `:x_headers` by the rule above.
+A public `remote_ip` is taken as is.
+
+**Limitation: LiveView behind such a chain.** A LiveView socket doesn't go
+through plugs, so its address still comes from `:x_headers` by the rule
+above — the CDN's edge, not the visitor. The page load and the live
+connection then hash to different visitors: live navigations and
+interactions count as separate visitors, and the page load, seeing no live
+connection from its own visitor, is flagged a "no JavaScript" bot after 30
+minutes (nothing was skipped, so the check doesn't pause). Until the socket
+can walk the chain too, switch **Spot bots by behaviour** off in Settings
+(`web_analytics_detect_bots`) on such a site.
 
 ## Excluding specific requests
 

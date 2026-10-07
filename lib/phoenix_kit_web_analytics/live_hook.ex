@@ -54,7 +54,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   when the socket's peer is a private or loopback address (the proxy), the
   visitor's address is the forwarded one, read by the same rule as the plug
   (see "Client IP" in `PhoenixKitWebAnalytics.Plug`). Without `:x_headers`
-  such a socket can't name its visitor, so the hook stays inert for it —
+  such a socket can't name its visitor — a proxy, a container network and
+  `localhost` in development look the same — so the hook stays inert for it —
   no page view, no interaction, no "Right now" entry — and counts the skip;
   Settings then shows a warning. With `:x_headers` listed and no proxy in
   front (development, a LAN), the peer is the visitor. The same headers

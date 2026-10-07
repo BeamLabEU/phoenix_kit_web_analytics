@@ -151,7 +151,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   # LiveView visits skipped for want of `:x_headers` — on this node, or (by the
   # cluster's word) on another.
   defp live_skips? do
-    BotSignals.skipped_live_visits() > 0 or BotSignals.skipping_live_visits?()
+    BotSignals.live_visits().skipped > 0 or BotSignals.skipping_live_visits?()
   end
 
   defp raw(key, default) do
@@ -209,7 +209,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
       >
         <span>
           {gettext(
-            "Behind a proxy without :x_headers, LiveView visits are not recorded. Add :x_headers to the LiveView socket's connect_info, on both transports — see Installation below."
+            "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
           )}
         </span>
       </div>
