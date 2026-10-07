@@ -79,9 +79,11 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
 
   import Plug.Test, only: [conn: 2, init_test_session: 2]
 
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Plug, as: TrackingPlug
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Tracking
+  alias PhoenixKitWebAnalytics.Visitor
 
   @chrome "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -226,6 +228,24 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       |> Plug.Conn.send_resp(200, "")
 
       assert Repo.all(Event) == []
+    end
+  end
+
+  describe "behind a reverse proxy that appends the port" do
+    test "each client behind the proxy is its own visitor" do
+      for forwarded <- ["203.0.113.9:51234", "198.51.100.4:40000", "203.0.113.9:51300"] do
+        "/pricing"
+        |> request([{"x-forwarded-for", forwarded}])
+        |> Map.put(:remote_ip, {172, 18, 0, 8})
+        |> respond()
+      end
+
+      salt = Config.hash_salt()
+
+      assert Repo.all(from(e in Event, select: e.visitor_id)) |> Enum.frequencies() == %{
+               Visitor.visitor_id({203, 0, 113, 9}, @chrome, salt) => 2,
+               Visitor.visitor_id({198, 51, 100, 4}, @chrome, salt) => 1
+             }
     end
   end
 

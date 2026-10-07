@@ -13,11 +13,14 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
 
   import Ecto.Query
 
+  alias PhoenixKitWebAnalytics.BotSignals
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LiveHook
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Test.Repo
   alias PhoenixKitWebAnalytics.Tracking
+  alias PhoenixKitWebAnalytics.Visitor
 
   @ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
   @peer %{address: {1, 2, 3, 4}, port: 1, ssl_cert: nil}
@@ -272,6 +275,67 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       view |> element("#add") |> render_click()
 
       assert events() == []
+    end
+  end
+
+  describe "behind a reverse proxy" do
+    @proxy_peer %{address: {172, 18, 0, 8}, port: 4000, ssl_cert: nil}
+
+    setup do
+      start_supervised!(BotSignals)
+      start_supervised!(LivePresence)
+      enable_tracking()
+    end
+
+    defp live_navigation(conn, connect_info) do
+      {:ok, view, _html} =
+        conn
+        |> put_connect_info(connect_info)
+        |> put_connect_params(%{"_live_referer" => "http://www.example.com/"})
+        |> live("/shop")
+
+      :sys.get_state(LivePresence)
+      view
+    end
+
+    defp visitor(ip), do: Visitor.visitor_id(ip, @ua, Config.hash_salt())
+
+    test "reads the visitor from :x_headers, port dropped — one visitor per client",
+         %{conn: conn} do
+      for forwarded <- ["203.0.113.9:51234", "198.51.100.4:40000"] do
+        live_navigation(conn,
+          peer_data: @proxy_peer,
+          user_agent: @ua,
+          x_headers: [{"x-forwarded-for", forwarded}]
+        )
+      end
+
+      assert Enum.map(events("pageview"), & &1.visitor_id) |> Enum.sort() ==
+               Enum.sort([visitor({203, 0, 113, 9}), visitor({198, 51, 100, 4})])
+
+      assert BotSignals.live_visits() == %{tracked: 2, skipped: 0}
+    end
+
+    test "without :x_headers in connect_info, records nothing and counts the skip",
+         %{conn: conn} do
+      view = live_navigation(conn, peer_data: @proxy_peer, user_agent: @ua)
+      view |> element("#add") |> render_click()
+
+      assert events() == []
+      assert LivePresence.list() == []
+      assert BotSignals.live_visits() == %{tracked: 0, skipped: 1}
+    end
+
+    test "with :x_headers listed but no forwarded header (no proxy), the peer is the visitor",
+         %{conn: conn} do
+      view = live_navigation(conn, peer_data: @proxy_peer, user_agent: @ua, x_headers: [])
+      view |> element("#add") |> render_click()
+
+      assert [pageview, interaction] = events()
+      assert pageview.visitor_id == visitor({172, 18, 0, 8})
+      assert interaction.visitor_id == pageview.visitor_id
+      assert [_open] = LivePresence.list()
+      assert BotSignals.live_visits() == %{tracked: 1, skipped: 0}
     end
   end
 

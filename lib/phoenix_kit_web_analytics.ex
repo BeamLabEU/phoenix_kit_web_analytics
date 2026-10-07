@@ -39,8 +39,8 @@ defmodule PhoenixKitWebAnalytics do
       {:phoenix_kit_web_analytics, "~> 0.2"}
 
   Then `mix deps.get` and `mix phoenix_kit.update`, add the plug and the hook,
-  list `:peer_data` and `:user_agent` in the LiveView socket's `connect_info`
-  (websocket and longpoll), and enable the module on the admin Modules page.
+  list `:peer_data`, `:x_headers` and `:user_agent` in the LiveView socket's
+  `connect_info` (websocket and longpoll), and enable the module on the admin Modules page.
 
   ## Data growth
 
@@ -59,8 +59,9 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
+  alias PhoenixKitWebAnalytics.Tracking
 
-  @version "0.4.0"
+  @version "0.5.0"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 
@@ -227,10 +228,14 @@ defmodule PhoenixKitWebAnalytics do
   @impl PhoenixKit.Module
   @doc """
   Background workers: the task supervisor that absorbs writes off the request
-  path, and the hourly rollup/prune pass.
+  path, and the hourly rollup/prune pass — plus a one-off check of the
+  application config, logged once as the module starts.
   """
   def children do
     [
+      Supervisor.child_spec({Task, &Tracking.warn_deprecated_config/0},
+        id: {__MODULE__, :config_check}
+      ),
       Collector.gate_spec(),
       PhoenixKitWebAnalytics.BotSignals,
       Collector.task_supervisor_spec(),

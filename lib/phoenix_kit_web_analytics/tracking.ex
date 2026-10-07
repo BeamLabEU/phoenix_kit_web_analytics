@@ -4,6 +4,12 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   # an HTTP page view and a live navigation can never disagree about who the
   # user is or which campaign parameters count.
 
+  import Phoenix.LiveView, only: [get_connect_info: 2]
+
+  require Logger
+
+  alias PhoenixKit.Utils.IpAddress
+
   @utm_params ~w(utm_source utm_medium utm_campaign utm_term utm_content)
 
   # Ad-click identifiers. An ad platform appends one of these itself when
@@ -91,36 +97,152 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   end
 
   @doc """
-  The client address used for the visitor hash — `conn.remote_ip`, or the
-  first `X-Forwarded-For` entry when `trust_x_forwarded_for` is configured.
+  The client address used for the visitor hash, by the rule core's
+  `PhoenixKit.Utils.IpAddress.client_address/1` follows for a login: a
+  public `conn.remote_ip` is the visitor (core's answer; a `RemoteIp` plug
+  may already have rewritten it), and behind a private or loopback peer — a
+  reverse proxy on the same box or network — the **last** `X-Forwarded-For`
+  entry (the one that proxy appended), then `X-Real-IP` when there is no
+  readable `X-Forwarded-For`.
+
+  A proxy that appends the port (`203.0.113.7:51234`, `[2001:db8::7]:443`)
+  is read too. An IPv4-mapped address (`::ffff:a.b.c.d`) comes back as IPv4.
   One implementation for the plug and the beacon, so a page load and its
-  beacon hits hash to the same visitor behind a proxy.
+  beacon hits hash to the same visitor.
   """
   @spec client_ip(Plug.Conn.t()) :: :inet.ip_address()
-  def client_ip(%Plug.Conn{} = conn) do
-    if trust_forwarded?() do
-      conn |> Plug.Conn.get_req_header("x-forwarded-for") |> List.first() |> forwarded_ip() ||
-        conn.remote_ip
-    else
-      conn.remote_ip
-    end
+  def client_ip(%Plug.Conn{remote_ip: peer} = conn) do
+    ip =
+      if local?(peer),
+        do: forwarded_ip(conn.req_headers),
+        else: conn |> IpAddress.client_address() |> parse_ip()
+
+    unmap(ip || peer)
+  rescue
+    _ -> unmap(conn.remote_ip)
   end
 
   @doc """
-  The same rule for a LiveView socket: the peer address, or the first
-  `X-Forwarded-For` entry from `connect_info`'s `:x_headers` when configured
-  (list `:x_headers` in the endpoint's `connect_info` for that).
+  The same rule for a LiveView socket, read from its connect info during
+  mount; a public peer is core's
+  `PhoenixKit.Utils.IpAddress.client_address_from_socket/1` answer.
+
+  `nil` when the socket can't name the visitor: no `:peer_data`, or a
+  private or loopback peer on an endpoint whose `connect_info` doesn't list
+  `:x_headers` — a proxy, a container network or localhost, which can't be
+  told apart without the headers. The caller records nothing rather than a
+  wrong address. With `:x_headers` listed and no forwarded header in them
+  (development, a LAN without a proxy), the peer is the visitor, as it is
+  for the plug.
   """
-  @spec socket_ip(:inet.ip_address(), list() | nil) :: :inet.ip_address()
-  def socket_ip(peer_address, x_headers) do
-    with true <- trust_forwarded?(),
-         headers when is_list(headers) <- x_headers,
-         {_, value} <- List.keyfind(headers, "x-forwarded-for", 0),
-         ip when not is_nil(ip) <- forwarded_ip(value) do
-      ip
-    else
-      _ -> peer_address
+  @spec socket_ip(Phoenix.LiveView.Socket.t()) :: :inet.ip_address() | nil
+  def socket_ip(socket) do
+    case get_connect_info(socket, :peer_data) do
+      %{address: peer} when is_tuple(peer) -> socket_peer_ip(socket, peer)
+      _ -> nil
     end
+  rescue
+    _ -> nil
+  end
+
+  defp socket_peer_ip(socket, peer) do
+    headers = get_connect_info(socket, :x_headers)
+
+    cond do
+      not local?(peer) ->
+        unmap(parse_ip(IpAddress.client_address_from_socket(socket)) || peer)
+
+      is_nil(headers) ->
+        nil
+
+      true ->
+        unmap(forwarded_ip(headers) || peer)
+    end
+  end
+
+  # Behind a private peer the headers are read here, not taken from core: a
+  # core that can't parse a port (2.55 and earlier) passes over such an
+  # `X-Forwarded-For` and answers with `X-Real-IP` — a header the visitor may
+  # have sent themselves. The rule is core's own, so on a core that parses
+  # ports the two agree.
+  #
+  # A copy of core's ranges for a proxy — `local?/1` is private there.
+  defp local?({127, _, _, _}), do: true
+  defp local?({10, _, _, _}), do: true
+  defp local?({192, 168, _, _}), do: true
+  defp local?({172, b, _, _}) when b in 16..31, do: true
+  defp local?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp local?({0, 0, 0, 0, 0, 65_535, _, _} = mapped), do: local?(unmap(mapped))
+  defp local?({a, _, _, _, _, _, _, _}) when a in 0xFC00..0xFDFF, do: true
+  defp local?(_ip), do: false
+
+  # Every `X-Forwarded-For` line, in order, as one list: the last entry is the
+  # one the nearest proxy appended. `X-Real-IP` after that.
+  defp forwarded_ip(headers) do
+    forwarded_for =
+      for {"x-forwarded-for", value} <- headers, is_binary(value), do: value
+
+    real_ip = for {"x-real-ip", value} <- headers, is_binary(value), do: value
+
+    last_forwarded(forwarded_for) || real_ip |> List.first() |> header_ip()
+  end
+
+  defp last_forwarded([]), do: nil
+
+  defp last_forwarded(values),
+    do: values |> Enum.join(",") |> String.split(",") |> List.last() |> header_ip()
+
+  defp header_ip(nil), do: nil
+  defp header_ip(value), do: value |> String.trim() |> strip_port() |> parse_ip()
+
+  # Only the two unambiguous forms lose a port: `a.b.c.d:port` and
+  # `[v6]:port`. A bare IPv6 address is left alone — `2001:db8::1:443` is a
+  # valid address, not one with a port.
+  defp strip_port(value) do
+    cond do
+      Regex.match?(~r/^\d{1,3}(\.\d{1,3}){3}:\d+$/, value) ->
+        value |> String.split(":") |> hd()
+
+      match = Regex.run(~r/^\[(.+)\](:\d+)?$/, value, capture: :all_but_first) ->
+        hd(match)
+
+      true ->
+        value
+    end
+  end
+
+  defp parse_ip(value) when is_binary(value) and value != "" do
+    case :inet.parse_address(String.to_charlist(value)) do
+      {:ok, ip} -> ip
+      {:error, _} -> nil
+    end
+  end
+
+  defp parse_ip(_value), do: nil
+
+  defp unmap({0, 0, 0, 0, 0, 65_535, ab, cd}),
+    do: {div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)}
+
+  defp unmap(ip), do: ip
+
+  @doc """
+  Warns, once at start, about `trust_x_forwarded_for: true`: it no longer
+  does anything. A forwarded header from a private peer is always read, and
+  one from a public peer (a CDN in front of the site) never is — that needs
+  a `RemoteIp` plug. An explicit `false` asks for nothing that changed.
+  """
+  @spec warn_deprecated_config() :: :ok
+  def warn_deprecated_config do
+    if Application.get_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for) == true do
+      Logger.warning(
+        "[WebAnalytics] config :phoenix_kit_web_analytics, trust_x_forwarded_for: true is " <>
+          "deprecated and has no effect. X-Forwarded-For from a private or loopback peer is " <>
+          "always read (its last entry); behind a CDN or a proxy with a public address, add " <>
+          "a RemoteIp plug before PhoenixKitWebAnalytics.Plug. Remove the setting."
+      )
+    end
+
+    :ok
   end
 
   @doc """
@@ -142,20 +264,6 @@ defmodule PhoenixKitWebAnalytics.Tracking do
       binary |> binary_part(0, byte_size(binary) - 1) |> drop_partial_codepoint()
     end
   end
-
-  defp trust_forwarded?,
-    do: Application.get_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, false)
-
-  defp forwarded_ip(value) when is_binary(value) do
-    with [first | _] <- String.split(value, ","),
-         {:ok, ip} <- first |> String.trim() |> String.to_charlist() |> :inet.parse_address() do
-      ip
-    else
-      _ -> nil
-    end
-  end
-
-  defp forwarded_ip(_value), do: nil
 
   @doc "The logged-in user's UUID from conn or socket assigns, or nil."
   @spec current_user_uuid(map()) :: String.t() | nil
