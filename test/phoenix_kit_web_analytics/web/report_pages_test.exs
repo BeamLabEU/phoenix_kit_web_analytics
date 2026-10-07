@@ -186,5 +186,17 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       # The pass runs in start_async, off the LiveView's own process.
       assert render_async(view, 2_000) =~ "Rolled up 1 day(s)"
     end
+
+    test "warns when LiveView visits behind a proxy are being skipped", %{conn: conn} do
+      start_supervised!(PhoenixKitWebAnalytics.BotSignals)
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+      refute has_element?(view, "#web-analytics-x-headers-warning")
+
+      PhoenixKitWebAnalytics.BotSignals.count_live_visit(:skipped)
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+      assert has_element?(view, "#web-analytics-x-headers-warning")
+    end
   end
 end

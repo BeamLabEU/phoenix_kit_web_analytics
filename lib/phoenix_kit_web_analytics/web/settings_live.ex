@@ -23,6 +23,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWeb.Actor
   alias PhoenixKitWebAnalytics.Admin
   alias PhoenixKitWebAnalytics.Alerts
+  alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
 
@@ -143,7 +144,14 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
+    |> assign(:live_skips?, live_skips?())
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
+  end
+
+  # LiveView visits skipped for want of `:x_headers` — on this node, or (by the
+  # cluster's word) on another.
+  defp live_skips? do
+    BotSignals.skipped_live_visits() > 0 or BotSignals.skipping_live_visits?()
   end
 
   defp raw(key, default) do
@@ -191,6 +199,19 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
         >
           {if @enabled?, do: gettext("Turn off"), else: gettext("Turn on")}
         </button>
+      </div>
+
+      <div
+        :if={@live_skips?}
+        id="web-analytics-x-headers-warning"
+        role="alert"
+        class="alert alert-warning text-sm"
+      >
+        <span>
+          {gettext(
+            "Behind a proxy without :x_headers, LiveView visits are not recorded. Add :x_headers to the LiveView socket's connect_info, on both transports — see Installation below."
+          )}
+        </span>
       </div>
 
       <form id="web-analytics-settings" phx-submit="save" class="space-y-6">
@@ -543,11 +564,11 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             {gettext(
               "And let the LiveView socket see the visitor's address and browser — on both transports, websocket and longpoll:"
             )}
-            <pre class="mt-1 overflow-x-auto rounded bg-base-200 p-2 text-xs"><code>{"connect_info: [:peer_data, :user_agent, session: @session_options]"}</code></pre>
+            <pre class="mt-1 overflow-x-auto rounded bg-base-200 p-2 text-xs"><code>{"connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]"}</code></pre>
           </li>
           <li>
             {gettext(
-              "Behind a proxy or CDN, put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug — otherwise every visitor hashes to the same address."
+              "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
             )}
           </li>
         </ol>

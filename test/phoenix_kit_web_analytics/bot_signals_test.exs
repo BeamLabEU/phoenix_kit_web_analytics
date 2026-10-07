@@ -3,6 +3,7 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
 
   import Ecto.Query
 
+  alias PhoenixKit.PubSub.Manager
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -232,6 +233,72 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
       page("scraper", hours_ago(2))
 
       assert BotSignals.judge_no_js() == 0
+    end
+  end
+
+  describe "no JavaScript, while the hook skips live visits" do
+    # Behind a proxy without :x_headers the hook records nothing, so every
+    # LiveView visit would look like one that never connected.
+    @topic "phoenix_kit_web_analytics:live_skips"
+
+    setup do
+      enable_tracking()
+      page("visitor", hours_ago(2))
+      :ok
+    end
+
+    defp live_visits(tracked, skipped) do
+      Enum.each(1..tracked//1, fn _ -> BotSignals.count_live_visit(:tracked) end)
+      Enum.each(1..skipped//1, fn _ -> BotSignals.count_live_visit(:skipped) end)
+    end
+
+    defp flagged, do: Repo.aggregate(from(e in Event, where: e.is_bot), :count)
+
+    test "pauses at 5 % of this node's live visits skipped" do
+      live_visits(19, 1)
+
+      assert BotSignals.skipping_live_visits?()
+      assert BotSignals.judge_no_js() == 0
+      assert flagged() == 0
+    end
+
+    test "judges as usual below 5 %" do
+      live_visits(20, 1)
+
+      refute BotSignals.skipping_live_visits?()
+      assert BotSignals.skipped_live_visits() == 1
+      assert BotSignals.judge_no_js() == 1
+    end
+
+    test "pauses on another node's word, until it lapses" do
+      later = System.system_time(:millisecond) + 60_000
+      Manager.broadcast(@topic, {:live_visits_skipped, :web@other, later})
+      :sys.get_state(BotSignals)
+
+      assert BotSignals.skipping_live_visits?()
+      assert BotSignals.judge_no_js() == 0
+
+      lapsed = System.system_time(:millisecond) - 1
+      Manager.broadcast(@topic, {:live_visits_skipped, :web@other, lapsed})
+      :sys.get_state(BotSignals)
+
+      refute BotSignals.skipping_live_visits?()
+      assert BotSignals.judge_no_js() == 1
+    end
+
+    test "a skipping node tells the cluster on its sweep; a node that isn't, doesn't" do
+      Manager.subscribe(@topic)
+
+      send(BotSignals, :sweep)
+      :sys.get_state(BotSignals)
+      refute_received {:live_visits_skipped, _, _}
+
+      live_visits(0, 1)
+      send(BotSignals, :sweep)
+
+      assert_receive {:live_visits_skipped, from_node, until}
+      assert from_node == node()
+      assert until > System.system_time(:millisecond)
     end
   end
 end

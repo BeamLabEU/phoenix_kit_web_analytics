@@ -39,8 +39,8 @@ defmodule PhoenixKitWebAnalytics do
       {:phoenix_kit_web_analytics, "~> 0.2"}
 
   Then `mix deps.get` and `mix phoenix_kit.update`, add the plug and the hook,
-  list `:peer_data` and `:user_agent` in the LiveView socket's `connect_info`
-  (websocket and longpoll), and enable the module on the admin Modules page.
+  list `:peer_data`, `:x_headers` and `:user_agent` in the LiveView socket's
+  `connect_info` (websocket and longpoll), and enable the module on the admin Modules page.
 
   ## Data growth
 
@@ -60,7 +60,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Reports
 
-  @version "0.4.0"
+  @version "0.5.0"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 

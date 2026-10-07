@@ -104,17 +104,23 @@ Then enable **Web Analytics** on the admin Modules page, and:
 
    ```elixir
    socket "/live", Phoenix.LiveView.Socket,
-     websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
-     longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+     websocket: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]],
+     longpoll: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]]
    ```
 
-   Without both keys the hook stays inert rather than recording visitors it
-   would hash wrongly.
+   Without `:peer_data` and `:user_agent` the hook stays inert rather than
+   recording visitors it would hash wrongly. `:x_headers` carries the
+   forwarded address behind a reverse proxy; without it a socket behind one
+   is skipped, and Settings warns about it.
 
-4. **Behind a proxy or load balancer**, put a plug that rewrites `remote_ip`
+4. **Behind a reverse proxy** on the same box or network (nginx, Caddy,
+   Traefik, a container network) nothing more is needed: the visitor's
+   address is read from the forwarded headers — see
+   [Behind a reverse proxy](#behind-a-reverse-proxy). Behind a **chain**
+   (a CDN in front of a load balancer), put a plug that rewrites `remote_ip`
    from headers your infrastructure controls — such as
    [`remote_ip`](https://hex.pm/packages/remote_ip) — **before** the tracking
-   plug, or every visitor collapses into one.
+   plug, or every visitor collapses into the CDN's addresses.
 
 The client script ships through the module's `js_sources/0`, so a host set up
 by `mix phoenix_kit.install` loads it with no change; switch **Accept the
@@ -216,7 +222,9 @@ default — **Spot bots by behaviour**):
 - **speed** — more than 30 page views a minute from one visitor;
 - **no JavaScript** — a LiveView page whose live connection never came (no
   exit, click or live navigation from that visitor all day), judged after
-  30 minutes. Only pages running the hook count.
+  30 minutes. Only pages running the hook count, and the check pauses while
+  the hook is skipping LiveView visits behind a proxy (see
+  [Behind a reverse proxy](#behind-a-reverse-proxy)).
 
 A flagged visit is marked as a bot's with the reason (shown on the visit
 page), so every report drops it; later hits of the visit inherit the flag. A
@@ -336,11 +344,6 @@ Application config:
 # An IP → location resolver; see PhoenixKitWebAnalytics.Geo
 config :phoenix_kit_web_analytics, geo_resolver: MyApp.GeoIP
 
-# Read X-Forwarded-For for the visitor hash (plug, beacon and LiveView). Only
-# when something upstream is guaranteed to overwrite it — a `remote_ip` plug
-# is the better fix. For LiveView, also list :x_headers in connect_info.
-config :phoenix_kit_web_analytics, trust_x_forwarded_for: true
-
 # Concurrent background writes before hits are dropped.
 config :phoenix_kit_web_analytics, max_concurrent_writes: 20
 
@@ -357,14 +360,71 @@ config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 10_000
 config :phoenix_kit_web_analytics, presence_supersede_ms: 30_000
 ```
 
-`trust_x_forwarded_for` reads the **first** address in `X-Forwarded-For`,
-which the client controls unless your proxy replaces the header rather than
-appending to it — with an appending proxy a visitor can pose as many.
+`trust_x_forwarded_for` is deprecated and does nothing (a warning is logged
+at start while it is set): the forwarded header from a private peer is always
+read — see [Behind a reverse proxy](#behind-a-reverse-proxy).
 
 The collection endpoints read `text/plain` bodies (what `navigator.sendBeacon`
 sends) themselves, capped at 16 KB (128 KB for a recording chunk). A body sent
 as JSON is parsed by your endpoint's `Plug.Parsers` first, under its own
 `:length` limit — keep that limit modest on a public site.
+
+## Behind a reverse proxy
+
+The address is visitor-hash input only — it is never stored. The plug, the
+beacon and the LiveView hook read it the way PhoenixKit reads it for a login
+(`PhoenixKit.Utils.IpAddress`):
+
+- a public peer address is the visitor, and forwarded headers from it are
+  ignored (anyone can send them);
+- a private or loopback peer (`10/8`, `172.16/12`, `192.168/16`,
+  `127/8`, `::1`, `fc00::/7`) is a proxy, and the visitor is the **last**
+  entry of `X-Forwarded-For` — the one that proxy appended; a visitor can
+  send their own header, but can't control what the proxy adds after it —
+  then `X-Real-IP`;
+- `::ffff:a.b.c.d` counts as the IPv4 address it carries.
+
+### Behind a reverse proxy that appends the port (e.g. Caddy `{remote}`)
+
+Some proxy configurations forward `203.0.113.7:51234` instead of
+`203.0.113.7` — Caddy with `header_up X-Forwarded-For {remote}` does. Such a
+value is read too: an IPv4 address followed by `:port`, and a bracketed IPv6
+address with or without one (`[2001:db8::7]:443`), lose the port. A bare IPv6
+address is never cut — `2001:db8::1:443` is a valid address.
+
+For LiveView, list `:x_headers` in the socket's `connect_info` (on both
+transports, see Installation). Without it, a socket whose peer is the proxy
+has no way to name its visitor, so the hook records nothing for it — no live
+navigation, interaction or "Right now" entry — and counts the skip; Settings
+then warns, and the "no JavaScript" bot check pauses so the missed visits
+aren't taken for bots. **Add `:x_headers` to the endpoint first, then deploy
+0.5.0 or later.**
+
+The cleaner fix is on the proxy: forward the address without the port. In
+Caddy that is `{remote_host}` instead of `{remote}`, or no
+`header_up X-Forwarded-For` / `X-Real-IP` lines at all — Caddy 2.5 and later
+sets `X-Forwarded-For` itself, without a port:
+
+```caddyfile
+reverse_proxy app:4000 {
+  header_up X-Real-IP {remote_host}
+}
+```
+
+### Behind a CDN and a load balancer
+
+With more than one proxy in front, the last `X-Forwarded-For` entry is the
+nearest proxy's view of its client — the CDN, not the visitor. Rewrite
+`remote_ip` before the tracking plug with a plug that walks the chain over
+the proxies you trust — [`remote_ip`](https://hex.pm/packages/remote_ip):
+
+```elixir
+plug RemoteIp, proxies: ["198.51.100.0/24"]
+plug PhoenixKitWebAnalytics.Plug
+```
+
+A public `remote_ip` is taken as is. A LiveView socket doesn't go through
+plugs, so its address still comes from `:x_headers` by the rule above.
 
 ## Excluding specific requests
 

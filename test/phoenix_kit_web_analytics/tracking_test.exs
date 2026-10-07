@@ -1,6 +1,6 @@
 defmodule PhoenixKitWebAnalytics.TrackingTest do
-  # Not async: the X-Forwarded-For tests flip application env that every
-  # client_ip/1 caller reads.
+  # Not async: a client_ip/1 test flips the deprecated trust_x_forwarded_for
+  # application env.
   use ExUnit.Case, async: false
 
   import Plug.Test, only: [conn: 2]
@@ -172,8 +172,84 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
   end
 
   describe "client_ip/1" do
-    setup do
+    @proxy {172, 18, 0, 8}
+
+    defp behind(peer, headers) do
+      Enum.reduce(headers, conn(:get, "/") |> Map.put(:remote_ip, peer), fn {name, value}, conn ->
+        %{conn | req_headers: conn.req_headers ++ [{name, value}]}
+      end)
+    end
+
+    defp xff(value), do: behind(@proxy, [{"x-forwarded-for", value}])
+
+    test "behind a private peer, takes the last X-Forwarded-For entry — the proxy's" do
+      assert Tracking.client_ip(xff("198.51.100.1, 10.0.0.2, 203.0.113.9")) == {203, 0, 113, 9}
+      assert Tracking.client_ip(xff(" 2001:db8::1 ")) == {8193, 3512, 0, 0, 0, 0, 0, 1}
+    end
+
+    test "reads every X-Forwarded-For line as one list" do
+      conn =
+        behind(@proxy, [
+          {"x-forwarded-for", "198.51.100.1"},
+          {"x-forwarded-for", "203.0.113.9:51234"}
+        ])
+
+      assert Tracking.client_ip(conn) == {203, 0, 113, 9}
+    end
+
+    test "drops a port the proxy appended to an IPv4 or a bracketed IPv6 address" do
+      assert Tracking.client_ip(xff("203.0.113.9:51234")) == {203, 0, 113, 9}
+      assert Tracking.client_ip(xff("198.51.100.1, 203.0.113.9:51234")) == {203, 0, 113, 9}
+      assert Tracking.client_ip(xff("[2001:db8::7]:443")) == {8193, 3512, 0, 0, 0, 0, 0, 7}
+      assert Tracking.client_ip(xff("[2001:db8::7]")) == {8193, 3512, 0, 0, 0, 0, 0, 7}
+    end
+
+    test "leaves a bare IPv6 address alone: its last group is not a port" do
+      assert Tracking.client_ip(xff("2001:db8::1:443")) == {8193, 3512, 0, 0, 0, 0, 1, 0x443}
+    end
+
+    test "an IPv4-mapped address comes back as IPv4" do
+      assert Tracking.client_ip(xff("::ffff:203.0.113.9")) == {203, 0, 113, 9}
+
+      assert Tracking.client_ip(behind({0, 0, 0, 0, 0, 65_535, 52_000, 1}, [])) ==
+               {203, 32, 0, 1}
+
+      # A mapped private peer is still a proxy.
+      mapped_proxy = {0, 0, 0, 0, 0, 65_535, 44_050, 8}
+
+      assert Tracking.client_ip(behind(mapped_proxy, [{"x-forwarded-for", "203.0.113.9:1"}])) ==
+               {203, 0, 113, 9}
+    end
+
+    test "falls back to X-Real-IP, port and all" do
+      assert Tracking.client_ip(behind(@proxy, [{"x-real-ip", "203.0.113.9:51234"}])) ==
+               {203, 0, 113, 9}
+
+      conn = behind(@proxy, [{"x-forwarded-for", "garbage"}, {"x-real-ip", "203.0.113.9"}])
+      assert Tracking.client_ip(conn) == {203, 0, 113, 9}
+    end
+
+    test "a public peer is the visitor; its forwarded headers are ignored" do
+      conn =
+        behind({198, 51, 100, 4}, [
+          {"x-forwarded-for", "203.0.113.9"},
+          {"x-real-ip", "203.0.113.9"}
+        ])
+
+      assert Tracking.client_ip(conn) == {198, 51, 100, 4}
+    end
+
+    test "falls back to the peer on a garbage, empty or missing header" do
+      assert Tracking.client_ip(xff("203.0.113.9, not-an-ip")) == @proxy
+      assert Tracking.client_ip(xff("")) == @proxy
+      assert Tracking.client_ip(xff("999.0.113.9:80")) == @proxy
+      assert Tracking.client_ip(xff("[garbage]:80")) == @proxy
+      assert Tracking.client_ip(behind(@proxy, [])) == @proxy
+    end
+
+    test "trust_x_forwarded_for no longer changes anything" do
       previous = Application.fetch_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
+      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, false)
 
       on_exit(fn ->
         case previous do
@@ -185,81 +261,60 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
         end
       end)
 
-      :ok
-    end
+      assert Tracking.client_ip(xff("198.51.100.1, 203.0.113.9")) == {203, 0, 113, 9}
 
-    defp with_xff(value) do
-      conn(:get, "/")
-      |> Map.put(:remote_ip, {10, 0, 0, 1})
-      |> Plug.Conn.put_req_header("x-forwarded-for", value)
-    end
+      assert ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end) =~
+               "trust_x_forwarded_for is deprecated"
 
-    test "uses remote_ip and ignores X-Forwarded-For by default" do
       Application.delete_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
 
-      assert Tracking.client_ip(with_xff("203.0.113.9")) == {10, 0, 0, 1}
-    end
-
-    test "uses the first X-Forwarded-For entry when trusted" do
-      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, true)
-
-      assert Tracking.client_ip(with_xff("203.0.113.9, 10.0.0.2, 10.0.0.3")) ==
-               {203, 0, 113, 9}
-
-      assert Tracking.client_ip(with_xff(" 2001:db8::1 ")) == {8193, 3512, 0, 0, 0, 0, 0, 1}
-    end
-
-    test "falls back to remote_ip on a garbage or missing header" do
-      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, true)
-
-      assert Tracking.client_ip(with_xff("not-an-ip, 203.0.113.9")) == {10, 0, 0, 1}
-      assert Tracking.client_ip(with_xff("")) == {10, 0, 0, 1}
-
-      bare = conn(:get, "/") |> Map.put(:remote_ip, {10, 0, 0, 1})
-      assert Tracking.client_ip(bare) == {10, 0, 0, 1}
+      assert ExUnit.CaptureLog.capture_log(fn -> Tracking.warn_deprecated_config() end) == ""
     end
   end
 
-  describe "socket_ip/2" do
-    setup do
-      previous = Application.fetch_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
+  describe "socket_ip/1" do
+    @proxy {172, 18, 0, 8}
 
-      on_exit(fn ->
-        case previous do
-          {:ok, value} ->
-            Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, value)
+    # What a connected mount's socket carries: the endpoint's connect_info.
+    defp socket(connect_info),
+      do: %Phoenix.LiveView.Socket{private: %{connect_info: Map.new(connect_info)}}
 
-          :error ->
-            Application.delete_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
-        end
-      end)
+    defp peer(address), do: %{address: address, port: 4000, ssl_cert: nil}
 
-      :ok
+    test "behind a private peer, reads the forwarded address from :x_headers, port dropped" do
+      info = [peer_data: peer(@proxy), x_headers: [{"x-forwarded-for", "203.0.113.9:51234"}]]
+      assert Tracking.socket_ip(socket(info)) == {203, 0, 113, 9}
+
+      info = [peer_data: peer(@proxy), x_headers: [{"x-real-ip", "[2001:db8::7]:443"}]]
+      assert Tracking.socket_ip(socket(info)) == {8193, 3512, 0, 0, 0, 0, 0, 7}
     end
 
-    @peer {10, 0, 0, 1}
-
-    test "returns the peer address when forwarding isn't trusted" do
-      Application.delete_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for)
-
-      assert Tracking.socket_ip(@peer, [{"x-forwarded-for", "203.0.113.9"}]) == @peer
+    test "a private peer with no :x_headers in connect_info can't name its visitor" do
+      assert Tracking.socket_ip(socket(peer_data: peer(@proxy))) == nil
+      assert Tracking.socket_ip(socket(peer_data: peer({127, 0, 0, 1}))) == nil
     end
 
-    test "uses the first forwarded entry when trusted" do
-      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, true)
+    test ":x_headers listed but empty (no proxy in front) — the peer is the visitor" do
+      assert Tracking.socket_ip(socket(peer_data: peer(@proxy), x_headers: [])) == @proxy
 
-      assert Tracking.socket_ip(@peer, [
-               {"x-real-ip", "1.1.1.1"},
-               {"x-forwarded-for", "203.0.113.9, 10.0.0.2"}
-             ]) == {203, 0, 113, 9}
+      assert Tracking.socket_ip(
+               socket(peer_data: peer(@proxy), x_headers: [{"x-forwarded-for", "garbage"}])
+             ) == @proxy
     end
 
-    test "falls back to the peer on nil, missing or garbage headers" do
-      Application.put_env(:phoenix_kit_web_analytics, :trust_x_forwarded_for, true)
+    test "a public peer is the visitor, with or without :x_headers" do
+      public = {198, 51, 100, 4}
 
-      assert Tracking.socket_ip(@peer, nil) == @peer
-      assert Tracking.socket_ip(@peer, []) == @peer
-      assert Tracking.socket_ip(@peer, [{"x-forwarded-for", "garbage"}]) == @peer
+      assert Tracking.socket_ip(socket(peer_data: peer(public))) == public
+
+      assert Tracking.socket_ip(
+               socket(peer_data: peer(public), x_headers: [{"x-forwarded-for", "203.0.113.9"}])
+             ) == public
+    end
+
+    test "no peer data, or a socket outside mount, gives nil rather than raising" do
+      assert Tracking.socket_ip(socket(user_agent: "x")) == nil
+      assert Tracking.socket_ip(%Phoenix.LiveView.Socket{}) == nil
     end
   end
 

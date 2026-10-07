@@ -40,21 +40,26 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   hook does nothing unless the endpoint provides them:
 
       socket "/live", Phoenix.LiveView.Socket,
-        websocket: [connect_info: [:peer_data, :user_agent, session: @session_options]],
-        longpoll: [connect_info: [:peer_data, :user_agent, session: @session_options]]
+        websocket: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]],
+        longpoll: [connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]]
 
-  Both keys must be listed, **on both transports**: LiveView falls back to
-  long polling when a websocket can't be opened (a corporate proxy, a flaky
+  The keys must be listed **on both transports**: LiveView falls back to long
+  polling when a websocket can't be opened (a corporate proxy, a flaky
   network), and a visitor on the fallback transport is invisible to this hook
-  if only `websocket:` carries them. If either is missing the hook stays inert
-  and only full page loads are counted — check this first if LiveView activity
-  isn't showing up.
+  if only `websocket:` carries them. If `:peer_data` or `:user_agent` is
+  missing the hook stays inert and only full page loads are counted — check
+  this first if LiveView activity isn't showing up.
 
-  Behind a proxy with `config :phoenix_kit_web_analytics,
-  trust_x_forwarded_for: true`, also list `:x_headers` on both transports, so
-  the hook reads the same forwarded address the plug does (and an
-  `x-accept-language` header, when a proxy sets one, for the visitor's
-  language).
+  `:x_headers` is what lets the hook see the visitor behind a reverse proxy:
+  when the socket's peer is a private or loopback address (the proxy), the
+  visitor's address is the forwarded one, read by the same rule as the plug
+  (see "Client IP" in `PhoenixKitWebAnalytics.Plug`). Without `:x_headers`
+  such a socket can't name its visitor, so the hook stays inert for it —
+  no page view, no interaction, no "Right now" entry — and counts the skip;
+  Settings then shows a warning. With `:x_headers` listed and no proxy in
+  front (development, a LAN), the peer is the visitor. The same headers
+  carry an `x-accept-language`, when a proxy sets one, for the visitor's
+  language.
 
   ## Not double-counted
 
@@ -93,6 +98,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, get_connect_info: 2, get_connect_params: 1]
 
+  alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LivePresence
@@ -317,24 +323,33 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp opted_out?(_session), do: false
 
   # nil (rather than an empty map) signals "can't identify this visitor the same
-  # way the plug would" — see the moduledoc.
+  # way the plug would" — see the moduledoc. A socket that has both inputs but
+  # sits behind a proxy without `:x_headers` is counted as skipped, which
+  # pauses the no-JavaScript bot judgement while visits are being missed.
   defp client_info(socket) do
     user_agent = get_connect_info(socket, :user_agent)
     peer_data = get_connect_info(socket, :peer_data)
 
-    case {user_agent, peer_data} do
-      {ua, %{address: address}} when is_binary(ua) ->
-        x_headers = get_connect_info(socket, :x_headers)
-
-        %{
-          ip: Tracking.socket_ip(address, x_headers),
-          user_agent: ua,
-          language: accept_language(x_headers)
-        }
-
-      _ ->
-        nil
+    with {ua, %{address: _}} when is_binary(ua) <- {user_agent, peer_data},
+         ip when not is_nil(ip) <- counted(Tracking.socket_ip(socket)) do
+      %{
+        ip: ip,
+        user_agent: ua,
+        language: accept_language(get_connect_info(socket, :x_headers))
+      }
+    else
+      _ -> nil
     end
+  end
+
+  defp counted(nil) do
+    BotSignals.count_live_visit(:skipped)
+    nil
+  end
+
+  defp counted(ip) do
+    BotSignals.count_live_visit(:tracked)
+    ip
   end
 
   # Only `x-`-prefixed headers reach `:x_headers`, so this finds a language

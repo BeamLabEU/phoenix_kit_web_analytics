@@ -3,6 +3,59 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.5.0 - 2026-10-07
+
+### ⚠️ Upgrade
+
+- **Add `:x_headers` to the LiveView socket's `connect_info` first, then
+  deploy** — on both transports:
+  `connect_info: [:peer_data, :x_headers, :user_agent, session: @session_options]`.
+  Behind a reverse proxy, a socket without it can no longer name its visitor,
+  and the hook now records nothing for it (no live navigation, interaction or
+  "Right now" entry) instead of recording the proxy as the visitor. Settings
+  warns while that happens, and the "no JavaScript" bot check pauses.
+- **`X-Forwarded-For` from a private or loopback peer is always read, and its
+  LAST entry is taken** — the one the proxy appended, as PhoenixKit core reads
+  it for a login. Before, the FIRST entry was read, and only with
+  `trust_x_forwarded_for: true`. Behind a chain (a CDN in front of a load
+  balancer) the last entry is the CDN's: rewrite `remote_ip` with
+  [`remote_ip`](https://hex.pm/packages/remote_ip) before the tracking plug.
+- **Expect more visitors and fewer bots from the day of the deploy.** Behind a
+  proxy every visitor used to hash to the proxy's address: visitors sharing a
+  browser were merged into one, and the merged "visitor" was often flagged
+  `rate` (too many page views a minute). Visits recorded before the deploy are
+  not recounted.
+
+### Fixed
+
+- **Behind a reverse proxy every visitor was the proxy.** The plug, the beacon
+  and the LiveView hook now delegate to core's
+  `PhoenixKit.Utils.IpAddress.client_address/1` /
+  `client_address_from_socket/1`, and when core answers with the proxy's own
+  address although a forwarded header is there (a core release that doesn't
+  parse ports), read the headers themselves by the same rule: the last
+  `X-Forwarded-For` entry across all its lines, then `X-Real-IP`. A port the
+  proxy appended is dropped from `a.b.c.d:port` and `[v6]:port` (Caddy's
+  `{remote}`); a bare IPv6 address is never cut (`2001:db8::1:443` is an
+  address). `::ffff:a.b.c.d` is read as IPv4. A public peer is the visitor and
+  its forwarded headers are ignored.
+- The "no JavaScript" judgement no longer flags LiveView visits the hook had
+  to skip: while at least 5 % of a node's live visits in the last 24 hours
+  were skipped, the node tells the cluster and no visit is judged.
+
+### Changed
+
+- With `:x_headers` listed and no forwarded header (development, a LAN without
+  a proxy), a private peer is the visitor, as for the plug.
+- The `connect_info` snippets (README, Settings, `LiveHook` docs) list
+  `:x_headers`. The README has a "Behind a reverse proxy" section, including
+  the proxy-side fix for Caddy (`{remote_host}`, or no `header_up` at all).
+
+### Deprecated
+
+- `config :phoenix_kit_web_analytics, trust_x_forwarded_for:` has no effect; a
+  warning is logged at start while it is set.
+
 ## 0.4.0 - 2026-10-07
 
 ### ⚠️ Upgrade

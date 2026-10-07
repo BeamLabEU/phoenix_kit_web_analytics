@@ -28,6 +28,14 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   without a click until its exit).
 
   On by default; `web_analytics_detect_bots` switches all three off.
+
+  The no-JavaScript judgement waits while LiveView visits are being missed:
+  behind a reverse proxy, on an endpoint whose `connect_info` lacks
+  `:x_headers`, the hook can't name the visitor and records nothing (see
+  `PhoenixKitWebAnalytics.LiveHook`), so every such visit would look like
+  one that never connected. When the hook skipped at least 5 % of a node's
+  live visits in the last 24 hours, that node tells the cluster, and no
+  visit is judged until no node does.
   """
 
   use GenServer
@@ -36,6 +44,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
   require Logger
 
+  alias PhoenixKit.PubSub.Manager
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -54,6 +63,14 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
   # Reports that only a browser running JavaScript sends.
   @js_sources ["live_presence", "live_navigation", "client_script"]
+
+  # Live visits the hook had to skip: counted per hour, judged over a day.
+  @live_window_hours 24
+  @live_skip_share 0.05
+  @live_topic "phoenix_kit_web_analytics:live_skips"
+  # A skipping node says so on every sweep; its word lapses after this long,
+  # so a node that was fixed (or went away) stops pausing the cluster.
+  @live_flag_ttl_ms :timer.minutes(10)
 
   @doc false
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -112,6 +129,80 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
         :bot_pageviews_per_minute,
         @default_pageviews_per_minute
       )
+
+  # ── live visits the hook skipped ──────────────────────────────────────────
+
+  @doc """
+  Counts a connected LiveView mount on this node: `:tracked` when the hook
+  could name the visitor, `:skipped` when it couldn't (a proxy's address and
+  no `:x_headers`).
+  """
+  @spec count_live_visit(:tracked | :skipped) :: :ok
+  def count_live_visit(kind) when kind in [:tracked, :skipped] do
+    key = {:live, kind, hour()}
+    :ets.update_counter(@table, key, {2, 1}, {key, 0})
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  @doc "Live visits this node skipped in the last #{@live_window_hours} hours."
+  @spec skipped_live_visits() :: non_neg_integer()
+  def skipped_live_visits, do: live_counts().skipped
+
+  @doc """
+  Whether live visits are being skipped often enough to pause the
+  no-JavaScript judgement: at least 5 % of this node's in the last
+  #{@live_window_hours} hours, or another node said so in the last
+  #{div(@live_flag_ttl_ms, 60_000)} minutes.
+  """
+  @spec skipping_live_visits?() :: boolean()
+  def skipping_live_visits?, do: over_share?(live_counts()) or announced?()
+
+  defp live_counts do
+    since = hour() - @live_window_hours + 1
+
+    @table
+    |> :ets.select([{{{:live, :"$1", :"$2"}, :"$3"}, [{:>=, :"$2", since}], [{{:"$1", :"$3"}}]}])
+    |> Enum.reduce(%{tracked: 0, skipped: 0}, fn {kind, n}, acc ->
+      Map.update!(acc, kind, &(&1 + n))
+    end)
+  rescue
+    ArgumentError -> %{tracked: 0, skipped: 0}
+  end
+
+  defp over_share?(%{tracked: tracked, skipped: skipped}),
+    do: skipped > 0 and skipped >= @live_skip_share * (tracked + skipped)
+
+  defp announced? do
+    now = System.system_time(:millisecond)
+    :ets.select_count(@table, [{{{:live_skipping, :_}, :"$1"}, [{:>, :"$1", now}], [true]}]) > 0
+  rescue
+    ArgumentError -> false
+  end
+
+  # Every node judges the share of its own visits; the node that runs the
+  # judgement (whichever holds the retention lock) hears from the others.
+  defp announce_live_skips do
+    if over_share?(live_counts()) do
+      until = System.system_time(:millisecond) + @live_flag_ttl_ms
+      Manager.broadcast(@live_topic, {:live_visits_skipped, node(), until})
+    end
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] could not announce skipped live visits: #{inspect(error)}")
+  end
+
+  defp subscribe_to_live_skips do
+    Manager.subscribe(@live_topic)
+  rescue
+    error ->
+      Logger.warning(
+        "[WebAnalytics] could not subscribe to skipped live visits: #{inspect(error)}"
+      )
+  end
+
+  defp hour, do: div(System.system_time(:second), 3600)
 
   # ── flagging ──────────────────────────────────────────────────────────────
 
@@ -196,12 +287,22 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   """
   @spec judge_no_js(DateTime.t(), keyword()) :: non_neg_integer()
   def judge_no_js(now \\ DateTime.utc_now(), opts \\ []) do
-    if detect?() do
-      to = DateTime.add(now, -@judge_after_minutes * 60, :second)
-      from = DateTime.add(to, -@window_hours * 3600, :second)
-      judge_batches(from, to, nil, Keyword.get(opts, :batch, @batch), 0)
-    else
-      0
+    cond do
+      not detect?() ->
+        0
+
+      skipping_live_visits?() ->
+        Logger.info(
+          "[WebAnalytics] no-JavaScript judgement paused: LiveView visits behind a proxy " <>
+            "are not being recorded — list :x_headers in the LiveView socket's connect_info"
+        )
+
+        0
+
+      true ->
+        to = DateTime.add(now, -@judge_after_minutes * 60, :second)
+        from = DateTime.add(to, -@window_hours * 3600, :second)
+        judge_batches(from, to, nil, Keyword.get(opts, :batch, @batch), 0)
     end
   rescue
     error ->
@@ -281,6 +382,8 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   @impl GenServer
   def init(_opts) do
     :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
+    subscribe_to_live_skips()
+    PhoenixKitWebAnalytics.Tracking.warn_deprecated_config()
     Process.send_after(self(), :sweep, @sweep_ms)
     {:ok, %{}}
   end
@@ -288,8 +391,22 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   @impl GenServer
   def handle_info(:sweep, state) do
     current = minute()
-    :ets.select_delete(@table, [{{{:rate, :_, :"$1"}, :_}, [{:<, :"$1", current}], [true]}])
+    since = hour() - @live_window_hours + 1
+    now = System.system_time(:millisecond)
+
+    :ets.select_delete(@table, [
+      {{{:rate, :_, :"$1"}, :_}, [{:<, :"$1", current}], [true]},
+      {{{:live, :_, :"$1"}, :_}, [{:<, :"$1", since}], [true]},
+      {{{:live_skipping, :_}, :"$1"}, [{:"=<", :"$1", now}], [true]}
+    ])
+
+    announce_live_skips()
     Process.send_after(self(), :sweep, @sweep_ms)
+    {:noreply, state}
+  end
+
+  def handle_info({:live_visits_skipped, from_node, until}, state) when is_integer(until) do
+    :ets.insert(@table, {{:live_skipping, from_node}, until})
     {:noreply, state}
   end
 
