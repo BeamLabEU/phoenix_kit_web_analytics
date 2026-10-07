@@ -11,6 +11,9 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
   name, which properties. It cannot influence **identity**:
 
     * only the path is read from the client's URL; scheme and host are dropped
+      (campaign parameters and an ad-click identifier are read from its query
+      string — so a beacon-recorded `click_id` is client-supplied, like any
+      landing URL)
     * `user_uuid` is never read from the body (the collection endpoints run
       without a session, so beacon hits are never attributed to a user)
     * `visitor_id` is derived server-side downstream and isn't representable
@@ -140,11 +143,15 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
 
   def path(_url), do: "/"
 
-  @doc "Extracts campaign parameters from a client-sent URL's query string."
+  @doc """
+  Extracts campaign parameters and ad-click identifiers from a client-sent
+  URL's query string (`Tracking.campaign_params/1`; the name predates the
+  identifiers).
+  """
   @spec utm_params(term()) :: map()
   def utm_params(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{query: query} when is_binary(query) -> Tracking.utm_params(query)
+      %URI{query: query} when is_binary(query) -> Tracking.campaign_params(query)
       _ -> %{}
     end
   end

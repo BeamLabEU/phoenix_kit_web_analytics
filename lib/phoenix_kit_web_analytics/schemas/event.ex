@@ -12,6 +12,9 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
   `visitor_id` is a truncated SHA-256 of `salt <> ip <> user_agent <> date`
   (see `PhoenixKitWebAnalytics.Visitor`) — it cannot be reversed to an IP, it
   cannot be joined across days, and it changes when the daily salt rotates.
+  The exception is `click_id`: an ad platform's own identifier, kept when a
+  visit lands with one, which is pseudonymous and links to the platform's
+  user (see the README's Privacy section).
   `session_id` is stitched server-side by
   `PhoenixKitWebAnalytics.Collector`: an event reuses the visitor's previous
   session when the previous hit is inside the session window, otherwise it
@@ -66,6 +69,12 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     field(:utm_campaign, :string)
     field(:utm_term, :string)
     field(:utm_content, :string)
+    # An ad click's own identifier and the parameter that carried it (`gclid`,
+    # `gbraid`, `msclkid`, …; `Tracking.click_source/1` names the platform). The
+    # only mark a paid click leaves on the URL, and what a conversion is
+    # reported back against.
+    field(:click_id, :string)
+    field(:click_param, :string)
 
     field(:browser, :string)
     field(:browser_version, :string)
@@ -97,6 +106,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     visitor_id session_id user_uuid
     referrer referrer_source referrer_medium
     utm_source utm_medium utm_campaign utm_term utm_content
+    click_id click_param
     browser browser_version os os_version device_type language is_bot
     country_code region city status duration_ms engaged_ms scroll_depth target
     session_start metadata inserted_at
@@ -141,6 +151,8 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     |> truncate(:utm_campaign, 255)
     |> truncate(:utm_term, 255)
     |> truncate(:utm_content, 255)
+    |> truncate(:click_id, 255)
+    |> truncate(:click_param, 20)
     |> truncate(:browser, 60)
     |> truncate(:browser_version, 30)
     |> truncate(:os, 60)

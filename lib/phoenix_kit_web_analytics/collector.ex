@@ -80,6 +80,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.Tracking
   alias PhoenixKitWebAnalytics.UserAgent
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -516,17 +517,61 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
     utm_source = param(params, "utm_source")
     utm_medium = param(params, "utm_medium")
+    {click_param, click_id} = click_attrs(params)
+    tagged_medium = utm_medium(utm_medium, utm_source, medium)
 
     %{
       referrer: referrer,
-      referrer_source: utm_source || source,
-      referrer_medium: utm_medium(utm_medium, utm_source, medium),
+      referrer_source: utm_source || click_referrer_source(click_param, medium, source),
+      referrer_medium: click_referrer_medium(click_param, medium, tagged_medium),
       utm_source: utm_source,
       utm_medium: utm_medium,
       utm_campaign: param(params, "utm_campaign"),
       utm_term: param(params, "utm_term"),
-      utm_content: param(params, "utm_content")
+      utm_content: param(params, "utm_content"),
+      click_id: click_id,
+      click_param: click_param
     }
+  end
+
+  # The first identifier present wins; order follows click_param_names/0, so a
+  # URL carrying both `wbraid` and `msclkid` is recorded under the same one
+  # every time rather than whichever way the map happened to be ordered.
+  defp click_attrs(params) do
+    Enum.find_value(Tracking.click_param_names(), {nil, nil}, fn name ->
+      case param(params, name) do
+        nil -> nil
+        value -> {name, value}
+      end
+    end)
+  end
+
+  # A click identifier says nothing about an internal hit: with Google's
+  # `url_passthrough` the identifier rides along on every internal link of an
+  # ad visit. An ad-only identifier names the platform; `fbclid` (also on
+  # organic and Instagram clicks) only fills in for a missing referrer.
+  defp click_referrer_source(nil, _medium, source), do: source
+  defp click_referrer_source(_click_param, "internal", source), do: source
+
+  defp click_referrer_source(click_param, _medium, source) do
+    if Tracking.paid_click?(click_param),
+      do: Tracking.click_source(click_param),
+      else: source || Tracking.click_source(click_param)
+  end
+
+  # An ad-only identifier is proof of a paid click on its own: the ad platform
+  # put it there. Without this, an auto-tagged ad visit lands in the table as
+  # "direct" (no utm_medium, often no referrer) and is invisible in every
+  # report.
+  defp click_referrer_medium(nil, _medium, tagged), do: tagged
+  defp click_referrer_medium(_click_param, "internal", tagged), do: tagged
+
+  defp click_referrer_medium(click_param, _medium, tagged) do
+    cond do
+      Tracking.paid_click?(click_param) -> "paid"
+      tagged == "none" -> "social"
+      true -> tagged
+    end
   end
 
   # `utm_medium` is free text ("cpc", "newsletter", …) but the column is a
@@ -624,7 +669,20 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   defp normalize_language(_language), do: nil
 
-  defp param(params, key) when is_map(params), do: presence(Map.get(params, key))
+  # A value that isn't valid UTF-8 (`?gclid=%FF`) can't be stored in a text
+  # column; dropping it keeps the rest of the hit instead of losing the insert.
+  # NULs go before the presence check, so `?gclid=%00` is no identifier rather
+  # than an empty one.
+  defp param(params, key) when is_map(params) do
+    case Map.get(params, key) do
+      value when is_binary(value) ->
+        if String.valid?(value), do: value |> String.replace(<<0>>, "") |> presence()
+
+      _ ->
+        nil
+    end
+  end
+
   defp param(_params, _key), do: nil
 
   defp presence(value) when is_binary(value) do

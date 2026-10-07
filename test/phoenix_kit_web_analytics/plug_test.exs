@@ -121,6 +121,39 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert is_integer(event.duration_ms) and event.duration_ms >= 0
     end
 
+    test "stores an ad-click identifier from an unfetched query string" do
+      "/landing?gclid=EAIaIQob&session=secret"
+      |> request()
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.click_id == "EAIaIQob"
+      assert event.click_param == "gclid"
+      assert event.referrer_medium == "paid"
+      refute inspect(event) =~ "secret"
+    end
+
+    test "stores an ad-click identifier from already-fetched query params" do
+      "/landing?msclkid=m1&session=secret"
+      |> request()
+      |> Plug.Conn.fetch_query_params()
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.click_id == "m1"
+      assert event.click_param == "msclkid"
+    end
+
+    test "a list-shaped click parameter is ignored, the page view is kept" do
+      "/landing?gclid[]=a&gclid[]=b"
+      |> request()
+      |> Plug.Conn.fetch_query_params()
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert is_nil(event.click_id)
+    end
+
     test "stores the referrer without its query string" do
       "/landing"
       |> request([{"referer", "https://mail.example.org/reset?token=abc&email=a@b.c#top"}])

@@ -7,6 +7,8 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
 
   alias PhoenixKitWebAnalytics.Tracking
 
+  doctest PhoenixKitWebAnalytics.Tracking
+
   describe "utm_params/1" do
     test "keeps only the campaign parameters" do
       query =
@@ -48,6 +50,71 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
     test "utm_param_names/0 lists exactly the five campaign keys" do
       assert Enum.sort(Tracking.utm_param_names()) ==
                ~w(utm_campaign utm_content utm_medium utm_source utm_term)
+    end
+  end
+
+  describe "campaign_params/1" do
+    test "keeps campaign parameters and ad-click identifiers, drops the rest" do
+      query =
+        "utm_source=google&utm_medium=cpc&gclid=EAIaIQobCh&msclkid=abc" <>
+          "&session=secret&q=garden+chairs"
+
+      assert Tracking.campaign_params(query) == %{
+               "utm_source" => "google",
+               "utm_medium" => "cpc",
+               "gclid" => "EAIaIQobCh",
+               "msclkid" => "abc"
+             }
+    end
+
+    test "an auto-tagged ad click with no utm parameters is still kept" do
+      assert Tracking.campaign_params("gclid=Cj0KCQjw") == %{"gclid" => "Cj0KCQjw"}
+    end
+
+    test "nil, empty and parameter-free queries give an empty map" do
+      assert Tracking.campaign_params(nil) == %{}
+      assert Tracking.campaign_params("") == %{}
+      assert Tracking.campaign_params("page=2&sort=asc") == %{}
+    end
+
+    test "bad percent-encoding does not raise or leak other keys" do
+      result = Tracking.campaign_params("gclid=%ZZ&token=%E0%A4%A")
+
+      assert Map.keys(result) -- Tracking.campaign_param_names() == []
+      refute Map.has_key?(result, "token")
+      assert Tracking.campaign_params("gclid=abc&token=%ZZ") == %{"gclid" => "abc"}
+    end
+
+    test "click_param_names/0 is in precedence order: Google's ad ids first, fbclid late" do
+      assert Tracking.click_param_names() ==
+               ~w(gclid gbraid wbraid msclkid fbclid ttclid li_fat_id)
+    end
+
+    test "campaign_param_names/0 is the campaign keys plus the click ones" do
+      assert Tracking.campaign_param_names() ==
+               Tracking.utm_param_names() ++ Tracking.click_param_names()
+    end
+
+    test "click_source/1 maps an identifier to its platform" do
+      assert Tracking.click_source("gclid") == "Google"
+      assert Tracking.click_source("gbraid") == "Google"
+      assert Tracking.click_source("wbraid") == "Google"
+      assert Tracking.click_source("msclkid") == "Bing"
+      assert Tracking.click_source("fbclid") == "Facebook"
+      assert Tracking.click_source("utm_source") == nil
+    end
+
+    test "paid_click?/1 is true for ad-only identifiers, false for fbclid" do
+      assert Tracking.paid_click?("gclid")
+      assert Tracking.paid_click?("msclkid")
+      refute Tracking.paid_click?("fbclid")
+      refute Tracking.paid_click?("utm_source")
+    end
+
+    test "every click parameter name has a platform" do
+      for name <- Tracking.click_param_names() do
+        assert Tracking.click_source(name), "no platform for #{name}"
+      end
     end
   end
 

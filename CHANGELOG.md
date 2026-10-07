@@ -3,6 +3,48 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 - 2026-10-07
+
+### ⚠️ Upgrade
+
+- **Run `mix phoenix_kit.update` in the host** — migration V07 adds two
+  nullable columns to `phoenix_kit_web_analytics_events` and two partial
+  indexes. On a large events table, build the indexes `CONCURRENTLY` first (see
+  the `PhoenixKitWebAnalytics.Migrations` docs) and the migration skips them.
+- Rows written before the upgrade are not reclassified: earlier ad visits keep
+  the channel they were recorded under ("direct", or "organic" when Google's
+  Referer came along). An alert channel filter that leaves out "paid" will no
+  longer alert on auto-tagged ad visits.
+
+### Added
+
+- **Ad-click identifiers are kept.** `gclid`, `gbraid`, `wbraid` (Google),
+  `msclkid` (Microsoft Ads), `fbclid` (Meta), `ttclid` (TikTok) and `li_fat_id`
+  (LinkedIn) are read off the landing URL alongside `utm_*`; the first one
+  present goes into the new `click_id` column and its parameter name into
+  `click_param` (Google's conversion upload takes `gclid`, `gbraid` and
+  `wbraid` in separate fields). Previously everything but the five `utm_*`
+  keys was discarded, so the identifier needed to report a conversion back to
+  the ad platform was lost on arrival. See the README's Privacy section.
+- `Web.BeaconPayload.utm_params/1` (public) now returns ad-click identifiers
+  alongside `utm_*`; the name is kept.
+
+### Fixed
+
+- **An auto-tagged ad visit was recorded as "direct".** Auto-tagging adds a
+  click identifier, not `utm_medium=cpc`, and an ad click often arrives without
+  a referrer, so the Acquisition report showed no paid traffic at all. A visit
+  carrying an ad-only click identifier is now recorded under the `paid`
+  channel, with the platform (named as for a referrer: "Google", "Bing", …) as
+  its source unless `utm_source` names one. `fbclid` is the exception: Meta
+  appends it to organic and Instagram clicks too, so it never overrides the
+  referrer and only counts as `social` when nothing else classifies the visit.
+  An internal page view stays internal when the identifier rides along on the
+  link (Google's `url_passthrough`). The Paid channel's help text on the
+  Overview and Sources pages says so.
+- A campaign parameter that isn't valid UTF-8 (`?utm_source=%FF`) made the
+  insert fail and the hit was lost; the value is now dropped and the hit kept.
+
 ## 0.3.0 - 2026-10-01
 
 ### ⚠️ Upgrade

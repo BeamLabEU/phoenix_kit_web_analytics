@@ -230,7 +230,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         path: path,
         site: parsed.host,
         referrer: referrer,
-        query_params: Tracking.utm_params(parsed.query),
+        query_params: Tracking.campaign_params(parsed.query),
         ip: client[:ip],
         user_agent: client[:user_agent],
         language: client[:language],

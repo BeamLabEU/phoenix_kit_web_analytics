@@ -40,13 +40,17 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `6` — `phoenix_kit_web_analytics_recordings`: optional session
       recordings (pointer movement, clicks, hovers, scrolling), in chunks per
       page view — see `PhoenixKitWebAnalytics.Recordings`
+    * `7` — `click_id` and `click_param` on events: an ad platform's click
+      identifier and which parameter carried it (`gclid`, `gbraid`, …, so an
+      offline conversion upload knows its kind), with partial indexes on each
+      (only a visit that lands with a click identifier carries one)
 
   ## Large existing tables
 
   Creating an index blocks writes to its table while it builds, and inside a
   migration it can't be built `CONCURRENTLY`. On a busy install with a large
-  events table, create V3's and V5's event indexes by hand first, under the
-  same names — the migration then finds them and skips the build:
+  events table, create V3's, V5's and V7's event indexes by hand first, under
+  the same names — the migration then finds them and skips the build:
 
       CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_session_starts_index
         ON phoenix_kit_web_analytics_events (inserted_at) WHERE session_start;
@@ -55,10 +59,17 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_user_uuid_inserted_at_index
         ON phoenix_kit_web_analytics_events (user_uuid, inserted_at)
         WHERE user_uuid IS NOT NULL;
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_click_id_index
+        ON phoenix_kit_web_analytics_events (click_id)
+        WHERE click_id IS NOT NULL;
+      CREATE INDEX CONCURRENTLY phoenix_kit_web_analytics_events_click_param_inserted_at_index
+        ON phoenix_kit_web_analytics_events (click_param, inserted_at)
+        WHERE click_param IS NOT NULL;
 
   (`session_start` must exist before the first; add it with `ALTER TABLE …
   ADD COLUMN session_start boolean NOT NULL DEFAULT false`, which is
-  instant.)
+  instant. Likewise `click_id varchar(255)` and `click_param varchar(20)`,
+  both nullable, before the last two.)
 
   ## Prefix safety
 
@@ -73,7 +84,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 6
+  @current_version 7
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -509,6 +520,50 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     drop_if_exists(table(:phoenix_kit_web_analytics_recordings, prefix: prefix))
   end
 
+  # ── v7 ────────────────────────────────────────────────────────────────────
+
+  # An ad click arrives tagged with `gclid` (Google), `msclkid` (Bing) and the
+  # like — never with `utm_medium=cpc`, unless someone adds it by hand. Without
+  # these columns the identifier needed to report a conversion back to the ad
+  # platform is thrown away on arrival. `click_param` keeps which parameter it
+  # was: Google's upload takes a `gclid`, `gbraid` and `wbraid` in separate
+  # fields.
+  defp up_v7(prefix) do
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      add_if_not_exists(:click_id, :string, size: 255)
+      add_if_not_exists(:click_param, :string, size: 20)
+    end
+
+    # Only a visit that lands with a click identifier carries one, so the
+    # index stays small.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:click_id],
+        prefix: prefix,
+        where: "click_id IS NOT NULL"
+      )
+    )
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_events, [:click_param, :inserted_at],
+        prefix: prefix,
+        where: "click_param IS NOT NULL"
+      )
+    )
+  end
+
+  defp down_v7(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_events, [:click_param, :inserted_at], prefix: prefix)
+    )
+
+    drop_if_exists(index(:phoenix_kit_web_analytics_events, [:click_id], prefix: prefix))
+
+    alter table(:phoenix_kit_web_analytics_events, prefix: prefix) do
+      remove_if_exists(:click_id, :string)
+      remove_if_exists(:click_param, :string)
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -537,6 +592,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 5, prefix), do: down_v5(prefix)
   defp apply_step(:up, 6, prefix), do: up_v6(prefix)
   defp apply_step(:down, 6, prefix), do: down_v6(prefix)
+  defp apply_step(:up, 7, prefix), do: up_v7(prefix)
+  defp apply_step(:down, 7, prefix), do: down_v7(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

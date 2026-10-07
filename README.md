@@ -31,7 +31,8 @@ scroll depth, and exits from pages without a LiveView.
   page; Core Web Vitals are what they were.
 - **No cookies, no consent banner.** Visitors are identified by a salted hash
   of IP + User-Agent + date. No IP address, no raw User-Agent and no query
-  string is written to the database.
+  string is written to the database. (An ad platform's click identifier is
+  kept when a visit arrives with one — see [Privacy](#privacy).)
 - **Ad blockers can't remove it.** The numbers are your server's.
 - **The data is yours.** Four tables in your own database; nothing leaves
   your infrastructure.
@@ -238,10 +239,20 @@ could recompute the hash for an IP and browser they already know, so treat
 database access accordingly.
 
 Query strings are not stored — not in paths and not in referrers. Campaign
-parameters (`utm_*`) are extracted into their own columns first; everything
-else is discarded before the row is written. An interaction keeps only the
-event's name and the short values of parameters you allow-list (`tab`, `view`,
-`step` … by default) — never form contents.
+parameters (`utm_*`) and an ad platform's click identifier (`gclid`, `gbraid`,
+`wbraid`, `msclkid`, `fbclid`, `ttclid`, `li_fat_id`) are extracted into their
+own columns first; everything else is discarded before the row is written. An
+interaction keeps only the event's name and the short values of parameters
+you allow-list (`tab`, `view`, `step` … by default) — never form contents.
+
+A **click identifier** (`click_id`) is issued by the ad platform, not by this
+module. It is pseudonymous rather than anonymous: it joins the rows of the
+visit it arrived with (and a later visit that reopens the same landing URL),
+and the platform can tie it to its own user. It is stored so the visit is
+attributed to the ad, and so a host can report a conversion back to the
+platform against it. The module itself never sends it anywhere. Whether such
+a report is allowed — consent, your privacy notice — is the host's call. Like
+every event column, it is deleted by the retention pass.
 
 A **signed-in** visitor's hits carry their account id, which is what lets you
 follow a user's visits; anonymous visitors stay anonymous.
@@ -374,7 +385,7 @@ options, so a LiveView page to leave out entirely goes in the
 ## Database
 
 Four tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V06),
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V07),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
@@ -382,8 +393,8 @@ UUIDv7 primary keys, prefix-safe for named-schema installs:
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
 
-On a busy install with a large events table, build V03's and V05's indexes
-`CONCURRENTLY` before upgrading — the migration then skips them; the
+On a busy install with a large events table, build V03's, V05's and V07's
+indexes `CONCURRENTLY` before upgrading — the migration then skips them; the
 statements are in the `PhoenixKitWebAnalytics.Migrations` docs.
 
 ## Translations

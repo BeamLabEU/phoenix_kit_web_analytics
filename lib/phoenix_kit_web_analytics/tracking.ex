@@ -5,9 +5,34 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   # user is or which campaign parameters count.
 
   @utm_params ~w(utm_source utm_medium utm_campaign utm_term utm_content)
+
+  # Ad-click identifiers. An ad platform appends one of these itself when
+  # auto-tagging is on, and it is the only mark a paid click leaves on the
+  # URL — there is no `utm_medium=cpc` unless someone adds it by hand. Keeping
+  # it is what lets a paid visit be recognised at all, and later lets a form
+  # submission be reported back to the ad platform as a conversion.
+  @click_params ~w(gclid gbraid wbraid msclkid fbclid ttclid li_fat_id)
+
+  # Which platform a click identifier belongs to, named as
+  # `PhoenixKitWebAnalytics.Referrer` names it, so a paid and an organic visit
+  # from the same platform share one source.
+  @click_sources %{
+    "gclid" => "Google",
+    "gbraid" => "Google",
+    "wbraid" => "Google",
+    "msclkid" => "Bing",
+    "fbclid" => "Facebook",
+    "ttclid" => "TikTok",
+    "li_fat_id" => "LinkedIn"
+  }
+
+  # Identifiers a platform adds to ad clicks only. `fbclid` is not one: Meta
+  # appends it to organic link clicks as well, so it says "came from
+  # Facebook", not "clicked an ad".
+  @paid_click_params ~w(gclid gbraid wbraid msclkid ttclid li_fat_id)
   @dnt_session_key "phoenix_kit_web_analytics_dnt"
 
-  @doc "The campaign parameter names read out of a query string."
+  @doc "The five `utm_*` names. Everything read off a URL is `campaign_param_names/0`."
   @spec utm_param_names() :: [String.t()]
   def utm_param_names, do: @utm_params
 
@@ -18,13 +43,49 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   @spec dnt_session_key() :: String.t()
   def dnt_session_key, do: @dnt_session_key
 
+  @doc "The ad-click identifier names read out of a query string."
+  @spec click_param_names() :: [String.t()]
+  def click_param_names, do: @click_params
+
+  @doc "Every parameter name worth keeping off a URL: campaign plus ad click."
+  @spec campaign_param_names() :: [String.t()]
+  def campaign_param_names, do: @utm_params ++ @click_params
+
+  @doc """
+  The ad platform an identifier belongs to, or `nil` for an unknown name.
+
+      iex> PhoenixKitWebAnalytics.Tracking.click_source("gclid")
+      "Google"
+  """
+  @spec click_source(String.t()) :: String.t() | nil
+  def click_source(name) when is_binary(name), do: Map.get(@click_sources, name)
+
+  @doc """
+  Whether an identifier marks an ad click on its own. `fbclid` doesn't: Meta
+  adds it to organic link clicks too.
+  """
+  @spec paid_click?(String.t()) :: boolean()
+  def paid_click?(name) when is_binary(name), do: name in @paid_click_params
+
   @doc "Campaign parameters from a raw query string; everything else is dropped."
   @spec utm_params(String.t() | nil) :: %{String.t() => String.t()}
-  def utm_params(nil), do: %{}
-  def utm_params(""), do: %{}
+  def utm_params(query), do: take_params(query, @utm_params)
 
-  def utm_params(query) when is_binary(query) do
-    query |> URI.decode_query() |> Map.take(@utm_params)
+  @doc """
+  Campaign and ad-click parameters from a raw query string.
+
+  Same contract as `utm_params/1` — a malformed query yields an empty map
+  rather than raising, because losing the whole hit over a stray `%ZZ` in
+  someone else's link is never the right trade.
+  """
+  @spec campaign_params(String.t() | nil) :: %{String.t() => String.t()}
+  def campaign_params(query), do: take_params(query, campaign_param_names())
+
+  defp take_params(nil, _keep), do: %{}
+  defp take_params("", _keep), do: %{}
+
+  defp take_params(query, keep) when is_binary(query) do
+    query |> URI.decode_query() |> Map.take(keep)
   rescue
     ArgumentError -> %{}
   end

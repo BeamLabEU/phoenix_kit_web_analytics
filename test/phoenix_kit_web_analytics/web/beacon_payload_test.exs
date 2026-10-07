@@ -100,6 +100,12 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayloadTest do
       assert hit.query_params["utm_campaign"] == "launch"
     end
 
+    test "ad-click identifiers are read too" do
+      hit = BeaconPayload.to_hit(request(), %{"p" => "/landing?gclid=g1&token=secret"})
+
+      assert hit.query_params == %{"gclid" => "g1"}
+    end
+
     test "unrelated query parameters are dropped" do
       hit = BeaconPayload.to_hit(request(), %{"p" => "/reset?token=secret&utm_source=hn"})
 

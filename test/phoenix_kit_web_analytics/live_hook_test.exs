@@ -63,6 +63,20 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       refute inspect(pageview) =~ "token=abc"
     end
 
+    test "a live navigation from another site keeps the landing URL's click id",
+         %{conn: conn} do
+      {:ok, _view, _html} =
+        conn
+        |> with_client()
+        |> put_connect_params(%{"_live_referer" => "https://ads.example.net/"})
+        |> live("/shop?gclid=EAIaIQob&token=secret")
+
+      assert [pageview] = events("pageview")
+      assert pageview.click_id == "EAIaIQob"
+      assert pageview.click_param == "gclid"
+      refute inspect(pageview) =~ "token=secret"
+    end
+
     # Phoenix.LiveViewTest always joins with `_mounts: 0`, so a reconnect is
     # driven by calling the on_mount callback with the connect params a
     # reconnecting client sends, then running the handle_params hook it

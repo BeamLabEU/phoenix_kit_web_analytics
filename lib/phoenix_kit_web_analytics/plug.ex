@@ -187,7 +187,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   end
 
   defp build_hit(conn, duration_ms) do
-    query_params = fetch_utm_params(conn)
+    query_params = fetch_campaign_params(conn)
 
     %{
       event_type: "pageview",
@@ -223,10 +223,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Only the campaign parameters are read out; the rest of the query string is
   # deliberately never looked at, let alone stored (see `Collector`).
-  defp fetch_utm_params(conn) do
+  defp fetch_campaign_params(conn) do
     case conn.query_params do
-      %Plug.Conn.Unfetched{} -> Tracking.utm_params(conn.query_string)
-      params when is_map(params) -> Map.take(params, Tracking.utm_param_names())
+      %Plug.Conn.Unfetched{} -> Tracking.campaign_params(conn.query_string)
+      params when is_map(params) -> Map.take(params, Tracking.campaign_param_names())
     end
   rescue
     _ -> %{}

@@ -1248,12 +1248,6 @@ msgstr ""
 msgid "Opening a page, moving to another page of the site, and reloading each count once."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:262
-#: lib/phoenix_kit_web_analytics/web/sources_live.ex:86
-#, elixir-autogen, elixir-format
-msgid "Paid — campaign links marked as ads (utm_medium=cpc)"
-msgstr ""
-
 #: lib/phoenix_kit_web_analytics/web/components.ex:94
 #, elixir-autogen, elixir-format
 msgid "People on the site now — open Right now"
@@ -1637,4 +1631,10 @@ msgstr ""
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Some settings could not be saved. Check them and try again."
+msgstr ""
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:262
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr ""
