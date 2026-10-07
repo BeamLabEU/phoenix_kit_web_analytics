@@ -41,7 +41,7 @@ msgstr "Accept the beacon and pixel"
 msgid "Accept the client script"
 msgstr "Accept the client script"
 
-#: lib/phoenix_kit_web_analytics.ex:171
+#: lib/phoenix_kit_web_analytics.ex:172
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Acquisition"
@@ -203,7 +203,7 @@ msgstr "Comma-separated. Values of the listed parameter names (short ones only) 
 msgid "Contact link"
 msgstr "Contact link"
 
-#: lib/phoenix_kit_web_analytics.ex:115
+#: lib/phoenix_kit_web_analytics.ex:116
 #, elixir-autogen, elixir-format
 msgid "Cookieless, server-side traffic analytics"
 msgstr "Cookieless, server-side traffic analytics"
@@ -301,7 +301,7 @@ msgstr "Event values to keep"
 msgid "Event “%{event}”"
 msgstr "Event “%{event}”"
 
-#: lib/phoenix_kit_web_analytics.ex:185
+#: lib/phoenix_kit_web_analytics.ex:186
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:609
 #, elixir-autogen, elixir-format
@@ -610,7 +610,7 @@ msgstr "Outbound link"
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 
-#: lib/phoenix_kit_web_analytics.ex:142
+#: lib/phoenix_kit_web_analytics.ex:143
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "Overview"
@@ -643,7 +643,7 @@ msgstr "Page views over time"
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 
-#: lib/phoenix_kit_web_analytics.ex:164
+#: lib/phoenix_kit_web_analytics.ex:165
 #: lib/phoenix_kit_web_analytics/web/components.ex:649
 #: lib/phoenix_kit_web_analytics/web/components.ex:671
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
@@ -707,7 +707,7 @@ msgstr "Respect Do Not Track"
 msgid "Retention"
 msgstr "Retention"
 
-#: lib/phoenix_kit_web_analytics.ex:150
+#: lib/phoenix_kit_web_analytics.ex:151
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Right now"
@@ -769,7 +769,7 @@ msgstr "Search"
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 
-#: lib/phoenix_kit_web_analytics.ex:192
+#: lib/phoenix_kit_web_analytics.ex:193
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:36
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -866,7 +866,7 @@ msgstr "Stored data"
 msgid "Tablet"
 msgstr "Tablet"
 
-#: lib/phoenix_kit_web_analytics.ex:178
+#: lib/phoenix_kit_web_analytics.ex:179
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Technology"
@@ -1012,9 +1012,9 @@ msgstr "Visitors, sign-ups and tracked events on the site"
 msgid "Visits are being recorded."
 msgstr "Visits are being recorded."
 
-#: lib/phoenix_kit_web_analytics.ex:72
-#: lib/phoenix_kit_web_analytics.ex:113
-#: lib/phoenix_kit_web_analytics.ex:128
+#: lib/phoenix_kit_web_analytics.ex:73
+#: lib/phoenix_kit_web_analytics.ex:114
+#: lib/phoenix_kit_web_analytics.ex:129
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:27
 #, elixir-autogen, elixir-format
 msgid "Web Analytics"
@@ -1315,7 +1315,7 @@ msgstr "Visitors: how many different people left from it. Exits: how many visits
 msgid "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
 msgstr "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
 
-#: lib/phoenix_kit_web_analytics.ex:157
+#: lib/phoenix_kit_web_analytics.ex:158
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:133
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:324
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:105
