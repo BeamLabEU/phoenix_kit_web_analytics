@@ -26,9 +26,8 @@ All notable changes to this project are documented here. This project follows
   `wbraid` in separate fields). Previously everything but the five `utm_*`
   keys was discarded, so the identifier needed to report a conversion back to
   the ad platform was lost on arrival. See the README's Privacy section.
-- `Tracking.campaign_params/1`, `campaign_param_names/0`,
-  `click_param_names/0`, `click_source/1`, `paid_click?/1`. `utm_params/1` and
-  `utm_param_names/0` are unchanged.
+- `Web.BeaconPayload.utm_params/1` (public) now returns ad-click identifiers
+  alongside `utm_*`; the name is kept.
 
 ### Fixed
 
@@ -41,7 +40,8 @@ All notable changes to this project are documented here. This project follows
   appends it to organic and Instagram clicks too, so it never overrides the
   referrer and only counts as `social` when nothing else classifies the visit.
   An internal page view stays internal when the identifier rides along on the
-  link (Google's `url_passthrough`).
+  link (Google's `url_passthrough`). The Paid channel's help text on the
+  Overview and Sources pages says so.
 - A campaign parameter that isn't valid UTF-8 (`?utm_source=%FF`) made the
   insert fail and the hit was lost; the value is now dropped and the hit kept.
 

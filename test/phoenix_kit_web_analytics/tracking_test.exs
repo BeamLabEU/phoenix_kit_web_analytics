@@ -7,6 +7,8 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
 
   alias PhoenixKitWebAnalytics.Tracking
 
+  doctest PhoenixKitWebAnalytics.Tracking
+
   describe "utm_params/1" do
     test "keeps only the campaign parameters" do
       query =

@@ -259,7 +259,9 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
               <li>{gettext("Search — Google, Bing, DuckDuckGo, ChatGPT…")}</li>
               <li>{gettext("Social — Facebook, Instagram, X, LinkedIn, Hacker News…")}</li>
               <li>{gettext("Email — webmail and newsletter links")}</li>
-              <li>{gettext("Paid — campaign links marked as ads (utm_medium=cpc)")}</li>
+              <li>
+                {gettext("Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc")}
+              </li>
               <li>{gettext("Referral — any other website")}</li>
               <li>{gettext("Direct — no link to tell: typed in, a bookmark, an app")}</li>
             </ul>
