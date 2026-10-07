@@ -40,7 +40,8 @@ defmodule PhoenixKitWebAnalytics do
 
   Then `mix deps.get` and `mix phoenix_kit.update`, add the plug and the hook,
   list `:peer_data`, `:x_headers` and `:user_agent` in the LiveView socket's
-  `connect_info` (websocket and longpoll), and enable the module on the admin Modules page.
+  `connect_info` (websocket and longpoll), and enable the module on the admin
+  Modules page.
 
   ## Data growth
 
