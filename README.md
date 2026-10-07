@@ -393,8 +393,8 @@ UUIDv7 primary keys, prefix-safe for named-schema installs:
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
 
-On a busy install with a large events table, build V03's, V05's and V07's indexes
-`CONCURRENTLY` before upgrading — the migration then skips them; the
+On a busy install with a large events table, build V03's, V05's and V07's
+indexes `CONCURRENTLY` before upgrading — the migration then skips them; the
 statements are in the `PhoenixKitWebAnalytics.Migrations` docs.
 
 ## Translations

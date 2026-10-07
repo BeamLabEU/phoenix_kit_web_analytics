@@ -32,7 +32,7 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   @paid_click_params ~w(gclid gbraid wbraid msclkid ttclid li_fat_id)
   @dnt_session_key "phoenix_kit_web_analytics_dnt"
 
-  @doc "The campaign parameter names read out of a query string."
+  @doc "The five `utm_*` names. Everything read off a URL is `campaign_param_names/0`."
   @spec utm_param_names() :: [String.t()]
   def utm_param_names, do: @utm_params
 

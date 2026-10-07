@@ -671,10 +671,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   # A value that isn't valid UTF-8 (`?gclid=%FF`) can't be stored in a text
   # column; dropping it keeps the rest of the hit instead of losing the insert.
+  # NULs go before the presence check, so `?gclid=%00` is no identifier rather
+  # than an empty one.
   defp param(params, key) when is_map(params) do
     case Map.get(params, key) do
-      value when is_binary(value) -> if String.valid?(value), do: presence(value)
-      _ -> nil
+      value when is_binary(value) ->
+        if String.valid?(value), do: value |> String.replace(<<0>>, "") |> presence()
+
+      _ ->
+        nil
     end
   end
 

@@ -140,7 +140,11 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
 
   def path(_url), do: "/"
 
-  @doc "Extracts campaign parameters from a client-sent URL's query string."
+  @doc """
+  Extracts campaign parameters and ad-click identifiers from a client-sent
+  URL's query string (`Tracking.campaign_params/1`; the name predates the
+  identifiers).
+  """
   @spec utm_params(term()) :: map()
   def utm_params(url) when is_binary(url) do
     case URI.parse(url) do

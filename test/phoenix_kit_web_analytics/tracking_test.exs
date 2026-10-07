@@ -83,6 +83,11 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
       assert Tracking.campaign_params("gclid=abc&token=%ZZ") == %{"gclid" => "abc"}
     end
 
+    test "click_param_names/0 is in precedence order: Google's ad ids first, fbclid late" do
+      assert Tracking.click_param_names() ==
+               ~w(gclid gbraid wbraid msclkid fbclid ttclid li_fat_id)
+    end
+
     test "campaign_param_names/0 is the campaign keys plus the click ones" do
       assert Tracking.campaign_param_names() ==
                Tracking.utm_param_names() ++ Tracking.click_param_names()

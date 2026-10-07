@@ -11,9 +11,10 @@ All notable changes to this project are documented here. This project follows
   nullable columns to `phoenix_kit_web_analytics_events` and two partial
   indexes. On a large events table, build the indexes `CONCURRENTLY` first (see
   the `PhoenixKitWebAnalytics.Migrations` docs) and the migration skips them.
-- Rows written before the upgrade are not reclassified: earlier ad visits stay
-  under "direct". An alert channel filter that leaves out "paid" will no longer
-  alert on auto-tagged ad visits.
+- Rows written before the upgrade are not reclassified: earlier ad visits keep
+  the channel they were recorded under ("direct", or "organic" when Google's
+  Referer came along). An alert channel filter that leaves out "paid" will no
+  longer alert on auto-tagged ad visits.
 
 ### Added
 

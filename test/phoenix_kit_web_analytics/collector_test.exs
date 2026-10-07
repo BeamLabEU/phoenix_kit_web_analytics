@@ -172,6 +172,24 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       end
     end
 
+    test "an ad-only identifier names its platform over another site's Referer" do
+      assert {:ok, event} =
+               Collector.track(
+                 hit(%{referrer: "https://duckduckgo.com/", query_params: %{"msclkid" => "m1"}})
+               )
+
+      assert event.referrer_source == "Bing"
+      assert event.referrer_medium == "paid"
+    end
+
+    test "gclid wins over fbclid when a URL carries both" do
+      assert {:ok, event} =
+               Collector.track(hit(%{query_params: %{"fbclid" => "f1", "gclid" => "g1"}}))
+
+      assert event.click_param == "gclid"
+      assert event.referrer_medium == "paid"
+    end
+
     test "a search ad click with Google's Referer is paid, not organic" do
       assert {:ok, event} =
                Collector.track(
@@ -289,6 +307,14 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
 
       assert is_nil(event.click_id)
       assert is_nil(event.utm_source)
+      assert event.referrer_medium == "none"
+    end
+
+    test "a click identifier that is only NULs is no identifier" do
+      assert {:ok, event} = Collector.track(hit(%{query_params: %{"gclid" => <<0, 0>>}}))
+
+      assert is_nil(event.click_id)
+      assert is_nil(event.click_param)
       assert event.referrer_medium == "none"
     end
 

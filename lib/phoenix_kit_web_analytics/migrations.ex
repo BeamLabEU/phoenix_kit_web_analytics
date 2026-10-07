@@ -43,7 +43,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `7` — `click_id` and `click_param` on events: an ad platform's click
       identifier and which parameter carried it (`gclid`, `gbraid`, …, so an
       offline conversion upload knows its kind), with partial indexes on each
-      (only ad visits carry one)
+      (only a visit that lands with a click identifier carries one)
 
   ## Large existing tables
 
@@ -534,7 +534,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       add_if_not_exists(:click_param, :string, size: 20)
     end
 
-    # Only paid visits carry one, so the index stays small.
+    # Only a visit that lands with a click identifier carries one, so the
+    # index stays small.
     create_if_not_exists(
       index(:phoenix_kit_web_analytics_events, [:click_id],
         prefix: prefix,
