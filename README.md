@@ -86,6 +86,15 @@ mix phoenix_kit.update   # creates / upgrades the module's tables
 Then enable **Web Analytics** on the admin Modules page, and:
 
 1. **The plug** in your browser pipeline, after `:fetch_session` (above).
+   Where exactly doesn't matter otherwise: who is signed in (for
+   [Your own traffic](#your-own-traffic)) is read as the response is sent,
+   after the rest of the pipeline and the controller have run. PhoenixKit's
+   own routes — the admin panel among them — pipe through your `:browser`
+   first and only then load the user (`:phoenix_kit_auto_setup`) and, for
+   the admin, the scope; the plug still sees them. Where only the user is
+   loaded (no scope), their roles come from a five-minute cache, looked up
+   off the request on a miss: the first such request after a cold start
+   doesn't mark the staff network, the next one does.
 2. **The hook** in each public `live_session`, after whatever mounts the
    current user, so signed-in visitors are attributed:
 
@@ -209,7 +218,8 @@ Stated explicitly, because it's what makes two analytics tools disagree:
 Non-`GET` requests, non-2xx responses, anything that isn't `text/html`, paths
 matching the exclusion patterns (`/admin*` by default), visitors sending
 `DNT: 1` or `Sec-GPC: 1` (on every path, LiveView and client script
-included), and bots. All configurable in Settings.
+included), and bots. All configurable in Settings. Tidewave's development
+re-fetch of a page (an `x-tidewave-diagnostic` header) is never a page view.
 
 ### Bots
 
@@ -232,6 +242,56 @@ page), so every report drops it; later hits of the visit inherit the flag. A
 "no JavaScript" verdict can be wrong, so that visit's later hits are kept
 (flagged) and the flag lifts itself if the visit's JavaScript shows up after
 all — a tab left open without a click until it closes.
+
+### Your own traffic
+
+Visits by the site's own people are real traffic, but not the audience. They
+are **stored with a mark and left out** — of every report, the rollups,
+"Right now", alerts and recordings — rather than dropped, so a switch turned
+back brings them back. Three marks (`traffic_flags` on each event, bits of
+`PhoenixKitWebAnalytics.TrafficFlags`; a hit can carry several):
+
+| Mark | Set when |
+|------|----------|
+| **Internal network** | the visitor's address is in one of the networks in `config :phoenix_kit_web_analytics, internal_networks: [...]` |
+| **Site staff** | the signed-in user holds a staff role (`web_analytics_internal_roles`: Owner and Admin by default) — the roles they really hold, whichever one they are acting as |
+| **Staff network** | the visitor's network (an IPv4 address, an IPv6 /64) had a staff member signed in or active within `web_analytics_admin_network_hours` (24 by default) |
+
+The internal networks are app config, not a setting — every settings change
+is a permanent activity-log entry, and this one would be your own addresses:
+
+```elixir
+# config/runtime.exs
+config :phoenix_kit_web_analytics,
+  internal_networks: ["203.0.113.0/24", "2001:db8:1234::/48"]
+```
+
+A **visit is marked whole**: its later hits inherit its marks, and a mark
+that appears mid-visit — an anonymous visitor signs in as an admin — is
+written back to the visit's earlier hits. Visits *before* that, from the
+same address, are not: no address is stored, so there is nothing to match
+them against. A visit long enough to reach back past a day already rolled
+up for good (more than three hours after that day ended) has its earlier
+hits marked, but that day's rollup keeps counting them: until retention
+prunes the day's raw events, a report counting own traffic in and one
+leaving it out can differ for that day by those hits.
+
+A staff network is learnt from a staff sign-in (the address the session was
+issued to — so an admin who only ever works in the admin panel, which is
+never tracked, still counts) and from a staff member's own requests on any
+path, and is shared between nodes. It is kept in memory only. **Behind a
+mobile network, carrier-grade NAT or an office gateway, one address is many
+people**: a sign-in from a phone leaves out everyone sharing that address
+for those hours. Count staff networks back in from Settings, or set the
+hours to `0` to stop marking them. The hours are read when a network is
+judged, so shortening them applies to the networks already learnt.
+
+In Settings, each mark has its own **Leave out** switch (all on by default);
+on a report, **Own traffic** shows everything for that view, and **Bots**
+shows bot traffic. The rollups hold only unmarked, non-bot traffic, so a
+report that counts any mark in — by a switch in either place — reads its
+period from raw events: days older than the raw-event retention then show no
+data rather than their totals.
 
 ## Privacy
 
@@ -273,6 +333,11 @@ bots and excluded paths are never recorded. The player loads the recorded page
 as it looks today, in a sandboxed frame with scripts off, and only a page the
 server itself saw that visit request — never a path the visitor's browser
 merely claims. Recordings are deleted after 30 days by default.
+
+The **own-traffic marks** are a few bits on the event — never the address
+that set them. The internal networks are your app's config; staff networks
+are held in memory, by their network key, for their hours, and never written
+to the database or the settings.
 
 Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
@@ -331,6 +396,11 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_recording` | `false` | Record visits (pointer, clicks, hovers, scrolling) for replay |
 | `web_analytics_recording_sample` | `100` | Percent of visitors recorded, decided per visitor per day |
 | `web_analytics_recording_retention_days` | `30` | Age at which recordings are deleted |
+| `web_analytics_exclude_internal_network` | `true` | Leave internal-network traffic out of the statistics |
+| `web_analytics_exclude_admin` | `true` | Leave the site staff's visits out of the statistics |
+| `web_analytics_exclude_admin_network` | `true` | Leave visits from staff networks out of the statistics |
+| `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-`, an emptied field, is no one) |
+| `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network (`0` = never) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -344,6 +414,10 @@ Application config:
 ```elixir
 # An IP → location resolver; see PhoenixKitWebAnalytics.Geo
 config :phoenix_kit_web_analytics, geo_resolver: MyApp.GeoIP
+
+# Your own networks (offices, VPN): their visits are marked and left out of
+# the statistics — see "Your own traffic". CIDR, IPv4 or IPv6.
+config :phoenix_kit_web_analytics, internal_networks: ["203.0.113.0/24"]
 
 # Concurrent background writes before hits are dropped.
 config :phoenix_kit_web_analytics, max_concurrent_writes: 20
@@ -471,7 +545,7 @@ options, so a LiveView page to leave out entirely goes in the
 ## Database
 
 Four tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V07),
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V08),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only

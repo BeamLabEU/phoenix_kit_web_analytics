@@ -36,6 +36,26 @@ defmodule PhoenixKitWebAnalytics.Plug do
       `web_analytics_respect_dnt` is on (it is by default)
     * automated User-Agents, unless `web_analytics_track_bots` is on
     * anything explicitly marked with `skip/1`
+    * requests from Tidewave's development tooling (an `x-tidewave-diagnostic`
+      header): it fetches the page again after every live navigation, which
+      would count each one twice
+
+  ## The site's own people
+
+  A request by a signed-in user holding a staff role
+  (`web_analytics_internal_roles`) marks the client's network as a staff
+  network — for any path, excluded ones included, since staff mostly work in
+  `/admin`. See `PhoenixKitWebAnalytics.InternalTraffic`. Their page views
+  are stored with the `admin` flag (`PhoenixKitWebAnalytics.TrafficFlags`).
+
+  Who is signed in is read when the response is sent, not when this plug
+  runs, so the plug may sit anywhere in the pipeline: PhoenixKit's own routes
+  pipe through the host's `:browser` first and only then load the user
+  (`:phoenix_kit_auto_setup`) and, for the admin, the scope. With a scope the
+  roles come from it; with only `:phoenix_kit_current_user` (core's
+  auto-setup) they come from a five-minute cache of the user's roles, looked
+  up off the request on a miss — that request goes unnoted, the next one
+  counts.
 
   ## Options
 
@@ -82,6 +102,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Tracking
 
   @country_headers ~w(cf-ipcountry x-vercel-ip-country fastly-geo-country x-country-code)
@@ -96,7 +117,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
   def call(conn, opts) do
     # Cheapest checks first: no settings read at all for asset requests, POSTs,
     # or anything already marked to skip.
-    if conn.method == "GET" and not skipped?(conn) and not replay_frame?(conn) do
+    if conn.method == "GET" and not skipped?(conn) and not replay_frame?(conn) and
+         not diagnostic?(conn) do
       maybe_register(conn, opts)
     else
       conn
@@ -126,10 +148,19 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # an admin watching a visit is not a page view of it.
   defp replay_frame?(conn), do: String.contains?(conn.query_string, "pk_replay=1")
 
+  # Tidewave (development) re-fetches a page after each live navigation to
+  # diagnose it; that fetch is not a visitor's.
+  defp diagnostic?(conn), do: get_req_header(conn, "x-tidewave-diagnostic") != []
+
   defp maybe_register(conn, opts) do
     config = Config.collection_config()
-    path = conn.request_path
 
+    conn
+    |> register_tracking(config, opts)
+    |> register_staff_note(config)
+  end
+
+  defp register_tracking(conn, config, opts) do
     cond do
       not config.enabled? ->
         conn
@@ -139,13 +170,49 @@ defmodule PhoenixKitWebAnalytics.Plug do
       opted_out?(conn, config) ->
         remember_opt_out(conn)
 
-      not trackable_path?(path, config, opts) ->
+      not trackable_path?(conn.request_path, config, opts) ->
         conn
 
       true ->
         started_at = System.monotonic_time(:microsecond)
         register_before_send(conn, &track(&1, started_at))
     end
+  end
+
+  # Whatever the path or opt-out: staff mostly work on excluded paths, and
+  # their network counts whatever they ask for. Registered last so it runs
+  # first (before_send callbacks run in reverse): the page view of the
+  # request that marks the network already carries the mark.
+  defp register_staff_note(conn, %{enabled?: true, admin_network_hours: hours} = config)
+       when hours > 0,
+       do: register_before_send(conn, &note_staff(&1, config))
+
+  defp register_staff_note(conn, _config), do: conn
+
+  # As the response goes out — after the pipeline and the controller have put
+  # the user (or scope) in assigns. In the request process, from memory: no
+  # query; a broadcast only when the network is new or past half its time.
+  #
+  # On a role-cache miss the lookup runs off the request and notes the
+  # address itself when the user turns out to be staff.
+  defp note_staff(conn, config) do
+    case Tracking.current_user_uuid(conn.assigns) do
+      nil ->
+        conn
+
+      user_uuid ->
+        ip = Tracking.client_ip(conn)
+        hit = %{roles: Tracking.current_roles(conn.assigns), user_uuid: user_uuid, ip: ip}
+
+        if InternalTraffic.staff_hit?(hit, config),
+          do: InternalTraffic.note_admin_network(ip, config)
+
+        conn
+    end
+  rescue
+    _ -> conn
+  catch
+    :exit, _ -> conn
   end
 
   # The LiveView socket can't see request headers, so a DNT / GPC visitor is
@@ -214,6 +281,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       user_agent: header(conn, "user-agent"),
       language: header(conn, "accept-language"),
       user_uuid: Tracking.current_user_uuid(conn.assigns),
+      roles: Tracking.current_roles(conn.assigns),
       status: conn.status,
       duration_ms: duration_ms,
       location: edge_location(conn),

@@ -40,7 +40,7 @@ defmodule PhoenixKitWebAnalyticsTest do
 
   describe "version" do
     test "version/0 matches mix.exs" do
-      assert PhoenixKitWebAnalytics.version() == "0.5.0"
+      assert PhoenixKitWebAnalytics.version() == "0.6.0"
 
       assert PhoenixKitWebAnalytics.version() ==
                to_string(Application.spec(:phoenix_kit_web_analytics, :vsn))
@@ -114,7 +114,8 @@ defmodule PhoenixKitWebAnalyticsTest do
     test "children/0 supervises the write pool, presence, alerts and retention" do
       children = PhoenixKitWebAnalytics.children()
 
-      assert length(children) == 8
+      assert length(children) == 9
+      assert PhoenixKitWebAnalytics.InternalTraffic in children
       assert PhoenixKitWebAnalytics.LivePresence in children
       assert PhoenixKitWebAnalytics.ReportCache in children
       assert PhoenixKitWebAnalytics.Alerts in children

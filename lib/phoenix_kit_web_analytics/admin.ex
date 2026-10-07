@@ -27,7 +27,10 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :beacon,
     :track_interactions,
     :client_script,
-    :recording
+    :recording,
+    :exclude_internal_network,
+    :exclude_admin,
+    :exclude_admin_network
   ]
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]
@@ -37,7 +40,8 @@ defmodule PhoenixKitWebAnalytics.Admin do
     session_timeout: {1, 1440},
     retention_days: {0, 3650},
     recording_sample: {1, 100},
-    recording_retention_days: {1, 3650}
+    recording_retention_days: {1, 3650},
+    admin_network_hours: {0, 720}
   }
 
   @doc """
@@ -64,8 +68,10 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   defp after_save({:ok, changed}, opts) do
     log("settings.updated", opts, %{"changed" => changed})
-    # Reports computed under the old settings go.
+    # Reports computed under the old settings go, and staff networks past
+    # new, shorter hours.
     PhoenixKitWebAnalytics.ReportCache.clear()
+    PhoenixKitWebAnalytics.InternalTraffic.forget_expired()
     {:ok, changed}
   end
 
@@ -180,6 +186,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
       Enum.map(@alert_booleans, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :boolean}) ++
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
+        {:internal_roles, keys.internal_roles, :roles},
         {:alert_max_per_hour, alert_keys.max_per_hour, {:integer, {0, 10_000}}},
         {:alert_channels, alert_keys.channels, :channels}
       ]
@@ -200,6 +207,19 @@ defmodule PhoenixKitWebAnalytics.Admin do
   end
 
   defp cast(:text, _value, _params), do: :error
+
+  # "-" is "no staff roles": an emptied field must not read as "unset",
+  # which is the default (Owner, Admin).
+  defp cast(:roles, nil, _params), do: :skip
+
+  defp cast(:roles, value, params) when is_binary(value) do
+    case cast(:text, value, params) do
+      {:ok, ""} -> {:ok, "-"}
+      other -> other
+    end
+  end
+
+  defp cast(:roles, _value, _params), do: :error
 
   defp cast({:integer, _range}, nil, _params), do: :skip
 

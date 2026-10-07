@@ -111,6 +111,62 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
       assert Repo.aggregate(Event, :count) == 1
     end
 
+    test "never for an address in an internal or staff network", %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["127.0.0.0/8"])
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+      assert %{"record" => false} =
+               conn |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+
+      assert post_chunk(build_conn(), chunk()).status == 204
+      assert Repo.aggregate(Recording, :count) == 0
+
+      # Counted in by the settings, it is recorded like anyone.
+      enable_tracking(%{
+        "web_analytics_recording" => "true",
+        "web_analytics_exclude_internal_network" => "false"
+      })
+
+      assert %{"record" => true} =
+               build_conn() |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+    end
+
+    test "the endpoint tells a signed-in staff member not to record", %{conn: conn} do
+      staff = assign(conn, :phoenix_kit_current_scope, fake_scope(roles: [:admin]))
+      user = assign(build_conn(), :phoenix_kit_current_scope, fake_scope(roles: [:user]))
+
+      assert %{"record" => false} =
+               staff |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+
+      assert %{"record" => true} =
+               user |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+    end
+
+    test "never a signed-in staff member, when the request carries the user" do
+      client = %{ip: {198, 51, 100, 1}, user_agent: @ua, site: "example.com"}
+
+      assert Recordings.record?(client, "/pricing")
+      refute Recordings.record?(Map.put(client, :roles, ["Admin"]), "/pricing")
+      assert Recordings.record?(Map.put(client, :roles, ["User"]), "/pricing")
+    end
+
+    test "a visit that became a staff member's is recorded no further", %{conn: conn} do
+      hit = %{path: "/pricing", site: "www.example.com", ip: {127, 0, 0, 1}, user_agent: @ua}
+      {:ok, _} = Collector.track(hit)
+
+      assert post_chunk(conn, chunk()).status == 204
+      assert Repo.aggregate(Recording, :count) == 1
+
+      # The visitor signs in as an admin: the visit is flagged whole.
+      {:ok, _} = Collector.track(Map.put(hit, :roles, ["Admin"]))
+
+      assert post_chunk(build_conn(), chunk(%{"s" => 1})).status == 204
+      assert post_chunk(build_conn(), chunk(%{"k" => "otherPage999", "s" => 0})).status == 204
+
+      # The chunk from before the sign-in stays.
+      assert [%{seq: 0}] = Repo.all(Recording)
+    end
+
     test "a resent chunk is stored once", %{conn: conn} do
       post_chunk(conn, chunk())
       post_chunk(build_conn(), chunk())

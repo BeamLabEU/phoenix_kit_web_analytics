@@ -102,6 +102,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Tracking
@@ -174,7 +175,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
             path: path,
             site: Referrer.normalize_host(parsed.host),
             user_uuid: Tracking.current_user_uuid(socket.assigns),
-            referrer: state.live_referer
+            referrer: state.live_referer,
+            flags: visit_flags(socket)
           })
         end
 
@@ -189,7 +191,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         if watchable?(path, socket.assigns[@client_key]) do
           LivePresence.navigate(self(), path, socket.assigns[@client_key], %{
             site: Referrer.normalize_host(parsed.host),
-            user_uuid: Tracking.current_user_uuid(socket.assigns)
+            user_uuid: Tracking.current_user_uuid(socket.assigns),
+            flags: visit_flags(socket)
           })
         else
           LivePresence.unwatch(self())
@@ -242,6 +245,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         user_agent: client[:user_agent],
         language: client[:language],
         user_uuid: Tracking.current_user_uuid(socket.assigns),
+        roles: Tracking.current_roles(socket.assigns),
         status: 200,
         metadata: %{"source" => "live_navigation"}
       })
@@ -264,6 +268,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         user_agent: client[:user_agent],
         language: client[:language],
         user_uuid: Tracking.current_user_uuid(socket.assigns),
+        roles: Tracking.current_roles(socket.assigns),
         metadata: interaction_metadata(params)
       })
     end
@@ -313,6 +318,19 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
 
     config.enabled? and not Config.excluded?(path, config.exclusions) and
       (config.track_bots? or not UserAgent.bot?(client && client[:user_agent]))
+  end
+
+  # What "Right now" leaves out by default: the open page's own flags,
+  # worked out like a hit's (from memory, no query).
+  defp visit_flags(socket) do
+    InternalTraffic.flags(
+      %{
+        ip: socket.assigns[@client_key][:ip],
+        user_uuid: Tracking.current_user_uuid(socket.assigns),
+        roles: Tracking.current_roles(socket.assigns)
+      },
+      Config.collection_config()
+    )
   end
 
   defp same_path?(nil, _parsed), do: false

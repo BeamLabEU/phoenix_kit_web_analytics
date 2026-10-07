@@ -67,6 +67,7 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.TrafficFlags
 
   @module_key "web_analytics"
   @type_key "web_analytics"
@@ -198,7 +199,14 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   """
   @spec event_recorded(Event.t(), boolean()) :: :ok
   def event_recorded(%Event{} = event, new_session?) do
-    if Config.enabled?(), do: maybe_alert(event, new_session?, config())
+    collection = Config.collection_config()
+
+    # The site's own traffic, by the bits the statistics leave out, alerts no
+    # one — an admin's visit is not a visitor.
+    if collection.enabled? and
+         not TrafficFlags.excluded?(event.traffic_flags, collection.excluded_flags),
+       do: maybe_alert(event, new_session?, config())
+
     :ok
   rescue
     error ->

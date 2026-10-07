@@ -62,7 +62,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Tracking
 
-  @version "0.5.0"
+  @version "0.6.0"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 
@@ -239,6 +239,7 @@ defmodule PhoenixKitWebAnalytics do
       ),
       Collector.gate_spec(),
       PhoenixKitWebAnalytics.BotSignals,
+      PhoenixKitWebAnalytics.InternalTraffic,
       Collector.task_supervisor_spec(),
       PhoenixKitWebAnalytics.LivePresence,
       PhoenixKitWebAnalytics.ReportCache,

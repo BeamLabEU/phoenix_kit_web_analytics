@@ -95,6 +95,9 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     field(:target, :string)
     # The first hit of its visit — what the visits list pages through.
     field(:session_start, :boolean, default: false)
+    # Bits of `PhoenixKitWebAnalytics.TrafficFlags`: the site's own people
+    # and their networks. 0 is the audience.
+    field(:traffic_flags, :integer, default: 0)
 
     field(:metadata, :map, default: %{})
 
@@ -109,7 +112,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     click_id click_param
     browser browser_version os os_version device_type language is_bot
     country_code region city status duration_ms engaged_ms scroll_depth target
-    session_start metadata inserted_at
+    session_start traffic_flags metadata inserted_at
   )a
 
   @doc "Valid `event_type` values."

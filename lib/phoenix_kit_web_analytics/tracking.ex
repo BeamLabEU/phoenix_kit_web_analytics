@@ -8,6 +8,7 @@ defmodule PhoenixKitWebAnalytics.Tracking do
 
   require Logger
 
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.IpAddress
 
   @utm_params ~w(utm_source utm_medium utm_campaign utm_term utm_content)
@@ -270,4 +271,22 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   def current_user_uuid(%{phoenix_kit_current_user: %{uuid: uuid}}), do: uuid
   def current_user_uuid(%{phoenix_kit_current_scope: %{user: %{uuid: uuid}}}), do: uuid
   def current_user_uuid(_assigns), do: nil
+
+  @doc """
+  The roles the signed-in user really holds, from the scope in conn or
+  socket assigns — `PhoenixKit.Users.Auth.Scope.held_roles/1`, so a user
+  acting as one of their roles still counts as all of them. `nil` without a
+  signed-in scope (the collector then goes by the user's UUID alone).
+  """
+  @spec current_roles(map()) :: [String.t()] | nil
+  def current_roles(%{phoenix_kit_current_scope: %Scope{user: %{uuid: uuid}} = scope})
+      when is_binary(uuid) do
+    if function_exported?(Scope, :held_roles, 1),
+      do: Scope.held_roles(scope),
+      else: Scope.user_roles(scope)
+  rescue
+    _ -> nil
+  end
+
+  def current_roles(_assigns), do: nil
 end

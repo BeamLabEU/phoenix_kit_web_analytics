@@ -62,6 +62,16 @@ defmodule PhoenixKitWebAnalytics.Reports do
   Bot traffic (stored only when `web_analytics_track_bots` is on) is left out
   of every report unless the filter asks for it with `bots: true`.
 
+  ## The site's own traffic
+
+  Hits carrying a `PhoenixKitWebAnalytics.TrafficFlags` bit — the site's own
+  people and their networks — are left out by the filter's `excluded_flags`
+  mask: the bits the settings leave out of the statistics (all of them by
+  default). `flagged: true` shows them too. The rollups hold only unflagged
+  traffic, so a filter that counts any flag in — by a setting or by
+  `flagged: true` — reads its whole window from raw events, as `bots: true`
+  does: days older than the raw-event retention then have nothing to show.
+
   ## Failure behaviour
 
   Every query degrades to an empty result rather than raising — a module that
@@ -74,6 +84,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
   require Logger
 
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.ReportCache
   alias PhoenixKitWebAnalytics.RollupReader
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
@@ -86,7 +97,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
           site: String.t() | nil,
           path: String.t() | nil,
           period: String.t(),
-          bots: boolean()
+          bots: boolean(),
+          flagged: boolean(),
+          excluded_flags: non_neg_integer()
         }
 
   @default_limit 10
@@ -127,6 +140,11 @@ defmodule PhoenixKitWebAnalytics.Reports do
       the default rather than raising, since it arrives from a query parameter
     * `:site`, `:path` — optional restrictions
     * `:bots` — include automated traffic (default `false`)
+    * `:flagged` — include the traffic the settings leave out (the site's
+      own people and networks, see `PhoenixKitWebAnalytics.TrafficFlags`);
+      default `false`
+    * `:excluded_flags` — the mask to leave out instead of the settings'
+      (ignored with `flagged: true`)
     * `:now` — reference time (tests)
   """
   @spec filter(keyword()) :: filter()
@@ -134,6 +152,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     period = normalize_period(Keyword.get(opts, :period))
     now = Keyword.get(opts, :now) || DateTime.utc_now()
     {from, to} = period_range(period, now)
+    flagged? = Keyword.get(opts, :flagged, false) == true
 
     %{
       from: from,
@@ -141,9 +160,24 @@ defmodule PhoenixKitWebAnalytics.Reports do
       site: presence(Keyword.get(opts, :site)),
       path: presence(Keyword.get(opts, :path)),
       period: period,
-      bots: Keyword.get(opts, :bots, false) == true
+      bots: Keyword.get(opts, :bots, false) == true,
+      flagged: flagged?,
+      # Part of the filter, so a cached report is keyed by it too.
+      excluded_flags:
+        if(flagged?,
+          do: 0,
+          else: Keyword.get_lazy(opts, :excluded_flags, &Config.excluded_flags/0)
+        )
     }
   end
+
+  @doc """
+  The `TrafficFlags` mask a filter leaves out — its own, or the settings'
+  for a filter map built without one.
+  """
+  @spec excluded_flags(map()) :: non_neg_integer()
+  def excluded_flags(%{excluded_flags: mask}) when is_integer(mask), do: mask
+  def excluded_flags(_filter), do: Config.excluded_flags()
 
   @doc """
   The `{from, to}` window for a period label, `to` exclusive.
@@ -228,9 +262,13 @@ defmodule PhoenixKitWebAnalytics.Reports do
     overview(%{filter | from: DateTime.add(from, -span, :second), to: from})
   end
 
-  @doc "Distinct visitors seen in the last `minutes` — the \"right now\" number."
-  @spec active_visitors(pos_integer(), String.t() | nil) :: non_neg_integer()
-  def active_visitors(minutes \\ 5, site \\ nil) do
+  @doc """
+  Distinct visitors seen in the last `minutes` — the "right now" number.
+  `excluded_flags` defaults to the settings' mask.
+  """
+  @spec active_visitors(pos_integer(), String.t() | nil, non_neg_integer() | nil) ::
+          non_neg_integer()
+  def active_visitors(minutes \\ 5, site \\ nil, excluded_flags \\ nil) do
     now = DateTime.utc_now()
 
     %{
@@ -239,7 +277,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
       site: site,
       path: nil,
       period: "custom",
-      bots: false
+      bots: false,
+      excluded_flags: excluded_flags || Config.excluded_flags()
     }
     |> base_query()
     |> where([e], e.event_type != "leave")
@@ -559,6 +598,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
     * `:limit` — default 50
     * `:before` — a `DateTime`; only visits whose latest hit is older (paging)
+    * `:bots` — include automated visits (default `false`)
+    * `:excluded_flags` — the `TrafficFlags` mask to leave out (default: the
+      settings')
   """
   @spec recent_sessions(pos_integer(), keyword()) :: {[map()], DateTime.t() | nil}
   def recent_sessions(minutes, opts \\ []) do
@@ -566,14 +608,21 @@ defmodule PhoenixKitWebAnalytics.Reports do
     now = DateTime.utc_now()
     from = DateTime.add(now, -minutes * 60, :second)
 
+    filter = %{
+      bots: Keyword.get(opts, :bots, false) == true,
+      excluded_flags: Keyword.get_lazy(opts, :excluded_flags, &Config.excluded_flags/0)
+    }
+
     hits =
       from(e in Event,
-        where: e.inserted_at >= ^from and e.is_bot == false,
+        where: e.inserted_at >= ^from,
         order_by: [desc: e.inserted_at],
         # Enough hits to find `limit + 1` distinct visits in any realistic mix.
         limit: ^((limit + 1) * 20),
         select: {e.session_id, e.inserted_at}
       )
+      |> filter_bots(filter.bots)
+      |> filter_flags(filter.excluded_flags)
       |> active_before(Keyword.get(opts, :before))
       |> all([])
 
@@ -584,7 +633,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     rows =
       page
       |> Enum.map(&elem(&1, 0))
-      |> summarize_sessions(%{bots: false})
+      |> summarize_sessions(filter)
       |> Enum.map(&Map.put(&1, :last_seen, to_utc(last_seen[&1.session_id])))
       |> Enum.sort_by(& &1.last_seen, {:desc, DateTime})
 
@@ -598,6 +647,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
   defp summarize_sessions(ids, filter) do
     from(e in Event, where: e.session_id in ^ids)
     |> filter_bots(Map.get(filter, :bots, false))
+    |> filter_flags(excluded_flags(filter))
     |> group_by([e], e.session_id)
     |> having([e], fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type) > 0)
     |> select([e], %{
@@ -674,8 +724,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
   @doc """
   One visit's totals over all its events, however long the visit —
-  `%{started, seconds, pageviews, actions, max_scroll, bot?, bot_reason}`,
-  or `nil`. `bot_reason` says why a visit counts as a bot's when its
+  `%{started, seconds, pageviews, actions, max_scroll, bot?, bot_reason,
+  traffic_flags}`, or `nil`. `bot_reason` says why a visit counts as a bot's when its
   behaviour gave it away (see `PhoenixKitWebAnalytics.BotSignals`).
   """
   @spec session_summary(String.t()) :: map() | nil
@@ -698,7 +748,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
                  fragment("COUNT(*) FILTER (WHERE ? IN ('interaction', 'event'))", e.event_type),
                max_scroll: max(e.scroll_depth),
                bot?: fragment("bool_or(?)", e.is_bot),
-               bot_reason: fragment("max(?->>'bot')", e.metadata)
+               bot_reason: fragment("max(?->>'bot')", e.metadata),
+               traffic_flags: fragment("bit_or(?)", e.traffic_flags)
              }
            )
            |> one(nil) do
@@ -858,10 +909,16 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> filter_site(filter.site)
     |> filter_path(filter[:path])
     |> filter_bots(Map.get(filter, :bots, false))
+    |> filter_flags(excluded_flags(filter))
   end
 
   defp filter_bots(query, true), do: query
   defp filter_bots(query, _bots), do: where(query, [e], e.is_bot == false)
+
+  defp filter_flags(query, 0), do: query
+
+  defp filter_flags(query, mask),
+    do: where(query, [e], fragment("(? & ?) = 0", e.traffic_flags, ^mask))
 
   defp sessions_for_user(query, nil, _filter), do: query
 

@@ -221,6 +221,32 @@ defmodule PhoenixKitWebAnalytics.AlertsTest do
       refute_activity_logged("web_analytics.visitor_arrived")
     end
 
+    test "the site's own traffic alerts nobody" do
+      for flags <- [1, 2, 4, 6] do
+        Alerts.event_recorded(%{pageview() | traffic_flags: flags}, true)
+      end
+
+      refute_activity_logged("web_analytics.visitor_arrived")
+    end
+
+    test "a flag counted back in by the settings alerts again", %{owner: owner} do
+      enable_tracking(%{
+        "web_analytics_alert_visitors" => "true",
+        "web_analytics_exclude_admin" => "false"
+      })
+
+      Alerts.event_recorded(%{pageview() | traffic_flags: 3}, true)
+      refute_activity_logged("web_analytics.visitor_arrived")
+
+      event = %{pageview() | traffic_flags: 2}
+      Alerts.event_recorded(event, true)
+
+      assert_activity_logged("web_analytics.visitor_arrived",
+        target_uuid: owner.uuid,
+        resource_uuid: event.session_id
+      )
+    end
+
     test "a campaign source that isn't a plain name is never quoted in the text" do
       source = "URGENT: your account is locked, visit evil.example"
       Alerts.event_recorded(%{pageview() | referrer_source: source}, true)
@@ -297,6 +323,9 @@ defmodule PhoenixKitWebAnalytics.AlertsTest do
         path: "/checkout",
         session_id: UUIDv7.generate()
       }
+
+      Alerts.event_recorded(%{event | traffic_flags: 2}, false)
+      refute_activity_logged("web_analytics.event_alert")
 
       Alerts.event_recorded(event, false)
 

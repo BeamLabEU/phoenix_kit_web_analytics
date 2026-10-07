@@ -187,6 +187,15 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             value={@summary.max_scroll && "#{@summary.max_scroll}%"}
           />
           <.fact :if={@summary.bot?} label={gettext("Bot")} value={bot_reason(@summary.bot_reason)} />
+          <.fact
+            :if={(@summary[:traffic_flags] || 0) > 0}
+            label={gettext("Own traffic")}
+            value={
+              @summary.traffic_flags
+              |> PhoenixKitWebAnalytics.TrafficFlags.names_in()
+              |> Enum.map_join(", ", &PhoenixKitWebAnalytics.TrafficFlags.label/1)
+            }
+          />
         </dl>
       </div>
 

@@ -25,7 +25,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Alerts
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Reports
+  alias PhoenixKitWebAnalytics.TrafficFlags
 
   @impl true
   def mount(_params, _session, socket) do
@@ -141,6 +143,11 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:exclude_paths, Config.exclude_paths_raw())
     |> assign(:ignore_events, raw(keys.ignore_events, Config.default_ignore_events()))
     |> assign(:event_params, raw(keys.event_params, Config.default_event_params()))
+    |> assign(
+      :internal_roles,
+      roles_field(raw(keys.internal_roles, Config.default_internal_roles()))
+    )
+    |> assign(:internal_networks, InternalTraffic.network_counts())
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
@@ -153,6 +160,13 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp live_skips? do
     BotSignals.live_visits().skipped > 0 or BotSignals.skipping_live_visits?()
   end
+
+  # "-" is how "no staff roles" is stored; the field shows it empty.
+  defp roles_field("-"), do: ""
+  defp roles_field(value), do: value
+
+  defp flag_excluded?(config, name),
+    do: TrafficFlags.excluded?(TrafficFlags.bit(name), config.excluded_flags)
 
   defp raw(key, default) do
     Settings.get_setting(key, default) || default
@@ -171,6 +185,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:alert_paths), do: gettext("Landing pages")
   defp field_label(:alert_events), do: gettext("Alert on these events")
   defp field_label(:alert_channels), do: gettext("Only from these channels")
+  defp field_label(:internal_roles), do: gettext("Staff roles")
+  defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
   @impl true
@@ -288,6 +304,98 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           </div>
           <p class="-mt-2 text-xs text-base-content/50">
             {gettext("0 keeps raw events forever. Daily totals are always kept.")}
+          </p>
+        </section>
+
+        <section
+          id="web-analytics-own-traffic"
+          class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4"
+        >
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("Your own traffic")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "Visits by the site's own people are stored with a mark and left out of the statistics, alerts and recordings — nothing is deleted. Untick a kind to count it in again; a report shows it all with Own traffic. Only the mark is stored, never an address."
+              )}
+            </p>
+          </div>
+
+          <.checkbox
+            name="exclude_internal_network"
+            checked={flag_excluded?(@config, :internal_network)}
+            label={gettext("Leave out internal networks")}
+          >
+            <:description>
+              {if @internal_networks.valid > 0,
+                do:
+                  ngettext(
+                    "Addresses in the network listed in the app's config (internal_networks).",
+                    "Addresses in the %{count} networks listed in the app's config (internal_networks).",
+                    @internal_networks.valid
+                  ),
+                else:
+                  gettext(
+                    "No networks are configured. List the office or VPN ranges in the app's config — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — not here: every settings change is kept in the activity log."
+                  )}
+            </:description>
+          </.checkbox>
+          <p
+            :if={@internal_networks.invalid > 0}
+            id="web-analytics-invalid-networks"
+            class="-mt-2 text-xs text-warning"
+          >
+            {ngettext(
+              "%{count} entry in internal_networks is not a network and is skipped.",
+              "%{count} entries in internal_networks are not networks and are skipped.",
+              @internal_networks.invalid
+            )}
+          </p>
+
+          <.checkbox
+            name="exclude_admin"
+            checked={flag_excluded?(@config, :admin)}
+            label={gettext("Leave out site staff")}
+          >
+            <:description>
+              {gettext(
+                "Signed-in users holding one of the staff roles below — whichever role they are acting as. A visit that turns into a staff member's (a sign-in midway) is left out whole."
+              )}
+            </:description>
+          </.checkbox>
+
+          <.input
+            id="internal_roles"
+            name="internal_roles"
+            label={gettext("Staff roles")}
+            value={@internal_roles}
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext("Comma-separated role names, e.g. Owner, Admin. Empty: no one counts as staff.")}
+          </p>
+
+          <.checkbox
+            name="exclude_admin_network"
+            checked={flag_excluded?(@config, :admin_network)}
+            label={gettext("Leave out staff networks")}
+          >
+            <:description>
+              {gettext(
+                "Every visit from an address where a staff member signed in or was active within the hours below. Behind a mobile network, carrier-grade NAT or an office gateway one address is many people: a staff sign-in from a phone leaves out everyone sharing that address for those hours. Visits before the sign-in are not marked afterwards."
+              )}
+            </:description>
+          </.checkbox>
+
+          <.input
+            type="number"
+            id="admin_network_hours"
+            name="admin_network_hours"
+            label={gettext("Staff network, hours")}
+            value={@config.admin_network_hours}
+            min="0"
+            max="720"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext("0 stops marking staff networks. Kept in memory only.")}
           </p>
         </section>
 
