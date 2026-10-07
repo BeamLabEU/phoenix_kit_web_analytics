@@ -126,21 +126,22 @@ defmodule PhoenixKitWebAnalytics.Web.SessionsLive do
         <.pager
           newer?={not is_nil(@before)}
           older?={not is_nil(@next_before)}
-          newer_path={patch_path(%{"period" => @period, "site" => @site, "user" => @user_uuid})}
+          newer_path={patch_path(pager_params(@filter, @user_uuid))}
           older_path={
             @next_before &&
-              patch_path(%{
-                "period" => @period,
-                "site" => @site,
-                "user" => @user_uuid,
-                "before" => to_iso(@next_before)
-              })
+              patch_path(Map.put(pager_params(@filter, @user_uuid), "before", to_iso(@next_before)))
           }
         />
       </.report_card>
     </div>
     """
   end
+
+  # The whole filter (period, site, page, own-traffic and bot switches) and
+  # the user the list is narrowed to: a pager that dropped any of them would
+  # quietly change what the next page counts.
+  defp pager_params(filter, user_uuid),
+    do: filter |> Filters.to_params() |> Map.put("user", user_uuid)
 
   defp patch_path(params) do
     base = Filters.patch_to(Paths.sessions(), params)

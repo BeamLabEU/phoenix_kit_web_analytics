@@ -208,6 +208,45 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       assert html =~ "Newer"
     end
 
+    test "the paging links keep the own-traffic and bot switches and the page filter",
+         %{conn: conn} do
+      now = DateTime.utc_now()
+
+      # 51 visits of the site's own people (flag 2) on /landing: with the
+      # switch ticked there is a second page, and its links must keep the switch.
+      for i <- 0..50 do
+        insert_event(%{
+          session_id: UUIDv7.generate(),
+          visitor_id: "own#{i}",
+          path: "/landing",
+          traffic_flags: 2,
+          inserted_at: DateTime.add(now, -i * 60, :second)
+        })
+      end
+
+      {:ok, view, html} = live(conn, "#{@base}/sessions?flagged=1&bots=1&path=/landing")
+
+      [older] = Regex.run(~r/href="([^"]*before=[^"]*)"/, html, capture: :all_but_first)
+      older = String.replace(older, "&amp;", "&")
+      assert older =~ "flagged=1"
+      assert older =~ "bots=1"
+      assert older =~ "path=%2Flanding"
+
+      view |> element("a", "Older") |> render_click()
+      assert has_element?(view, "input[name='flagged'][checked]")
+      assert has_element?(view, "input[name='bots'][checked]")
+      assert has_element?(view, "a", "Newer")
+
+      [newer] =
+        Regex.run(~r/href="([^"]*)"[^>]*>\s*(?:<[^>]+>\s*)*Newer/s, render(view),
+          capture: :all_but_first
+        )
+
+      newer = String.replace(newer, "&amp;", "&")
+      assert newer =~ "flagged=1"
+      assert newer =~ "bots=1"
+    end
+
     test "fewer than 50 visits shows no paging link", %{conn: conn} do
       insert_event(%{})
       {:ok, _view, html} = live(conn, "#{@base}/sessions")

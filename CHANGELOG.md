@@ -80,6 +80,9 @@ All notable changes to this project are documented here. This project follows
 
 ### Fixed
 
+- The Visits list's **Older** / **Newer** links dropped the Own traffic and
+  Bots switches (and the page filter), so paging quietly switched them off;
+  they now carry the whole filter.
 - The test helper `LiveCase.fake_scope/1` built a scope whose roles core's
   own checks couldn't read (`Scope.owner?/1` was false for an "owner"); it
   now stores role names as core does.
