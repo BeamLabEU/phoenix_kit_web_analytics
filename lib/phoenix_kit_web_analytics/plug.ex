@@ -192,18 +192,27 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # As the response goes out — after the pipeline and the controller have put
   # the user (or scope) in assigns. In the request process, from memory: no
   # query; a broadcast only when the network is new or past half its time.
+  #
+  # On a role-cache miss the lookup runs off the request and notes the
+  # address itself when the user turns out to be staff.
   defp note_staff(conn, config) do
-    hit = %{
-      roles: Tracking.current_roles(conn.assigns),
-      user_uuid: Tracking.current_user_uuid(conn.assigns)
-    }
+    case Tracking.current_user_uuid(conn.assigns) do
+      nil ->
+        conn
 
-    if hit.user_uuid && InternalTraffic.staff_hit?(hit, config),
-      do: InternalTraffic.note_admin_network(Tracking.client_ip(conn), config)
+      user_uuid ->
+        ip = Tracking.client_ip(conn)
+        hit = %{roles: Tracking.current_roles(conn.assigns), user_uuid: user_uuid, ip: ip}
 
-    conn
+        if InternalTraffic.staff_hit?(hit, config),
+          do: InternalTraffic.note_admin_network(ip, config)
+
+        conn
+    end
   rescue
     _ -> conn
+  catch
+    :exit, _ -> conn
   end
 
   # The LiveView socket can't see request headers, so a DNT / GPC visitor is

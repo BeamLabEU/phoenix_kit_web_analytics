@@ -8,6 +8,8 @@ defmodule PhoenixKitWebAnalytics.TrafficFlagsCollectorTest do
 
   import Plug.Test, only: [conn: 2]
 
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Roles
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.InternalTraffic
@@ -187,6 +189,25 @@ defmodule PhoenixKitWebAnalytics.TrafficFlagsCollectorTest do
       )
       |> Plug.Conn.put_resp_content_type("text/html")
       |> Plug.Conn.send_resp(200, "")
+
+      "/pricing" |> request() |> respond()
+      assert [%Event{traffic_flags: 4}] = Repo.all(Event)
+    end
+
+    test "a staff member's first request after the role cache lapsed still marks the network" do
+      user =
+        Repo.insert!(%User{
+          email: "staff-#{System.unique_integer([:positive])}@example.com",
+          hashed_password: "not-a-real-hash"
+        })
+
+      {:ok, _} = Roles.assign_role(user, "Admin")
+
+      # Nothing cached for them: the roles are looked up off the request.
+      "/admin/settings"
+      |> request()
+      |> Plug.Conn.assign(:phoenix_kit_current_user, %{uuid: user.uuid})
+      |> respond()
 
       "/pricing" |> request() |> respond()
       assert [%Event{traffic_flags: 4}] = Repo.all(Event)

@@ -205,9 +205,16 @@ defmodule PhoenixKitWebAnalytics.Config do
   `PhoenixKitWebAnalytics.InternalTraffic` for how they are matched.
   """
   @spec internal_networks() :: [String.t()]
-  def internal_networks do
+  def internal_networks, do: Enum.filter(internal_network_entries(), &is_binary/1)
+
+  @doc """
+  Every entry of `internal_networks` as configured, strings or not — so the
+  ones that aren't networks can be counted.
+  """
+  @spec internal_network_entries() :: list()
+  def internal_network_entries do
     case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
-      networks when is_list(networks) -> Enum.filter(networks, &is_binary/1)
+      entries when is_list(entries) -> entries
       _ -> []
     end
   end
@@ -215,10 +222,6 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "The default staff roles: core's Owner and Admin."
   @spec default_internal_roles() :: String.t()
   def default_internal_roles, do: Enum.join(system_staff_roles(), ", ")
-
-  @doc "The most hours `web_analytics_admin_network_hours` can name."
-  @spec max_admin_network_hours() :: pos_integer()
-  def max_admin_network_hours, do: @max_admin_network_hours
 
   @doc "Default hours a staff sign-in marks its network for."
   @spec default_admin_network_hours() :: pos_integer()

@@ -126,11 +126,11 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     roles
   end
 
-  defp roles_of(%{user_uuid: uuid}) when is_binary(uuid) do
+  defp roles_of(%{user_uuid: uuid} = hit) when is_binary(uuid) do
     case cached_roles(uuid) do
       {:ok, roles} -> roles
       :pending -> nil
-      :miss -> lookup_roles(uuid)
+      :miss -> lookup_roles(uuid, hit[:ip])
     end
   end
 
@@ -171,14 +171,14 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
   def network_counts do
     valid = length(parsed_networks())
-    %{valid: valid, invalid: length(Config.internal_networks()) - valid}
+    %{valid: valid, invalid: length(Config.internal_network_entries()) - valid}
   end
 
   # Parsed once per configured list: the hot path reads one persistent term.
   # Invalid entries are counted in the warning, never quoted — an entry is
   # likely someone's address.
   defp parsed_networks do
-    raw = Config.internal_networks()
+    raw = Config.internal_network_entries()
 
     case :persistent_term.get(@networks_key, nil) do
       {^raw, parsed} ->
@@ -194,6 +194,9 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   defp warn_invalid(0), do: :ok
 
+  defp warn_invalid(1),
+    do: Logger.warning("[WebAnalytics] internal_networks: 1 invalid entry skipped")
+
   defp warn_invalid(count),
     do: Logger.warning("[WebAnalytics] internal_networks: #{count} invalid entries skipped")
 
@@ -201,7 +204,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` for anything that isn't a
   network.
   """
-  @spec parse_cidr(String.t()) :: [{32 | 128, non_neg_integer(), non_neg_integer()}]
+  @spec parse_cidr(term()) :: [{32 | 128, non_neg_integer(), non_neg_integer()}]
   def parse_cidr(cidr) when is_binary(cidr) do
     {address, prefix} =
       case String.split(String.trim(cidr), "/", parts: 2) do
@@ -217,6 +220,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
       _ -> []
     end
   end
+
+  def parse_cidr(_entry), do: []
 
   defp prefix_length(:host, bits), do: bits
   defp prefix_length({len, ""}, _bits), do: len
@@ -361,13 +366,31 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   defp remember_roles(_uuid, _roles), do: :ok
 
   # Off the hit's path; the pending mark keeps the hits that follow from
-  # starting lookups of their own.
-  defp lookup_roles(uuid) do
+  # starting lookups of their own. When the answer is a staff member, the
+  # address the hit came from (held in this closure only) is a staff
+  # network — so the request that missed the cache still counts.
+  defp lookup_roles(uuid, ip) do
     :ets.insert(@table, {{:roles, uuid}, :pending, now_ms() + @pending_ttl_ms})
-    Collector.run_async(fn -> remember_roles(uuid, load_roles(uuid)) end)
+
+    Collector.run_async(fn ->
+      roles = load_roles(uuid)
+      remember_roles(uuid, roles)
+      note_if_staff(roles, ip)
+    end)
+
     nil
   rescue
     ArgumentError -> nil
+  catch
+    :exit, _ -> nil
+  end
+
+  defp note_if_staff(_roles, nil), do: :ok
+
+  defp note_if_staff(roles, ip) do
+    config = Config.collection_config()
+    if config.enabled? and staff?(roles, config), do: note_admin_network(ip, config)
+    :ok
   end
 
   defp load_roles(uuid) do
@@ -470,18 +493,14 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     {:noreply, state}
   end
 
-  # A network is kept for the longest hours a setting can name; how long it
-  # counts is decided when it is read, by the hours set then.
   def handle_info(:sweep, state) do
-    now = now_ms()
-    oldest = now - Config.max_admin_network_hours() * 3_600_000
-
-    :ets.select_delete(@table, [
-      {{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]},
-      {{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}
-    ])
-
+    prune()
     Process.send_after(self(), :sweep, @sweep_ms)
+    {:noreply, state}
+  end
+
+  def handle_info(:prune, state) do
+    prune()
     {:noreply, state}
   end
 
@@ -491,6 +510,33 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     name = if is_tuple(message), do: inspect(elem(message, 0)), else: "a message"
     Logger.debug("[WebAnalytics] InternalTraffic ignored #{name}")
     {:noreply, state}
+  end
+
+  @doc """
+  Forgets, now rather than at the next sweep, the networks past the hours
+  set now (all of them at `0`) and the expired role entries. Called after
+  a settings save.
+  """
+  @spec forget_expired() :: :ok
+  def forget_expired do
+    case Process.whereis(__MODULE__) do
+      nil -> :ok
+      server -> send(server, :prune)
+    end
+
+    :ok
+  end
+
+  # A network goes once a staff member hasn't been seen on it for the hours
+  # set now — at 0 at once: nothing is kept that no longer counts.
+  defp prune do
+    now = now_ms()
+    oldest = now - Config.collection_config().admin_network_hours * 3_600_000
+
+    :ets.select_delete(@table, [
+      {{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]},
+      {{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}
+    ])
   end
 
   defp subscribe do

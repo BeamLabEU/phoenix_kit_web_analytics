@@ -131,6 +131,17 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
                build_conn() |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
     end
 
+    test "the endpoint tells a signed-in staff member not to record", %{conn: conn} do
+      staff = assign(conn, :phoenix_kit_current_scope, fake_scope(roles: [:admin]))
+      user = assign(build_conn(), :phoenix_kit_current_scope, fake_scope(roles: [:user]))
+
+      assert %{"record" => false} =
+               staff |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+
+      assert %{"record" => true} =
+               user |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
+    end
+
     test "never a signed-in staff member, when the request carries the user" do
       client = %{ip: {198, 51, 100, 1}, user_agent: @ua, site: "example.com"}
 

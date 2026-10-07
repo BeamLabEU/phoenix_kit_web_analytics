@@ -68,8 +68,10 @@ defmodule PhoenixKitWebAnalytics.Admin do
 
   defp after_save({:ok, changed}, opts) do
     log("settings.updated", opts, %{"changed" => changed})
-    # Reports computed under the old settings go.
+    # Reports computed under the old settings go, and staff networks past
+    # new, shorter hours.
     PhoenixKitWebAnalytics.ReportCache.clear()
+    PhoenixKitWebAnalytics.InternalTraffic.forget_expired()
     {:ok, changed}
   end
 

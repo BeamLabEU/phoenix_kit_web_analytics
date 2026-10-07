@@ -49,13 +49,23 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
     test "invalid configured entries are counted and warned about, never quoted" do
       log =
         ExUnit.CaptureLog.capture_log(fn ->
-          networks(["203.0.113.0/24", "198.51.100.300/24", "nope"])
-          assert InternalTraffic.network_counts() == %{valid: 1, invalid: 2}
+          networks(["203.0.113.0/24", "198.51.100.300/24", "nope", 42])
+          assert InternalTraffic.network_counts() == %{valid: 1, invalid: 3}
         end)
 
-      assert log =~ "2 invalid entries skipped"
+      assert log =~ "3 invalid entries skipped"
       refute log =~ "198.51.100"
       refute log =~ "nope"
+    end
+
+    test "one invalid entry is warned about in the singular" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          networks(["203.0.113.0/24", :not_a_string])
+          assert InternalTraffic.network_counts() == %{valid: 1, invalid: 1}
+        end)
+
+      assert log =~ "1 invalid entry skipped"
     end
   end
 
@@ -147,6 +157,22 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       assert InternalTraffic.admin_network?({198, 51, 100, 9}, config(%{admin_network_hours: 4}))
     end
 
+    test "a network past the hours set now is forgotten, all of them at 0" do
+      enable_tracking()
+      now = System.system_time(:millisecond)
+      send(InternalTraffic, {:admin_network, "198.51.100.11", now - :timer.hours(25)})
+      send(InternalTraffic, {:admin_network, "198.51.100.12", now - :timer.hours(1)})
+
+      InternalTraffic.forget_expired()
+      :sys.get_state(InternalTraffic)
+      assert nets() == ["198.51.100.12"]
+
+      PhoenixKitWebAnalytics.Admin.save_settings(%{"admin_network_hours" => "0"})
+      clear_settings_cache()
+      :sys.get_state(InternalTraffic)
+      assert nets() == []
+    end
+
     test "a sighting dated in the future counts as now" do
       later = System.system_time(:millisecond) + :timer.hours(100)
       send(InternalTraffic, {:admin_network, "198.51.100.10", later})
@@ -214,6 +240,20 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       InternalTraffic.flags(%{user_uuid: uuid, roles: ["Owner"]}, config())
 
       assert InternalTraffic.flags(%{user_uuid: uuid}, config()) == 2
+    end
+
+    test "a looked-up staff member's address is a staff network, though their hit missed" do
+      user = staff_user()
+
+      assert InternalTraffic.flags(%{user_uuid: user.uuid, ip: {198, 51, 100, 30}}, config()) == 0
+      assert InternalTraffic.admin_network?({198, 51, 100, 30}, config())
+    end
+
+    test "a looked-up ordinary user's address is not" do
+      user = plain_user()
+
+      InternalTraffic.flags(%{user_uuid: user.uuid, ip: {198, 51, 100, 31}}, config())
+      refute InternalTraffic.admin_network?({198, 51, 100, 31}, config())
     end
 
     test "an unknown user is looked up off the hit; the next hit has the answer" do
@@ -314,6 +354,12 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
 
       assert InternalTraffic.admin_network?({198, 51, 100, 25}, Config.collection_config())
     end
+  end
+
+  defp nets do
+    :phoenix_kit_web_analytics_internal_traffic
+    |> :ets.select([{{{:net, :"$1"}, :_}, [], [:"$1"]}])
+    |> Enum.sort()
   end
 
   defp staff_user, do: user_with_role("Admin")
