@@ -272,8 +272,11 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     with network when is_binary(network) <- network(ip) do
       now = now_ms()
 
-      if now - seen_at(network) >= div(hours * 3_600_000, 2) do
-        put_network(network, now)
+      shared = timestamp({:shared, network})
+      put_timestamp({:net, network}, now)
+
+      if now - shared >= div(hours * 3_600_000, 2) do
+        put_timestamp({:shared, network}, now)
         Manager.broadcast(@topic, {:admin_network, network, now})
       end
     end
@@ -321,8 +324,10 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   defp public?(_ip), do: true
 
   # When a staff member was last seen on the network (Unix ms), 0 if never.
-  defp seen_at(network) do
-    case :ets.lookup(@table, {:net, network}) do
+  defp seen_at(network), do: timestamp({:net, network})
+
+  defp timestamp(key) do
+    case :ets.lookup(@table, key) do
       [{_, at}] -> at
       [] -> 0
     end
@@ -333,8 +338,17 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   # The later sighting wins: a node that heard an older note keeps the newer
   # one. A time from the future (another node's clock) counts as now.
   defp put_network(network, seen) do
+    put_timestamp({:net, network}, seen)
+    put_timestamp({:shared, network}, seen)
+  end
+
+  # Keep local sightings separate from the broadcast interval: frequent
+  # requests renew the local lifetime without postponing the next broadcast.
+  # The conditional replace keeps an older concurrent writer from winning.
+  defp put_timestamp(key, seen) do
     seen = min(seen, now_ms())
-    if seen > seen_at(network), do: :ets.insert(@table, {{:net, network}, seen})
+    :ets.insert_new(@table, {key, seen})
+    :ets.select_replace(@table, [{{key, :"$1"}, [{:<, :"$1", seen}], [{:const, {key, seen}}]}])
     :ok
   rescue
     ArgumentError -> :ok
@@ -538,7 +552,10 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
     if config.enabled? do
       oldest = now - config.admin_network_hours * 3_600_000
-      :ets.select_delete(@table, [{{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]}])
+
+      for kind <- [:net, :shared] do
+        :ets.select_delete(@table, [{{{kind, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]}])
+      end
     end
 
     :ets.select_delete(@table, [{{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}])

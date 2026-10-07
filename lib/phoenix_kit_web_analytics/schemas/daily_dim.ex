@@ -8,7 +8,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyDim do
   thousand rows instead of every raw event. Like `DailyStat`, the `visitors`
   of different days add up exactly, because the visitor ID changes daily.
 
-  `dimension` is one of `PhoenixKitWebAnalytics.Dimensions.names/0`. `detail`
+  `dimension` is one of the names defined by the shared dimensions module. `detail`
   is a second key where the value alone isn't enough (an interaction's
   target); it is `""` otherwise. For the `page` dimension the engagement
   columns carry that page's exits, time on page, scroll depth and server

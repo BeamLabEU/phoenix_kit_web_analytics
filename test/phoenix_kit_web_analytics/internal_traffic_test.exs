@@ -226,6 +226,39 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       assert_receive {:admin_network, "198.51.100.7", _}
     end
 
+    test "recent local activity renews the network without broadcasting every request" do
+      Manager.subscribe(@topic)
+      ip = {198, 51, 100, 7}
+      seen = System.system_time(:millisecond) - :timer.hours(3)
+      send(InternalTraffic, {:admin_network, "198.51.100.7", seen})
+      :sys.get_state(InternalTraffic)
+
+      InternalTraffic.note_admin_network(ip, config())
+
+      # Still within the broadcast interval, but the local last sighting is
+      # now: shortening the timeout must not discard an active network.
+      refute_receive {:admin_network, _, _}, 50
+      assert InternalTraffic.admin_network?(ip, config(%{admin_network_hours: 1}))
+    end
+
+    test "frequent local activity does not postpone the next broadcast indefinitely" do
+      Manager.subscribe(@topic)
+      table = :phoenix_kit_web_analytics_internal_traffic
+      ip = {198, 51, 100, 7}
+      InternalTraffic.note_admin_network(ip, config())
+      assert_receive {:admin_network, "198.51.100.7", _}
+      :sys.get_state(InternalTraffic)
+
+      # The local sighting is fresh but other nodes last heard 13 hours ago.
+      :ets.insert(
+        table,
+        {{:shared, "198.51.100.7"}, System.system_time(:millisecond) - :timer.hours(13)}
+      )
+
+      InternalTraffic.note_admin_network(ip, config())
+      assert_receive {:admin_network, "198.51.100.7", _}
+    end
+
     test "a note from another node is taken" do
       Manager.broadcast(
         @topic,

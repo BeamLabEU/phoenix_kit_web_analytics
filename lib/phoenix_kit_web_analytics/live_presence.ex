@@ -331,7 +331,12 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
 
       [{^pid, visit}] ->
         client = state.clients[pid]
-        moved = %{visit | path: path, since: now, flags: Map.get(attrs, :flags, visit.flags)}
+
+        moved =
+          visit
+          |> Map.merge(Map.take(attrs, [:site, :user_uuid]))
+          |> Map.merge(%{path: path, since: now, flags: Map.get(attrs, :flags, visit.flags)})
+
         record_leave(visit, client, now)
         remove_visit(pid, visit)
         insert_visit(pid, moved)

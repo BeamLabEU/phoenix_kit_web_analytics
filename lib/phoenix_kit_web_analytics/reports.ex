@@ -40,7 +40,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
   Every report that adds things up over a period reads the finished days from
   the daily rollups (`DailyStat`, `DailyDim`) and only the rest — today, and
   yesterday until its rollup has run — from raw events
-  (`PhoenixKitWebAnalytics.RollupReader`). A 30-day or 12-month window costs
+  (through the rollup reader). A 30-day or 12-month window costs
   about what a single day does, whatever the traffic, and breakdowns keep
   working for days whose raw events retention has deleted. The numbers are
   the same either way: distinct visitors add up across days exactly, because

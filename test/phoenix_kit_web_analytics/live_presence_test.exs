@@ -109,6 +109,22 @@ defmodule PhoenixKitWebAnalytics.LivePresenceTest do
       assert [%{path: "/a"}] = LivePresence.list()
     end
 
+    test "navigation updates the signed-in user for the new page and its leave" do
+      pid = spawn_page()
+      LivePresence.watch(pid, @client, %{path: "/a", site: "example.com"})
+      :sys.get_state(LivePresence)
+      uuid = UUIDv7.generate()
+
+      LivePresence.navigate(pid, "/b", @client, %{user_uuid: uuid, flags: 2})
+      :sys.get_state(LivePresence)
+
+      assert [%{path: "/b", user_uuid: ^uuid, flags: 2}] = LivePresence.list()
+      assert wait_for_leave("/a").user_uuid == nil
+
+      Process.exit(pid, :kill)
+      assert wait_for_leave("/b").user_uuid == uuid
+    end
+
     test "a leave joins the session its page view opened, even past the inactivity window",
          %{server: server} do
       opened = DateTime.add(DateTime.utc_now(), -45 * 60, :second)

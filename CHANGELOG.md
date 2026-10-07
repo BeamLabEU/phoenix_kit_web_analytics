@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Staff-network expiry now follows every local staff sighting, while broadcasts
+  keep their existing interval. Shortening the timeout no longer forgets a
+  network with recent local activity. Concurrent sightings keep the newest time.
+- LiveView navigation updates the open page's signed-in user, so the live list
+  and the new page's leave use its current identity.
+- HexDocs source links use the repository's `v`-prefixed tags; documentation no
+  longer links to hidden modules or a removed historical function.
+
 ## 0.6.0 - 2026-10-07
 
 ### ⚠️ Upgrade
@@ -315,7 +327,7 @@ All notable changes to this project are documented here. This project follows
   **`traffic_chart/1`**; core's is a generic SVG chart keyed on `id`/`data`,
   while this one is bucket-aware and takes `series`/`metric`/`bucket`, so they
   are not interchangeable and the local one is kept. Rendered output is
-  unchanged. Callers using `PhoenixKitWebAnalytics.Web.Components.bar_chart/1`
+  unchanged. Callers using <code>PhoenixKitWebAnalytics.Web.Components.bar_chart/1</code>
   directly must rename the call.
 
 ## [0.1.0] - 2026-07-26
