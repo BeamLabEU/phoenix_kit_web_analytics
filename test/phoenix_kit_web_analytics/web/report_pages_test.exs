@@ -245,6 +245,27 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert PhoenixKitWebAnalytics.Config.collection_config().admin_network_hours == 12
     end
 
+    test "counts only valid internal networks and says how many were skipped", %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, [
+        "203.0.113.0/24",
+        "not-a-network"
+      ])
+
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+      {:ok, view, html} = live(conn, "#{@base}/settings")
+      assert html =~ "Addresses in the network listed"
+      assert has_element?(view, "#web-analytics-invalid-networks", "1 entry")
+      refute html =~ "not-a-network"
+    end
+
+    test "an emptied staff-roles field shows empty, not the default", %{conn: conn} do
+      enable_tracking(%{"web_analytics_internal_roles" => "-"})
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+      assert has_element?(view, "input#internal_roles[value='']")
+    end
+
     test "warns when LiveView visits behind a proxy are being skipped", %{conn: conn} do
       start_supervised!(PhoenixKitWebAnalytics.BotSignals)
 

@@ -124,6 +124,24 @@ defmodule PhoenixKitWebAnalytics.TrafficFlagsReportsTest do
       assert Enum.map(admin_too, & &1.entry_path) |> Enum.sort() == ["/admin", "/clean"]
     end
 
+    test "a visit's summary counts only the hits the mask keeps" do
+      session = UUIDv7.generate()
+      base = %{visitor_id: "mixed", session_id: session}
+      insert_event(Map.merge(base, %{path: "/m1", inserted_at: hours_ago(1)}))
+      # Stored before the visit's mark was written back, say.
+      insert_event(Map.merge(base, %{path: "/m2", traffic_flags: 2, inserted_at: hours_ago(0)}))
+
+      [row] = Reports.recent_sessions(120) |> elem(0) |> Enum.filter(&(&1.session_id == session))
+      assert row.pageviews == 1
+
+      [row] =
+        Reports.recent_sessions(120, excluded_flags: 0)
+        |> elem(0)
+        |> Enum.filter(&(&1.session_id == session))
+
+      assert row.pageviews == 2
+    end
+
     test "a flagged visit doesn't take a clean visit's place on a page" do
       insert_event(%{visitor_id: "clean-now", path: "/clean-now", inserted_at: hours_ago(0)})
       insert_event(%{visitor_id: "staff-now", traffic_flags: 2, inserted_at: DateTime.utc_now()})

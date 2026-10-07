@@ -40,15 +40,22 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       assert [{32, _, 32}] = InternalTraffic.parse_cidr("198.51.100.7")
     end
 
-    test "skips what isn't a network, with a warning" do
+    test "skips what isn't a network" do
+      for bad <- ["", "nope", "203.0.113.0/33", "2001:db8::/129", "203.0.113.0/x", "1.2.3/8"] do
+        assert InternalTraffic.parse_cidr(bad) == [], bad
+      end
+    end
+
+    test "invalid configured entries are counted and warned about, never quoted" do
       log =
         ExUnit.CaptureLog.capture_log(fn ->
-          for bad <- ["", "nope", "203.0.113.0/33", "2001:db8::/129", "203.0.113.0/x", "1.2.3/8"] do
-            assert InternalTraffic.parse_cidr(bad) == [], bad
-          end
+          networks(["203.0.113.0/24", "198.51.100.300/24", "nope"])
+          assert InternalTraffic.network_counts() == %{valid: 1, invalid: 2}
         end)
 
-      assert log =~ "\"nope\" is not a network"
+      assert log =~ "2 invalid entries skipped"
+      refute log =~ "198.51.100"
+      refute log =~ "nope"
     end
   end
 
@@ -60,6 +67,11 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       refute InternalTraffic.internal_network?({203, 0, 114, 1})
       assert InternalTraffic.internal_network?({0x2001, 0xDB8, 0xAA, 1, 0, 0, 0, 9})
       refute InternalTraffic.internal_network?({0x2001, 0xDB8, 0xAB, 1, 0, 0, 0, 9})
+    end
+
+    test "is a boolean even for a tuple that is no address" do
+      networks(["203.0.113.0/24"])
+      assert InternalTraffic.internal_network?({1, 2, 3}) == false
     end
 
     test "an IPv4-mapped IPv6 address is matched as its IPv4" do
@@ -124,20 +136,34 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       refute InternalTraffic.admin_network?({172, 18, 0, 8}, config())
     end
 
-    test "a network's time runs out" do
-      past = System.system_time(:millisecond) - 1
-      send(InternalTraffic, {:admin_network, "198.51.100.9", past})
+    test "a network counts for the hours set now, from its last sighting" do
+      seen = System.system_time(:millisecond) - :timer.hours(3)
+      send(InternalTraffic, {:admin_network, "198.51.100.9", seen})
       :sys.get_state(InternalTraffic)
 
-      refute InternalTraffic.admin_network?({198, 51, 100, 9}, config())
+      assert InternalTraffic.admin_network?({198, 51, 100, 9}, config())
+      # Shortened, the hours apply to networks already learnt.
+      refute InternalTraffic.admin_network?({198, 51, 100, 9}, config(%{admin_network_hours: 2}))
+      assert InternalTraffic.admin_network?({198, 51, 100, 9}, config(%{admin_network_hours: 4}))
+    end
+
+    test "a sighting dated in the future counts as now" do
+      later = System.system_time(:millisecond) + :timer.hours(100)
+      send(InternalTraffic, {:admin_network, "198.51.100.10", later})
+      :sys.get_state(InternalTraffic)
+
+      [{_, seen}] =
+        :ets.lookup(:phoenix_kit_web_analytics_internal_traffic, {:net, "198.51.100.10"})
+
+      assert seen <= System.system_time(:millisecond)
     end
 
     test "is told to the other nodes when new, not on every request" do
       Manager.subscribe(@topic)
 
       InternalTraffic.note_admin_network({198, 51, 100, 7}, config())
-      assert_receive {:admin_network, "198.51.100.7", expires}
-      assert expires > System.system_time(:millisecond) + 23 * 3_600_000
+      assert_receive {:admin_network, "198.51.100.7", seen}
+      assert_in_delta seen, System.system_time(:millisecond), 5_000
 
       InternalTraffic.note_admin_network({198, 51, 100, 7}, config())
       refute_receive {:admin_network, _, _}, 50
@@ -145,8 +171,8 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
 
     test "is told again once past half its time" do
       Manager.subscribe(@topic)
-      soon = System.system_time(:millisecond) + :timer.hours(1)
-      send(InternalTraffic, {:admin_network, "198.51.100.7", soon})
+      long_ago = System.system_time(:millisecond) - :timer.hours(13)
+      send(InternalTraffic, {:admin_network, "198.51.100.7", long_ago})
       :sys.get_state(InternalTraffic)
       # The test's own subscription sees what was just sent to the server only
       # by the server; drain anything else.
@@ -157,8 +183,11 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
     end
 
     test "a note from another node is taken" do
-      later = System.system_time(:millisecond) + :timer.hours(2)
-      Manager.broadcast(@topic, {:admin_network, "198.51.100.44", later})
+      Manager.broadcast(
+        @topic,
+        {:admin_network, "198.51.100.44", System.system_time(:millisecond)}
+      )
+
       :sys.get_state(InternalTraffic)
 
       assert InternalTraffic.admin_network?({198, 51, 100, 44}, config())
@@ -212,6 +241,47 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       :sys.get_state(InternalTraffic)
 
       assert InternalTraffic.admin_network?({198, 51, 100, 23}, Config.collection_config())
+    end
+
+    test "remembers the user's roles, so a hit with only their UUID is flagged at once" do
+      user = staff_user()
+
+      Auth.generate_user_session_token(user,
+        fingerprint: %{ip_address: "198.51.100.26", user_agent_hash: "test"}
+      )
+
+      :sys.get_state(InternalTraffic)
+
+      assert InternalTraffic.flags(%{user_uuid: user.uuid}, Config.collection_config()) == 2
+    end
+
+    test "a token with no address (fingerprinting off) is not read again" do
+      Application.put_env(:phoenix_kit_web_analytics, :admin_token_retry_ms, 10)
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :admin_token_retry_ms) end)
+
+      user = staff_user()
+      token_uuid = UUIDv7.generate()
+      insert_token(user, token_uuid, nil)
+      :erlang.trace(Process.whereis(InternalTraffic), true, [:receive])
+
+      send(InternalTraffic, {:session_created, user, %{token_uuid: token_uuid}})
+      :sys.get_state(InternalTraffic)
+
+      refute_receive {:trace, _, :receive, {:retry_token, _, _}}, 100
+    end
+
+    test "while tracking is off, a sign-in is ignored" do
+      Repo.query!("DELETE FROM phoenix_kit_settings WHERE key = 'web_analytics_enabled'")
+      clear_settings_cache()
+      user = staff_user()
+
+      Auth.generate_user_session_token(user,
+        fingerprint: %{ip_address: "198.51.100.27", user_agent_hash: "test"}
+      )
+
+      :sys.get_state(InternalTraffic)
+
+      assert :ets.lookup(:phoenix_kit_web_analytics_internal_traffic, {:roles, user.uuid}) == []
     end
 
     test "a non-staff sign-in marks nothing" do

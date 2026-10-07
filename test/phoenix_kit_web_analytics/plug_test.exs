@@ -92,6 +92,14 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
     :ok
   end
 
+  # The page-view callback, not the staff-network note every tracked request
+  # gets (it runs on excluded paths too — see the plug's moduledoc).
+  defp tracking_callbacks(conn) do
+    Enum.reject(conn.private[:before_send] || [], fn fun ->
+      Function.info(fun)[:name] |> Atom.to_string() |> String.contains?("register_staff_note")
+    end)
+  end
+
   defp request(path, headers \\ []) do
     Enum.reduce([{"user-agent", @chrome} | headers], conn(:get, path), fn {k, v}, conn ->
       Plug.Conn.put_req_header(conn, k, v)
@@ -176,7 +184,7 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
     test "an excluded path stores nothing and registers no callback" do
       conn = "/admin/settings" |> request() |> TrackingPlug.call(TrackingPlug.init([]))
 
-      assert (conn.private[:before_send] || []) == []
+      assert tracking_callbacks(conn) == []
       conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
 
       "/healthz"
@@ -258,7 +266,7 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
         |> TrackingPlug.call(TrackingPlug.init([]))
 
       assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == true
-      assert (conn.private[:before_send] || []) == []
+      assert tracking_callbacks(conn) == []
 
       conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
       assert Repo.all(Event) == []
@@ -291,7 +299,7 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
 
       refute Map.has_key?(conn.private, :plug_session)
       refute conn.private[:plug_session_fetch] == :done
-      assert (conn.private[:before_send] || []) == []
+      assert tracking_callbacks(conn) == []
 
       conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
       assert Repo.all(Event) == []

@@ -25,6 +25,10 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
       with the other nodes. Private, loopback and unparseable addresses are
       never taken.
 
+  A network is remembered with the time a staff member was last seen on it,
+  and judged against the hours set *now*: shortening them takes effect at
+  once for every network already learnt.
+
   A network learnt this way is held in memory only, under its plain key
   (hashing it would not protect anything: the key would sit on the same
   node), and forgotten when its time is up. Nothing about it is written to
@@ -104,6 +108,13 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   def staff?(_roles, _config), do: false
 
+  @doc """
+  Whether a hit is a staff member's — by the roles it carries, or by its
+  user's cached roles (a miss starts the lookup and answers `false`).
+  """
+  @spec staff_hit?(map(), Config.collection_config()) :: boolean()
+  def staff_hit?(hit, config), do: admin_flag(hit, config) != 0
+
   defp admin_flag(hit, config) do
     if staff?(roles_of(hit), config), do: TrafficFlags.bit(:admin), else: 0
   end
@@ -134,8 +145,14 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @spec internal_network?(:inet.ip_address() | nil) :: boolean()
   def internal_network?(ip) when is_tuple(ip) do
     case parsed_networks() do
-      [] -> false
-      networks -> with {bits, value} <- to_integer(unmap(ip)), do: in_any?(networks, bits, value)
+      [] ->
+        false
+
+      networks ->
+        case to_integer(unmap(ip)) do
+          {bits, value} -> in_any?(networks, bits, value)
+          nil -> false
+        end
     end
   end
 
@@ -147,7 +164,19 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     end)
   end
 
+  @doc """
+  How many configured `internal_networks` are networks and how many aren't
+  (those are skipped) — for the settings page.
+  """
+  @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
+  def network_counts do
+    valid = length(parsed_networks())
+    %{valid: valid, invalid: length(Config.internal_networks()) - valid}
+  end
+
   # Parsed once per configured list: the hot path reads one persistent term.
+  # Invalid entries are counted in the warning, never quoted — an entry is
+  # likely someone's address.
   defp parsed_networks do
     raw = Config.internal_networks()
 
@@ -157,14 +186,20 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
       _ ->
         parsed = Enum.flat_map(raw, &parse_cidr/1)
+        warn_invalid(length(raw) - length(parsed))
         :persistent_term.put(@networks_key, {raw, parsed})
         parsed
     end
   end
 
+  defp warn_invalid(0), do: :ok
+
+  defp warn_invalid(count),
+    do: Logger.warning("[WebAnalytics] internal_networks: #{count} invalid entries skipped")
+
   @doc """
-  `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` (with a warning) for
-  anything that isn't a network.
+  `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` for anything that isn't a
+  network.
   """
   @spec parse_cidr(String.t()) :: [{32 | 128, non_neg_integer(), non_neg_integer()}]
   def parse_cidr(cidr) when is_binary(cidr) do
@@ -179,9 +214,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
          len when is_integer(len) and len >= 0 and len <= bits <- prefix_length(prefix, bits) do
       [{bits, value, len}]
     else
-      _ ->
-        Logger.warning("[WebAnalytics] internal_networks: #{inspect(cidr)} is not a network")
-        []
+      _ -> []
     end
   end
 
@@ -215,7 +248,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   def admin_network?(ip, %{admin_network_hours: hours}) when is_tuple(ip) and hours > 0 do
     case network(ip) do
       nil -> false
-      network -> expires_at(network) > now_ms()
+      network -> seen_at(network) + hours * 3_600_000 > now_ms()
     end
   end
 
@@ -232,13 +265,11 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
           :ok
   def note_admin_network(ip, %{admin_network_hours: hours}) when hours > 0 do
     with network when is_binary(network) <- network(ip) do
-      ttl = hours * 3_600_000
       now = now_ms()
 
-      if expires_at(network) - now <= div(ttl, 2) do
-        expires = now + ttl
-        put_network(network, expires)
-        Manager.broadcast(@topic, {:admin_network, network, expires})
+      if now - seen_at(network) >= div(hours * 3_600_000, 2) do
+        put_network(network, now)
+        Manager.broadcast(@topic, {:admin_network, network, now})
       end
     end
 
@@ -284,7 +315,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   defp public?({a, _, _, _, _, _, _, _}) when a in 0xFE80..0xFEBF, do: false
   defp public?(_ip), do: true
 
-  defp expires_at(network) do
+  # When a staff member was last seen on the network (Unix ms), 0 if never.
+  defp seen_at(network) do
     case :ets.lookup(@table, {:net, network}) do
       [{_, at}] -> at
       [] -> 0
@@ -293,10 +325,11 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     ArgumentError -> 0
   end
 
-  # The later of two expiries wins: a node that heard an older note keeps
-  # the newer one.
-  defp put_network(network, expires) do
-    if expires > expires_at(network), do: :ets.insert(@table, {{:net, network}, expires})
+  # The later sighting wins: a node that heard an older note keeps the newer
+  # one. A time from the future (another node's clock) counts as now.
+  defp put_network(network, seen) do
+    seen = min(seen, now_ms())
+    if seen > seen_at(network), do: :ets.insert(@table, {{:net, network}, seen})
     :ok
   rescue
     ArgumentError -> :ok
@@ -345,20 +378,31 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   # session's token was issued to is a staff network. Core broadcasts right
   # after inserting the token; if it isn't readable yet (a transaction still
   # open around the sign-in) it is read once more a moment later.
+  #
+  # Nothing at all while tracking is off. The roles are remembered whatever
+  # the staff-network hours: they also give the admin flag to the user's
+  # hits that carry no scope.
   defp session_created(user_uuid, token_uuid, attempt) do
-    roles = load_roles(user_uuid)
-    remember_roles(user_uuid, roles)
     config = Config.collection_config()
 
-    if config.enabled? and config.admin_network_hours > 0 and staff?(roles, config) do
-      case token_address(token_uuid) do
-        {:ok, address} -> note_admin_network(address, config)
-        :missing when attempt == :first -> retry_later(user_uuid, token_uuid)
-        _ -> :ok
-      end
+    if config.enabled? do
+      roles = load_roles(user_uuid)
+      remember_roles(user_uuid, roles)
+
+      if config.admin_network_hours > 0 and staff?(roles, config),
+        do: note_token_network(user_uuid, token_uuid, attempt, config)
     end
 
     :ok
+  end
+
+  defp note_token_network(user_uuid, token_uuid, attempt, config) do
+    case token_address(token_uuid) do
+      {:ok, address} -> note_admin_network(address, config)
+      :missing when attempt == :first -> retry_later(user_uuid, token_uuid)
+      # Read, with no address on it (fingerprinting off): nothing to wait for.
+      _ -> :ok
+    end
   end
 
   defp retry_later(user_uuid, token_uuid) do
@@ -374,12 +418,13 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   defp token_address(token_uuid) do
     from(t in UserToken,
       where: t.uuid == ^token_uuid,
-      select: t.ip_address
+      select: {t.uuid, t.ip_address}
     )
     |> PhoenixKit.RepoHelper.repo().one()
     |> case do
       nil -> :missing
-      address -> {:ok, address}
+      {_uuid, nil} -> :no_address
+      {_uuid, address} -> {:ok, address}
     end
   rescue
     error ->
@@ -419,17 +464,20 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     {:noreply, state}
   end
 
-  def handle_info({:admin_network, network, expires}, state)
-      when is_binary(network) and is_integer(expires) do
-    put_network(network, expires)
+  def handle_info({:admin_network, network, seen}, state)
+      when is_binary(network) and is_integer(seen) do
+    put_network(network, seen)
     {:noreply, state}
   end
 
+  # A network is kept for the longest hours a setting can name; how long it
+  # counts is decided when it is read, by the hours set then.
   def handle_info(:sweep, state) do
     now = now_ms()
+    oldest = now - Config.max_admin_network_hours() * 3_600_000
 
     :ets.select_delete(@table, [
-      {{{:net, :_}, :"$1"}, [{:"=<", :"$1", now}], [true]},
+      {{{:net, :_}, :"$1"}, [{:"=<", :"$1", oldest}], [true]},
       {{{:roles, :_}, :_, :"$1"}, [{:"=<", :"$1", now}], [true]}
     ])
 

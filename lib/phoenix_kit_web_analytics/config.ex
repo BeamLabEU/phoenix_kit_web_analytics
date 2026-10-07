@@ -38,7 +38,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_exclude_internal_network` | `true` | Leave internal-network traffic out of the statistics |
   | `web_analytics_exclude_admin` | `true` | Leave the site staff's own visits out of the statistics |
   | `web_analytics_exclude_admin_network` | `true` | Leave visits from the staff's networks out of the statistics |
-  | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated) |
+  | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-` is no one) |
   | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network; `0` turns that off |
   | `web_analytics_hash_secret` | generated | Secret mixed into the daily visitor hash |
 
@@ -215,6 +215,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "The default staff roles: core's Owner and Admin."
   @spec default_internal_roles() :: String.t()
   def default_internal_roles, do: Enum.join(system_staff_roles(), ", ")
+
+  @doc "The most hours `web_analytics_admin_network_hours` can name."
+  @spec max_admin_network_hours() :: pos_integer()
+  def max_admin_network_hours, do: @max_admin_network_hours
 
   @doc "Default hours a staff sign-in marks its network for."
   @spec default_admin_network_hours() :: pos_integer()
@@ -460,8 +464,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   end
 
   # Role names can hold spaces ("Content Editor"), so only commas and line
-  # breaks separate them. An emptied setting means "no one", not the default.
+  # breaks separate them. "-" is "no one" (the form saves an emptied field
+  # so); an unset key is the default.
   defp parse_roles(nil), do: system_staff_roles()
+  defp parse_roles("-"), do: []
 
   defp parse_roles(value) when is_binary(value) do
     value

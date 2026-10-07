@@ -47,7 +47,8 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
     test "never stores the IP address" do
       assert {:ok, event} = Collector.track(hit())
 
-      refute event.visitor_id =~ "203"
+      # The whole address, never a fragment: a hex hash can contain "203".
+      refute event |> Map.from_struct() |> inspect() =~ "203.0.113.5"
       refute Map.has_key?(event, :ip_address)
       refute event.metadata |> inspect() =~ "203.0.113"
     end

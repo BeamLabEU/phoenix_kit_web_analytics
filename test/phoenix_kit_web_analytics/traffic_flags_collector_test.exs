@@ -175,6 +175,37 @@ defmodule PhoenixKitWebAnalytics.TrafficFlagsCollectorTest do
       assert [%Event{traffic_flags: 4, user_uuid: nil}] = Repo.all(Event)
     end
 
+    test "the user is read as the response goes out, so the plug's place in the pipeline doesn't matter" do
+      # Core's own routes load the user after the host's :browser pipeline,
+      # where this plug sits.
+      "/admin/settings"
+      |> request()
+      |> TrackingPlug.call(TrackingPlug.init([]))
+      |> Plug.Conn.assign(
+        :phoenix_kit_current_scope,
+        PhoenixKitWebAnalytics.LiveCase.fake_scope()
+      )
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "")
+
+      "/pricing" |> request() |> respond()
+      assert [%Event{traffic_flags: 4}] = Repo.all(Event)
+    end
+
+    test "with only core's current user (no scope), the user's cached roles count" do
+      uuid = UUIDv7.generate()
+      # Remembered from an earlier hit of theirs that carried a scope.
+      InternalTraffic.flags(%{user_uuid: uuid, roles: ["Admin"]}, Config.collection_config())
+
+      "/admin/settings"
+      |> request()
+      |> Plug.Conn.assign(:phoenix_kit_current_user, %{uuid: uuid})
+      |> respond()
+
+      "/pricing" |> request() |> respond()
+      assert [%Event{traffic_flags: 4}] = Repo.all(Event)
+    end
+
     test "an ordinary signed-in user marks nothing" do
       "/admin/x"
       |> request(PhoenixKitWebAnalytics.LiveCase.fake_scope(roles: [:user]))

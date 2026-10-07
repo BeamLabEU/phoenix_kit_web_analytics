@@ -131,6 +131,14 @@ defmodule PhoenixKitWebAnalytics.RecordingsTest do
                build_conn() |> browser() |> get(@path, %{"p" => "/pricing"}) |> json_response(200)
     end
 
+    test "never a signed-in staff member, when the request carries the user" do
+      client = %{ip: {198, 51, 100, 1}, user_agent: @ua, site: "example.com"}
+
+      assert Recordings.record?(client, "/pricing")
+      refute Recordings.record?(Map.put(client, :roles, ["Admin"]), "/pricing")
+      assert Recordings.record?(Map.put(client, :roles, ["User"]), "/pricing")
+    end
+
     test "a visit that became a staff member's is recorded no further", %{conn: conn} do
       hit = %{path: "/pricing", site: "www.example.com", ip: {127, 0, 0, 1}, user_agent: @ua}
       {:ok, _} = Collector.track(hit)

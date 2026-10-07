@@ -29,6 +29,11 @@ All notable changes to this project are documented here. This project follows
 - **A report counting any own traffic in reads raw events** (as bot traffic
   always has): the rollups hold only unmarked traffic, so days older than the
   raw-event retention show no data in that view.
+- **Known limit:** a visit marked mid-way has its earlier hits marked too; if
+  they fall on a day already rolled up for good (more than three hours after
+  it ended), that day's rollup still counts them, so for that day a report
+  leaving own traffic out (rollups) and one counting it in (raw) can differ
+  by those hits.
 
 ### Added
 
@@ -40,12 +45,14 @@ All notable changes to this project are documented here. This project follows
     IPv4/IPv6; app config, not a setting, so your addresses never reach the
     activity log). Settings shows how many are configured.
   - **Site staff** — the signed-in user holds a role in
-    `web_analytics_internal_roles` (Owner, Admin by default), by the roles
-    they really hold. A hit naming only a user is judged by a 5-minute cache
+    `web_analytics_internal_roles` (Owner, Admin by default; an emptied
+    field is stored as `-`, no one), by the roles they really hold. A hit naming only a user is judged by a 5-minute cache
     of their roles, filled off the hit's path.
   - **Staff network** — the address's network had a staff sign-in (from
     core's session broadcast and the token's address) or a staff request (any
-    path, excluded ones included) within `web_analytics_admin_network_hours`;
+    path, excluded ones included — read as the response is sent, so the
+    plug's place in the pipeline doesn't matter) within
+    `web_analytics_admin_network_hours`, judged by the hours set at the time;
     in memory only, shared between nodes when new. Private and loopback
     addresses are never taken.
 - A visit is marked whole: later hits inherit its marks, and a mark that

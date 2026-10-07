@@ -48,6 +48,15 @@ defmodule PhoenixKitWebAnalytics.Plug do
   `/admin`. See `PhoenixKitWebAnalytics.InternalTraffic`. Their page views
   are stored with the `admin` flag (`PhoenixKitWebAnalytics.TrafficFlags`).
 
+  Who is signed in is read when the response is sent, not when this plug
+  runs, so the plug may sit anywhere in the pipeline: PhoenixKit's own routes
+  pipe through the host's `:browser` first and only then load the user
+  (`:phoenix_kit_auto_setup`) and, for the admin, the scope. With a scope the
+  roles come from it; with only `:phoenix_kit_current_user` (core's
+  auto-setup) they come from a five-minute cache of the user's roles, looked
+  up off the request on a miss — that request goes unnoted, the next one
+  counts.
+
   ## Options
 
     * `:exclude` — extra path patterns on top of the ones in settings, e.g.
@@ -145,12 +154,13 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   defp maybe_register(conn, opts) do
     config = Config.collection_config()
-    path = conn.request_path
 
-    # Before the path and opt-out checks: staff mostly work on excluded
-    # paths, and their network counts whatever they ask for.
-    if config.enabled?, do: note_staff(conn, config)
+    conn
+    |> register_tracking(config, opts)
+    |> register_staff_note(config)
+  end
 
+  defp register_tracking(conn, config, opts) do
     cond do
       not config.enabled? ->
         conn
@@ -160,7 +170,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       opted_out?(conn, config) ->
         remember_opt_out(conn)
 
-      not trackable_path?(path, config, opts) ->
+      not trackable_path?(conn.request_path, config, opts) ->
         conn
 
       true ->
@@ -169,17 +179,31 @@ defmodule PhoenixKitWebAnalytics.Plug do
     end
   end
 
-  # In the request process, from what the scope already holds — no query;
-  # a broadcast only when the network is new or past half its time.
-  defp note_staff(conn, config) do
-    roles = Tracking.current_roles(conn.assigns)
+  # Whatever the path or opt-out: staff mostly work on excluded paths, and
+  # their network counts whatever they ask for. Registered last so it runs
+  # first (before_send callbacks run in reverse): the page view of the
+  # request that marks the network already carries the mark.
+  defp register_staff_note(conn, %{enabled?: true, admin_network_hours: hours} = config)
+       when hours > 0,
+       do: register_before_send(conn, &note_staff(&1, config))
 
-    if config.admin_network_hours > 0 and InternalTraffic.staff?(roles, config),
+  defp register_staff_note(conn, _config), do: conn
+
+  # As the response goes out — after the pipeline and the controller have put
+  # the user (or scope) in assigns. In the request process, from memory: no
+  # query; a broadcast only when the network is new or past half its time.
+  defp note_staff(conn, config) do
+    hit = %{
+      roles: Tracking.current_roles(conn.assigns),
+      user_uuid: Tracking.current_user_uuid(conn.assigns)
+    }
+
+    if hit.user_uuid && InternalTraffic.staff_hit?(hit, config),
       do: InternalTraffic.note_admin_network(Tracking.client_ip(conn), config)
 
-    :ok
+    conn
   rescue
-    _ -> :ok
+    _ -> conn
   end
 
   # The LiveView socket can't see request headers, so a DNT / GPC visitor is

@@ -33,7 +33,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :exclude_admin_network
   ]
   @alert_booleans [:visitors, :signups, :skip_users]
-  @lists [:exclude_paths, :ignore_events, :event_params, :internal_roles]
+  @lists [:exclude_paths, :ignore_events, :event_params]
   @max_setting_length 1000
   @alert_lists [:paths, :events]
   @integers %{
@@ -184,6 +184,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
       Enum.map(@alert_booleans, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :boolean}) ++
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
+        {:internal_roles, keys.internal_roles, :roles},
         {:alert_max_per_hour, alert_keys.max_per_hour, {:integer, {0, 10_000}}},
         {:alert_channels, alert_keys.channels, :channels}
       ]
@@ -204,6 +205,19 @@ defmodule PhoenixKitWebAnalytics.Admin do
   end
 
   defp cast(:text, _value, _params), do: :error
+
+  # "-" is "no staff roles": an emptied field must not read as "unset",
+  # which is the default (Owner, Admin).
+  defp cast(:roles, nil, _params), do: :skip
+
+  defp cast(:roles, value, params) when is_binary(value) do
+    case cast(:text, value, params) do
+      {:ok, ""} -> {:ok, "-"}
+      other -> other
+    end
+  end
+
+  defp cast(:roles, _value, _params), do: :error
 
   defp cast({:integer, _range}, nil, _params), do: :skip
 

@@ -25,6 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Alerts
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.TrafficFlags
 
@@ -142,8 +143,11 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:exclude_paths, Config.exclude_paths_raw())
     |> assign(:ignore_events, raw(keys.ignore_events, Config.default_ignore_events()))
     |> assign(:event_params, raw(keys.event_params, Config.default_event_params()))
-    |> assign(:internal_roles, raw(keys.internal_roles, Config.default_internal_roles()))
-    |> assign(:internal_networks, length(Config.internal_networks()))
+    |> assign(
+      :internal_roles,
+      roles_field(raw(keys.internal_roles, Config.default_internal_roles()))
+    )
+    |> assign(:internal_networks, InternalTraffic.network_counts())
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
@@ -156,6 +160,10 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp live_skips? do
     BotSignals.live_visits().skipped > 0 or BotSignals.skipping_live_visits?()
   end
+
+  # "-" is how "no staff roles" is stored; the field shows it empty.
+  defp roles_field("-"), do: ""
+  defp roles_field(value), do: value
 
   defp flag_excluded?(config, name),
     do: TrafficFlags.excluded?(TrafficFlags.bit(name), config.excluded_flags)
@@ -318,12 +326,12 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             label={gettext("Leave out internal networks")}
           >
             <:description>
-              {if @internal_networks > 0,
+              {if @internal_networks.valid > 0,
                 do:
                   ngettext(
                     "Addresses in the network listed in the app's config (internal_networks).",
                     "Addresses in the %{count} networks listed in the app's config (internal_networks).",
-                    @internal_networks
+                    @internal_networks.valid
                   ),
                 else:
                   gettext(
@@ -331,6 +339,17 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
                   )}
             </:description>
           </.checkbox>
+          <p
+            :if={@internal_networks.invalid > 0}
+            id="web-analytics-invalid-networks"
+            class="-mt-2 text-xs text-warning"
+          >
+            {ngettext(
+              "%{count} entry in internal_networks is not a network and is skipped.",
+              "%{count} entries in internal_networks are not networks and are skipped.",
+              @internal_networks.invalid
+            )}
+          </p>
 
           <.checkbox
             name="exclude_admin"
@@ -351,7 +370,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             value={@internal_roles}
           />
           <p class="-mt-2 text-xs text-base-content/50">
-            {gettext("Comma-separated role names, e.g. Owner, Admin.")}
+            {gettext("Comma-separated role names, e.g. Owner, Admin. Empty: no one counts as staff.")}
           </p>
 
           <.checkbox

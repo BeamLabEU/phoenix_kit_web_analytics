@@ -122,6 +122,10 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
       ip: Tracking.client_ip(conn),
       user_agent: conn |> get_req_header("user-agent") |> List.first(),
       site: Referrer.normalize_host(conn.host),
+      # Present only when the host's pipeline for these endpoints loads the
+      # user; then a staff member isn't recorded either.
+      user_uuid: Tracking.current_user_uuid(conn.assigns),
+      roles: Tracking.current_roles(conn.assigns),
       opted_out?: get_req_header(conn, "dnt") == ["1"] or get_req_header(conn, "sec-gpc") == ["1"]
     }
   end

@@ -256,6 +256,29 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       assert config.admin_network_hours == 0
     end
 
+    test "an emptied staff-roles field means no one, not the default" do
+      enable_tracking()
+
+      # Never set: the empty field still saves "no one".
+      assert {:ok, changed} = Admin.save_settings(%{"internal_roles" => ""})
+      assert "web_analytics_internal_roles" in changed
+      assert read("web_analytics_internal_roles") == "-"
+      clear_settings_cache()
+      assert Config.collection_config().internal_roles == []
+
+      assert PhoenixKitWebAnalytics.InternalTraffic.flags(
+               %{roles: ["Owner"]},
+               Config.collection_config()
+             ) == 0
+
+      # Set, then emptied.
+      {:ok, _} = Admin.save_settings(%{"internal_roles" => "Owner"})
+      {:ok, _} = Admin.save_settings(%{"internal_roles" => "  "})
+      assert read("web_analytics_internal_roles") == "-"
+      # Saving the empty field again is no change.
+      assert {:ok, []} = Admin.save_settings(%{"internal_roles" => ""})
+    end
+
     test "out-of-range hours are refused by name" do
       assert {:error, [:admin_network_hours]} =
                Admin.save_settings(%{"admin_network_hours" => "721"})

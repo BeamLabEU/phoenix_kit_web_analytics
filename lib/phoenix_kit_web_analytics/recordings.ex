@@ -83,7 +83,8 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   @doc """
   Whether this request's visitor should be recorded on `path`: recording on,
   the visitor sampled in, not a bot, not opted out, the path not excluded,
-  the address not in a network whose traffic the statistics leave out.
+  and no flag the statistics leave out — by the address, and by the
+  signed-in user when the request carries one (`:roles` / `:user_uuid`).
   """
   @spec record?(map(), String.t() | nil) :: boolean()
   def record?(client, path) do
@@ -93,10 +94,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
       not Config.excluded?(path, config.exclusions) and
       not (config.respect_dnt? and client[:opted_out?] == true) and
       not UserAgent.bot?(client[:user_agent]) and
-      not TrafficFlags.excluded?(
-        InternalTraffic.network_flags(client[:ip], config),
-        config.excluded_flags
-      ) and
+      not TrafficFlags.excluded?(InternalTraffic.flags(client, config), config.excluded_flags) and
       sampled?(visitor_id(client), config.recording_sample)
   end
 

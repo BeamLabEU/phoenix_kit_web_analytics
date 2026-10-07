@@ -86,6 +86,15 @@ mix phoenix_kit.update   # creates / upgrades the module's tables
 Then enable **Web Analytics** on the admin Modules page, and:
 
 1. **The plug** in your browser pipeline, after `:fetch_session` (above).
+   Where exactly doesn't matter otherwise: who is signed in (for
+   [Your own traffic](#your-own-traffic)) is read as the response is sent,
+   after the rest of the pipeline and the controller have run. PhoenixKit's
+   own routes — the admin panel among them — pipe through your `:browser`
+   first and only then load the user (`:phoenix_kit_auto_setup`) and, for
+   the admin, the scope; the plug still sees them. Where only the user is
+   loaded (no scope), their roles come from a five-minute cache, looked up
+   off the request on a miss: the first such request after a cold start
+   doesn't mark the staff network, the next one does.
 2. **The hook** in each public `live_session`, after whatever mounts the
    current user, so signed-in visitors are attributed:
 
@@ -261,7 +270,11 @@ A **visit is marked whole**: its later hits inherit its marks, and a mark
 that appears mid-visit — an anonymous visitor signs in as an admin — is
 written back to the visit's earlier hits. Visits *before* that, from the
 same address, are not: no address is stored, so there is nothing to match
-them against.
+them against. A visit long enough to reach back past a day already rolled
+up for good (more than three hours after that day ended) has its earlier
+hits marked, but that day's rollup keeps counting them: until retention
+prunes the day's raw events, a report counting own traffic in and one
+leaving it out can differ for that day by those hits.
 
 A staff network is learnt from a staff sign-in (the address the session was
 issued to — so an admin who only ever works in the admin panel, which is
@@ -270,7 +283,8 @@ path, and is shared between nodes. It is kept in memory only. **Behind a
 mobile network, carrier-grade NAT or an office gateway, one address is many
 people**: a sign-in from a phone leaves out everyone sharing that address
 for those hours. Count staff networks back in from Settings, or set the
-hours to `0` to stop marking them.
+hours to `0` to stop marking them. The hours are read when a network is
+judged, so shortening them applies to the networks already learnt.
 
 In Settings, each mark has its own **Leave out** switch (all on by default);
 on a report, **Own traffic** shows everything for that view, and **Bots**
@@ -385,7 +399,7 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_exclude_internal_network` | `true` | Leave internal-network traffic out of the statistics |
 | `web_analytics_exclude_admin` | `true` | Leave the site staff's visits out of the statistics |
 | `web_analytics_exclude_admin_network` | `true` | Leave visits from staff networks out of the statistics |
-| `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated) |
+| `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-`, an emptied field, is no one) |
 | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network (`0` = never) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
