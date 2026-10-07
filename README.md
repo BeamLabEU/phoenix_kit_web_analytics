@@ -238,8 +238,9 @@ could recompute the hash for an IP and browser they already know, so treat
 database access accordingly.
 
 Query strings are not stored — not in paths and not in referrers. Campaign
-parameters (`utm_*`) are extracted into their own columns first; everything
-else is discarded before the row is written. An interaction keeps only the
+parameters (`utm_*`) and an ad platform's click identifier (`gclid`, `gbraid`,
+`wbraid`, `msclkid`, `fbclid`, `ttclid`, `li_fat_id`) are extracted into their
+own columns first; everything else is discarded before the row is written. An interaction keeps only the
 event's name and the short values of parameters you allow-list (`tab`, `view`,
 `step` … by default) — never form contents.
 
@@ -374,7 +375,7 @@ options, so a LiveView page to leave out entirely goes in the
 ## Database
 
 Four tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V06),
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V07),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
@@ -382,7 +383,7 @@ UUIDv7 primary keys, prefix-safe for named-schema installs:
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
 
-On a busy install with a large events table, build V03's and V05's indexes
+On a busy install with a large events table, build V03's, V05's and V07's indexes
 `CONCURRENTLY` before upgrading — the migration then skips them; the
 statements are in the `PhoenixKitWebAnalytics.Migrations` docs.
 

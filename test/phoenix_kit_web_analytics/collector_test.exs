@@ -145,6 +145,92 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert event.referrer_source == "newsletter"
     end
 
+    test "an auto-tagged ad click is recorded as paid, with its identifier" do
+      assert {:ok, event} =
+               Collector.track(hit(%{query_params: %{"gclid" => "EAIaIQobChMI"}}))
+
+      assert event.click_id == "EAIaIQobChMI"
+      assert event.click_source == "google"
+      # Without this the visit would land in the table as "direct": an
+      # auto-tagged ad URL carries no utm_medium and no referrer.
+      assert event.referrer_medium == "paid"
+      assert event.referrer_source == "google"
+    end
+
+    test "each ad platform's identifier names its own platform" do
+      for {param, source} <- [
+            {"gbraid", "google"},
+            {"wbraid", "google"},
+            {"msclkid", "bing"},
+            {"ttclid", "tiktok"},
+            {"li_fat_id", "linkedin"}
+          ] do
+        assert {:ok, event} = Collector.track(hit(%{query_params: %{param => "xyz"}}))
+        assert event.click_source == source
+        assert event.referrer_medium == "paid"
+      end
+    end
+
+    test "fbclid is stored but counts as social, not paid" do
+      # Meta appends fbclid to organic link clicks too, so on its own it
+      # proves the visitor came from Facebook, not that they clicked an ad.
+      assert {:ok, event} = Collector.track(hit(%{query_params: %{"fbclid" => "IwAR0abc"}}))
+
+      assert event.click_id == "IwAR0abc"
+      assert event.click_source == "facebook"
+      assert event.referrer_source == "facebook"
+      assert event.referrer_medium == "social"
+
+      assert {:ok, tagged} =
+               Collector.track(
+                 hit(%{query_params: %{"fbclid" => "IwAR0abc", "utm_medium" => "cpc"}})
+               )
+
+      assert tagged.referrer_medium == "paid"
+    end
+
+    test "the first click identifier in click_param_names/0 order wins" do
+      # Alphabetical (map) order would pick msclkid; the list puts wbraid first.
+      assert {:ok, event} =
+               Collector.track(hit(%{query_params: %{"msclkid" => "m1", "wbraid" => "w1"}}))
+
+      assert event.click_id == "w1"
+      assert event.click_source == "google"
+    end
+
+    test "explicit campaign tags keep their own source, the click id is still stored" do
+      assert {:ok, event} =
+               Collector.track(
+                 hit(%{
+                   query_params: %{
+                     "gclid" => "abc123",
+                     "utm_source" => "google",
+                     "utm_medium" => "cpc",
+                     "utm_campaign" => "spring-sale"
+                   }
+                 })
+               )
+
+      assert event.click_id == "abc123"
+      assert event.utm_campaign == "spring-sale"
+      assert event.referrer_source == "google"
+      assert event.referrer_medium == "paid"
+    end
+
+    test "a hit with no click identifier leaves both columns empty" do
+      assert {:ok, event} = Collector.track(hit(%{query_params: %{"utm_source" => "hn"}}))
+
+      assert is_nil(event.click_id)
+      assert is_nil(event.click_source)
+    end
+
+    test "an over-long click identifier is truncated, not rejected" do
+      assert {:ok, event} =
+               Collector.track(hit(%{query_params: %{"gclid" => String.duplicate("a", 300)}}))
+
+      assert byte_size(event.click_id) == 255
+    end
+
     test "the Referer header classifies the source when there is no campaign" do
       assert {:ok, event} =
                Collector.track(hit(%{referrer: "https://news.ycombinator.com/item?id=1"}))

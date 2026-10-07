@@ -80,6 +80,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Schemas.Event
+  alias PhoenixKitWebAnalytics.Tracking
   alias PhoenixKitWebAnalytics.UserAgent
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -516,18 +517,43 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
     utm_source = param(params, "utm_source")
     utm_medium = param(params, "utm_medium")
+    {click_id, click_source, click_medium} = click_attrs(params)
 
     %{
       referrer: referrer,
-      referrer_source: utm_source || source,
-      referrer_medium: utm_medium(utm_medium, utm_source, medium),
+      referrer_source: utm_source || click_source || source,
+      referrer_medium: click_medium(click_medium, utm_medium(utm_medium, utm_source, medium)),
       utm_source: utm_source,
       utm_medium: utm_medium,
       utm_campaign: param(params, "utm_campaign"),
       utm_term: param(params, "utm_term"),
-      utm_content: param(params, "utm_content")
+      utm_content: param(params, "utm_content"),
+      click_id: click_id,
+      click_source: click_source
     }
   end
+
+  # The first identifier present wins; order follows click_param_names/0, so a
+  # URL carrying both `gclid` and `wbraid` is recorded under the same one every
+  # time rather than whichever way the map happened to be ordered.
+  defp click_attrs(params) do
+    Enum.find_value(Tracking.click_param_names(), {nil, nil, nil}, fn name ->
+      case param(params, name) do
+        nil -> nil
+        value -> {value, Tracking.click_source(name), click_param_medium(name)}
+      end
+    end)
+  end
+
+  defp click_param_medium(name), do: if(Tracking.paid_click?(name), do: "paid", else: "social")
+
+  # An ad-only identifier is proof of a paid click on its own: the ad platform
+  # put it there. Without this, an auto-tagged ad visit lands in the table as
+  # "direct" (no utm_medium, often no referrer) and is invisible in every
+  # report. A social one (`fbclid`) only fills in for a missing referrer.
+  defp click_medium("paid", _medium), do: "paid"
+  defp click_medium("social", "none"), do: "social"
+  defp click_medium(_click_medium, medium), do: medium
 
   # `utm_medium` is free text ("cpc", "newsletter", …) but the column is a
   # controlled vocabulary, so map the common values and fall back to "referral"

@@ -144,7 +144,7 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
   @spec utm_params(term()) :: map()
   def utm_params(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{query: query} when is_binary(query) -> Tracking.utm_params(query)
+      %URI{query: query} when is_binary(query) -> Tracking.campaign_params(query)
       _ -> %{}
     end
   end

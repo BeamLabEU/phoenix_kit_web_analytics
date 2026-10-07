@@ -66,6 +66,11 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     field(:utm_campaign, :string)
     field(:utm_term, :string)
     field(:utm_content, :string)
+    # An ad click's own identifier (`gclid` and friends) and the platform it
+    # belongs to. The only mark a paid click leaves on the URL, and what a
+    # conversion is reported back against.
+    field(:click_id, :string)
+    field(:click_source, :string)
 
     field(:browser, :string)
     field(:browser_version, :string)
@@ -97,6 +102,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     visitor_id session_id user_uuid
     referrer referrer_source referrer_medium
     utm_source utm_medium utm_campaign utm_term utm_content
+    click_id click_source
     browser browser_version os os_version device_type language is_bot
     country_code region city status duration_ms engaged_ms scroll_depth target
     session_start metadata inserted_at
@@ -141,6 +147,8 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
     |> truncate(:utm_campaign, 255)
     |> truncate(:utm_term, 255)
     |> truncate(:utm_content, 255)
+    |> truncate(:click_id, 255)
+    |> truncate(:click_source, 20)
     |> truncate(:browser, 60)
     |> truncate(:browser_version, 30)
     |> truncate(:os, 60)

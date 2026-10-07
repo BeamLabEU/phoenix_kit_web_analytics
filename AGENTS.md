@@ -32,7 +32,7 @@ can't, stays optional, and never writes a cookie or storage.
   never queues). Session stitching runs with the insert in one transaction
   under an advisory lock on the visitor. Calls `Alerts.event_recorded/2`.
 - `tracking.ex` — the helpers the plug, hook and beacon share (client IP rule,
-  UTM params, current user, UTF-8-safe truncation).
+  UTM params and ad-click identifiers, current user, UTF-8-safe truncation).
 - `{visitor,user_agent,referrer,geo}.ex` — pure classification helpers.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
@@ -107,7 +107,7 @@ Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
 `(session_id, inserted_at)` index; V03 `session_start` (backfilled in batches by
 the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
-`recordings`. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
+`recordings`; V07 `click_id`, `click_source` + their partial indexes. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
 add the `apply_step/3` clauses, and keep every statement prefix-safe (pass
 `prefix:` through, bare index names, schema-anchored existence checks).
 

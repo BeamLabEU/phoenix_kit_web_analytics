@@ -3,6 +3,37 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 - 2026-10-07
+
+### ⚠️ Upgrade
+
+- **Run `mix phoenix_kit.update` in the host** — migration V07 adds two
+  nullable columns to `phoenix_kit_web_analytics_events` and two partial
+  indexes. On a large events table, build the indexes `CONCURRENTLY` first (see
+  the `PhoenixKitWebAnalytics.Migrations` docs) and the migration skips them.
+
+### Added
+
+- **Ad-click identifiers are kept.** `gclid`, `gbraid`, `wbraid` (Google),
+  `msclkid` (Microsoft Ads), `fbclid` (Meta), `ttclid` (TikTok) and `li_fat_id`
+  (LinkedIn) are read off the landing URL alongside `utm_*` and stored in the
+  new `click_id` / `click_source` columns. Previously everything but the five
+  `utm_*` keys was discarded, so the identifier needed to report a conversion
+  back to the ad platform was lost on arrival.
+- `Tracking.campaign_params/1`, `campaign_param_names/0`,
+  `click_param_names/0`, `click_source/1`. `utm_params/1` and
+  `utm_param_names/0` are unchanged.
+
+### Fixed
+
+- **An auto-tagged ad visit was recorded as "direct".** Auto-tagging adds a
+  click identifier, not `utm_medium=cpc`, and an ad click often arrives without
+  a referrer, so the Acquisition report showed no paid traffic at all. A visit
+  carrying an ad-only click identifier is now recorded under the `paid` channel
+  with the platform as its source. `fbclid` is the exception: Meta appends it
+  to organic link clicks too, so it is stored but counts as `social`. Explicit
+  `utm_*` tags still take precedence for the source.
+
 ## 0.3.0 - 2026-10-01
 
 ### ⚠️ Upgrade
