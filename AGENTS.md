@@ -107,9 +107,10 @@ Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
 `(session_id, inserted_at)` index; V03 `session_start` (backfilled in batches by
 the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
-`recordings`; V07 `click_id`, `click_source` + their partial indexes. Adding a version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`,
-add the `apply_step/3` clauses, and keep every statement prefix-safe (pass
-`prefix:` through, bare index names, schema-anchored existence checks).
+`recordings`; V07 `click_id`, `click_param` + their partial indexes. Adding a
+version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`, add the
+`apply_step/3` clauses, and keep every statement prefix-safe (pass `prefix:`
+through, bare index names, schema-anchored existence checks).
 
 **Never put a full-table `UPDATE` or a long backfill in a migration step** —
 the host's migration runs in one transaction holding its locks. Backfill in

@@ -11,17 +11,22 @@ All notable changes to this project are documented here. This project follows
   nullable columns to `phoenix_kit_web_analytics_events` and two partial
   indexes. On a large events table, build the indexes `CONCURRENTLY` first (see
   the `PhoenixKitWebAnalytics.Migrations` docs) and the migration skips them.
+- Rows written before the upgrade are not reclassified: earlier ad visits stay
+  under "direct". An alert channel filter that leaves out "paid" will no longer
+  alert on auto-tagged ad visits.
 
 ### Added
 
 - **Ad-click identifiers are kept.** `gclid`, `gbraid`, `wbraid` (Google),
   `msclkid` (Microsoft Ads), `fbclid` (Meta), `ttclid` (TikTok) and `li_fat_id`
-  (LinkedIn) are read off the landing URL alongside `utm_*` and stored in the
-  new `click_id` / `click_source` columns. Previously everything but the five
-  `utm_*` keys was discarded, so the identifier needed to report a conversion
-  back to the ad platform was lost on arrival.
+  (LinkedIn) are read off the landing URL alongside `utm_*`; the first one
+  present goes into the new `click_id` column and its parameter name into
+  `click_param` (Google's conversion upload takes `gclid`, `gbraid` and
+  `wbraid` in separate fields). Previously everything but the five `utm_*`
+  keys was discarded, so the identifier needed to report a conversion back to
+  the ad platform was lost on arrival. See the README's Privacy section.
 - `Tracking.campaign_params/1`, `campaign_param_names/0`,
-  `click_param_names/0`, `click_source/1`. `utm_params/1` and
+  `click_param_names/0`, `click_source/1`, `paid_click?/1`. `utm_params/1` and
   `utm_param_names/0` are unchanged.
 
 ### Fixed
@@ -29,10 +34,15 @@ All notable changes to this project are documented here. This project follows
 - **An auto-tagged ad visit was recorded as "direct".** Auto-tagging adds a
   click identifier, not `utm_medium=cpc`, and an ad click often arrives without
   a referrer, so the Acquisition report showed no paid traffic at all. A visit
-  carrying an ad-only click identifier is now recorded under the `paid` channel
-  with the platform as its source. `fbclid` is the exception: Meta appends it
-  to organic link clicks too, so it is stored but counts as `social`. Explicit
-  `utm_*` tags still take precedence for the source.
+  carrying an ad-only click identifier is now recorded under the `paid`
+  channel, with the platform (named as for a referrer: "Google", "Bing", …) as
+  its source unless `utm_source` names one. `fbclid` is the exception: Meta
+  appends it to organic and Instagram clicks too, so it never overrides the
+  referrer and only counts as `social` when nothing else classifies the visit.
+  An internal page view stays internal when the identifier rides along on the
+  link (Google's `url_passthrough`).
+- A campaign parameter that isn't valid UTF-8 (`?utm_source=%FF`) made the
+  insert fail and the hit was lost; the value is now dropped and the hit kept.
 
 ## 0.3.0 - 2026-10-01
 

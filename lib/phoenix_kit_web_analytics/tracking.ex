@@ -13,15 +13,17 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   # submission be reported back to the ad platform as a conversion.
   @click_params ~w(gclid gbraid wbraid msclkid fbclid ttclid li_fat_id)
 
-  # Which platform a click identifier belongs to.
+  # Which platform a click identifier belongs to, named as
+  # `PhoenixKitWebAnalytics.Referrer` names it, so a paid and an organic visit
+  # from the same platform share one source.
   @click_sources %{
-    "gclid" => "google",
-    "gbraid" => "google",
-    "wbraid" => "google",
-    "msclkid" => "bing",
-    "fbclid" => "facebook",
-    "ttclid" => "tiktok",
-    "li_fat_id" => "linkedin"
+    "gclid" => "Google",
+    "gbraid" => "Google",
+    "wbraid" => "Google",
+    "msclkid" => "Bing",
+    "fbclid" => "Facebook",
+    "ttclid" => "TikTok",
+    "li_fat_id" => "LinkedIn"
   }
 
   # Identifiers a platform adds to ad clicks only. `fbclid` is not one: Meta
@@ -53,7 +55,7 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   The ad platform an identifier belongs to, or `nil` for an unknown name.
 
       iex> PhoenixKitWebAnalytics.Tracking.click_source("gclid")
-      "google"
+      "Google"
   """
   @spec click_source(String.t()) :: String.t() | nil
   def click_source(name) when is_binary(name), do: Map.get(@click_sources, name)

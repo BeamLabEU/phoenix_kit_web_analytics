@@ -89,11 +89,11 @@ defmodule PhoenixKitWebAnalytics.TrackingTest do
     end
 
     test "click_source/1 maps an identifier to its platform" do
-      assert Tracking.click_source("gclid") == "google"
-      assert Tracking.click_source("gbraid") == "google"
-      assert Tracking.click_source("wbraid") == "google"
-      assert Tracking.click_source("msclkid") == "bing"
-      assert Tracking.click_source("fbclid") == "facebook"
+      assert Tracking.click_source("gclid") == "Google"
+      assert Tracking.click_source("gbraid") == "Google"
+      assert Tracking.click_source("wbraid") == "Google"
+      assert Tracking.click_source("msclkid") == "Bing"
+      assert Tracking.click_source("fbclid") == "Facebook"
       assert Tracking.click_source("utm_source") == nil
     end
 
