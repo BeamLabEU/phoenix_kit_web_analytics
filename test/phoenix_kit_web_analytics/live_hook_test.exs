@@ -124,6 +124,68 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert pageview.metadata["source"] == "live_navigation"
       assert pageview.referrer == "http://www.example.com/shop"
     end
+
+    test "a connect delivered from Chrome's prefetch cache with a click id is recovered" do
+      socket =
+        connected_socket(%{
+          "_mounts" => 0,
+          "nav_delivery" => "navigational-prefetch"
+        })
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert [pageview] = events("pageview")
+      refute pageview.is_bot
+      assert pageview.click_id == "abc123"
+      assert pageview.click_param == "gclid"
+      assert pageview.referrer_medium == "paid"
+    end
+
+    test "a connect delivered from a prerender activation is recovered the same way" do
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert [pageview] = events("pageview")
+      refute pageview.is_bot
+      assert pageview.click_id == "abc123"
+    end
+
+    test "REGRESSION: a reconnect (_mounts > 0) of a prefetch-delivered page is not recorded again" do
+      socket =
+        connected_socket(%{"_mounts" => 1, "nav_delivery" => "navigational-prefetch"})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert events("pageview") == []
+    end
+
+    test "a normal connect with neither live_referer nor prefetch markers records nothing from the hook" do
+      socket = connected_socket(%{"_mounts" => 0})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert events("pageview") == []
+    end
+
+    test "doc_referrer flows into the stored referrer for an organic prefetch-delivered click" do
+      socket =
+        connected_socket(%{
+          "_mounts" => 0,
+          "nav_delivery" => "navigational-prefetch",
+          "doc_referrer" => "https://www.google.com/search"
+        })
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert [pageview] = events("pageview")
+      assert pageview.referrer == "https://www.google.com/search"
+    end
   end
 
   describe "interactions" do

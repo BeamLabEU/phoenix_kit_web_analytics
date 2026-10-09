@@ -95,6 +95,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   defp bot_reason("no_js"),
     do: gettext("Yes — its LiveView pages never connected (no JavaScript)")
 
+  defp bot_reason("prefetch"),
+    do: gettext("Yes — a browser's speculative prefetch, not a visitor")
+
   defp bot_reason(_reason), do: gettext("Yes — its browser says so")
 
   @impl true

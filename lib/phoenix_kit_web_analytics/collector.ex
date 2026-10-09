@@ -70,7 +70,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
         target: "https://example.com/x",    # what was clicked ("interaction")
         session_anchor: ~U[…],              # when the hit's page was opened
         location: %{country_code: "EE"},     # pre-resolved (edge headers)
-        metadata: %{"plan" => "pro"}
+        metadata: %{"plan" => "pro"},
+        bot: "prefetch"                      # forces is_bot + a metadata reason, see below
       }
 
   `:ip` and `:user_agent` are used for the daily visitor hash and the client
@@ -82,6 +83,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
   leave recorded when a tab closes an hour after it opened. The visitor hash
   and the session lookup use the anchor instead of the insert time, so the
   leave joins the session its page view started rather than opening a new one.
+
+  `:bot` forces a bot verdict (`is_bot: true`, `metadata["bot"]` set to its
+  value) instead of the usual UA/behavioural judgement — for a hard signal
+  that is never a heuristic guess, such as `PhoenixKitWebAnalytics.Plug`
+  marking a Chrome Speculation-Rules prefetch. Unlike a heuristic flag, it is
+  always stored, never gated by `config.track_bots?`.
   """
 
   require Logger
@@ -331,7 +338,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
         |> Map.put(:session_start, stitch.new?)
         |> Map.put(:traffic_flags, flags ||| stitch.flags)
 
-      judge_and_store(attrs, stitch, speed, config)
+      case hit[:bot] do
+        reason when is_binary(reason) -> store(flag_attrs(attrs, reason), stitch)
+        _ -> judge_and_store(attrs, stitch, speed, config)
+      end
     end)
   end
 

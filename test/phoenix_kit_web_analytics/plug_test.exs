@@ -81,6 +81,7 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
 
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Plug, as: TrackingPlug
+  alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Tracking
   alias PhoenixKitWebAnalytics.Visitor
@@ -326,6 +327,58 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
 
       assert Plug.Conn.get_session(conn, Tracking.dnt_session_key()) == nil
       assert [%Event{path: "/pricing"}] = Repo.all(Event)
+    end
+  end
+
+  describe "a Chrome speculative prefetch" do
+    test "Sec-Purpose: prefetch;anonymous-client-ip is stored flagged as a bot" do
+      "/landing"
+      |> request([{"sec-purpose", "prefetch;anonymous-client-ip"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.is_bot
+      assert event.metadata["bot"] == "prefetch"
+    end
+
+    test "the legacy Purpose: prefetch header is honoured the same way" do
+      "/landing"
+      |> request([{"purpose", "prefetch"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.is_bot
+      assert event.metadata["bot"] == "prefetch"
+    end
+
+    test "Sec-Purpose: prefetch;prerender matches as a substring too" do
+      "/landing"
+      |> request([{"sec-purpose", "prefetch;prerender"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.is_bot
+      assert event.metadata["bot"] == "prefetch"
+    end
+
+    test "a click id survives on a flagged prefetch, but it's still excluded from visit counts" do
+      "/landing?gclid=EAIaIQob"
+      |> request([{"sec-purpose", "prefetch;anonymous-client-ip"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.click_id == "EAIaIQob"
+      assert event.click_param == "gclid"
+      assert event.is_bot
+
+      assert Reports.overview(Reports.filter(period: "7d")).pageviews == 0
+    end
+
+    test "a plain request with neither header is unaffected (UA-based bot detection still applies)" do
+      "/landing" |> request() |> respond()
+
+      assert [event] = Repo.all(Event)
+      refute event.is_bot
     end
   end
 end
