@@ -85,10 +85,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
   leave joins the session its page view started rather than opening a new one.
 
   `:bot` forces a bot verdict (`is_bot: true`, `metadata["bot"]` set to its
-  value) instead of the usual UA/behavioural judgement — for a hard signal
+  value) instead of the usual behavioural judgement — for a hard signal
   that is never a heuristic guess, such as `PhoenixKitWebAnalytics.Plug`
-  marking a Chrome Speculation-Rules prefetch. Unlike a heuristic flag, it is
-  always stored, never gated by `config.track_bots?`.
+  marking a Chrome Speculation-Rules prefetch. Unlike a behavioural flag, it
+  is stored whatever `config.track_bots?` says; a hit whose User-Agent names
+  a bot is still dropped before that point when bot traffic isn't kept, like
+  any other. Such a hit is its own visitor — its visitor hash takes the
+  reason as an extra input — because Chrome sends its own prerenders from the
+  visitor's real address and browser: it neither starts nor joins the
+  person's visit, and it doesn't count toward their page-view speed.
   """
 
   require Logger
@@ -405,7 +410,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
-  # Page views per visitor per minute, for the speed signal.
+  # Page views per visitor per minute, for the speed signal. A forced-bot
+  # hit (a prefetch) is no page view of the visitor's.
+  defp speed(%{bot: reason}, _config, _visitor_id) when is_binary(reason), do: :ok
+
   defp speed(hit, %{detect_bots?: true}, visitor_id) do
     if (hit[:event_type] || "pageview") == "pageview",
       do: BotSignals.count_pageview(visitor_id),
@@ -466,7 +474,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       hit[:ip] || hit[:user_agent] ->
         case Config.hash_salt() do
           nil -> nil
-          salt -> Visitor.visitor_id(hit[:ip], hit[:user_agent], salt, DateTime.to_date(anchor))
+          salt -> Visitor.visitor_id(hit[:ip], hashed_agent(hit), salt, DateTime.to_date(anchor))
         end
 
       is_binary(hit[:user_uuid]) ->
@@ -476,6 +484,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
         "anon:" <> String.replace(UUIDv7.generate(), "-", "")
     end
   end
+
+  # A forced-bot hit hashes on its own input (same length, same salt), so a
+  # prefetch from the visitor's own browser is never the visitor.
+  defp hashed_agent(%{bot: reason} = hit) when is_binary(reason),
+    do: "bot:" <> reason <> "|" <> (hit[:user_agent] || "")
+
+  defp hashed_agent(hit), do: hit[:user_agent]
 
   # Bounded wait: a flood of hits for one visitor must not park connections
   # behind the lock. A hit that can't get it in time fails and is dropped.

@@ -56,6 +56,19 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
       assert reasons() == List.duplicate({true, "rate"}, 5)
     end
 
+    test "REGRESSION: speculative prefetches don't count toward the visitor's limit" do
+      enable_tracking()
+
+      prefetches = for _ <- 1..4, do: elem(Collector.track(hit(%{bot: "prefetch"})), 1)
+      assert {:ok, human} = Collector.track(hit())
+
+      refute human.is_bot
+      assert reasons() == List.duplicate({true, "prefetch"}, 4) ++ [{false, nil}]
+
+      # Not counted under their own visitor either: this is its first count.
+      assert BotSignals.count(:pageview, hd(prefetches).visitor_id) == 1
+    end
+
     test "only page views count, and not with detection off" do
       enable_tracking(%{"web_analytics_detect_bots" => "false"})
       for _ <- 1..5, do: Collector.track(hit())
@@ -201,6 +214,39 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
 
       assert leave.session_id == view.session_id
       assert Enum.all?(reasons(), &(&1 == {false, nil}))
+    end
+
+    # The page view the hook recovers for a page Chrome served from its
+    # prefetch cache arrived over a live socket.
+    test "REGRESSION: a page view recovered on a live connect proves JavaScript" do
+      opened = hours_ago(2)
+      {:ok, view} = Collector.track(hit(%{inserted_at: opened, metadata: %{"lv" => true}}))
+      assert BotSignals.judge_no_js() == 1
+
+      {:ok, recovered} =
+        Collector.track(
+          hit(%{
+            inserted_at: DateTime.add(opened, 600, :second),
+            metadata: %{"source" => "prefetch_connect"}
+          })
+        )
+
+      assert recovered.session_id == view.session_id
+      assert Enum.all?(reasons(), &(&1 == {false, nil}))
+    end
+
+    test "a visit with a page view recovered on a live connect isn't judged" do
+      at = hours_ago(2)
+      visit = page("person", at)
+
+      insert_event(%{
+        visitor_id: "person",
+        session_id: visit.session_id,
+        metadata: %{"source" => "prefetch_connect"},
+        inserted_at: DateTime.add(at, 60, :second)
+      })
+
+      assert BotSignals.judge_no_js() == 0
     end
 
     test "a visit that crosses midnight is cleared by its exit after midnight" do

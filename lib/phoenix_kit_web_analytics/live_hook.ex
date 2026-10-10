@@ -106,24 +106,47 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   already-counted page (`_mounts == 0`, the same guard `live_navigation?/1`
   uses).
 
-  This module ships no client script for this — server-side first, per the
-  moduledoc's premise — so the host must report the delivery itself, by adding
-  three LiveSocket connect params in its own `assets/js/app.js`:
+  The module's optional client script (`PhoenixKitWebAnalytics.js_sources/0`)
+  doesn't report these deliveries — the socket's connect params are the
+  host's — so the host reports them itself, by sending these LiveSocket
+  connect params from its own `assets/js/app.js` and connecting only once a
+  prerendered page is actually shown:
+
+      const nav = () => performance.getEntriesByType("navigation")[0]
 
       let liveSocket = new LiveSocket("/live", Socket, {
-        params: {
+        // A function, so the values are read when the socket connects.
+        params: () => ({
           _csrf_token: csrfToken,
-          nav_delivery: performance.getEntriesByType("navigation")[0]?.deliveryType,
-          prerendered: performance.getEntriesByType("navigation")[0]?.activationStart > 0 || document.prerendering === true,
+          nav_delivery: nav()?.deliveryType,
+          prerendered: (nav()?.activationStart ?? 0) > 0,
+          prerendering: document.prerendering === true,
           doc_referrer: document.referrer || null
-        }
+        })
       })
+
+      // Chrome runs a prerendered page's JavaScript before anyone opens it.
+      // It holds back a WebSocket until then, but LiveView's long-poll
+      // fallback would join anyway and count a page nobody saw.
+      if (document.prerendering) {
+        document.addEventListener("prerenderingchange", () => liveSocket.connect(), {once: true})
+      } else {
+        liveSocket.connect()
+      }
 
   `deliveryType === "navigational-prefetch"` is Chrome/Edge 117+ only (MDN
   `PerformanceResourceTiming.deliveryType`) — empty or undefined elsewhere, so
   the hook simply never sees it on Firefox or Safari, which don't do this
-  prefetching. `doc_referrer` (`document.referrer`) is the only way to recover
-  a referrer for this page at all, since no plug request ever fired for it.
+  prefetching. `prerendered` is true once a prerendered page has been
+  activated (`activationStart > 0`). `prerendering` is a guard for a page
+  that connects anyway while it is still being prerendered: such a connect is
+  never counted. `doc_referrer` (`document.referrer`) is the only way to
+  recover a referrer for this page at all, since no plug request ever fired
+  for it.
+
+  Only LiveView pages are recovered. A controller-rendered page Chrome served
+  from its prefetch cache has no socket to connect, so the visitor's click on
+  it is not counted at all (its prefetch is stored, flagged as a bot's).
 
   See `PhoenixKitWebAnalytics.Plug`'s `bot: "prefetch"` flag for the phantom
   side of this: the speculative request Chrome makes on its own, which the
@@ -460,6 +483,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     end
   end
 
+  # A page still being prerendered isn't shown to anyone yet.
+  defp prefetch_param?(%{"prerendering" => p}) when p in [true, "true"], do: false
   defp prefetch_param?(%{"nav_delivery" => "navigational-prefetch"}), do: true
   defp prefetch_param?(%{"prerendered" => p}), do: p in [true, "true"]
   defp prefetch_param?(_params), do: false

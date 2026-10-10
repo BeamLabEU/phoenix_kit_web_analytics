@@ -14,9 +14,11 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
   import Ecto.Query
 
   alias PhoenixKitWebAnalytics.BotSignals
+  alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LiveHook
   alias PhoenixKitWebAnalytics.LivePresence
+  alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Test.Repo
   alias PhoenixKitWebAnalytics.Tracking
@@ -161,6 +163,45 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
 
       assert events("pageview") == []
+    end
+
+    # Under LongPoll a prerendered page can join before anyone opens it.
+    test "REGRESSION: a connect made while the page is still prerendering records nothing" do
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true, "prerendering" => true})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert events("pageview") == []
+    end
+
+    test "REGRESSION: the visitor's own prerender doesn't make their recovered visit a bot's" do
+      salt = Config.hash_salt()
+
+      # What the plug stores for Chrome's prerender, from the visitor's own
+      # address and browser.
+      {:ok, prefetch} =
+        Collector.track(%{
+          path: "/shop",
+          site: "example.com",
+          ip: @peer.address,
+          user_agent: @ua,
+          bot: "prefetch"
+        })
+
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true})
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert [recovered] = Repo.all(from(e in Event, where: not e.is_bot))
+      assert recovered.visitor_id == Visitor.visitor_id(@peer.address, @ua, salt)
+      refute recovered.session_id == prefetch.session_id
+      assert recovered.session_start
+      refute Map.has_key?(recovered.metadata, "bot")
+
+      filter = Reports.filter(period: "7d")
+      assert [%{session_id: session_id}] = Reports.sessions(filter)
+      assert session_id == recovered.session_id
     end
 
     test "a normal connect with neither live_referer nor prefetch markers records nothing from the hook" do

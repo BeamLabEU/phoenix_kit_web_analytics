@@ -54,6 +54,14 @@ defmodule PhoenixKitWebAnalytics.Plug do
   `PhoenixKitWebAnalytics.LiveHook`'s "Recovering a visitor served from a
   prefetch cache" for how the human's own click still gets attributed when
   Chrome serves this prefetch from cache instead of firing a second request.
+  The flagged hit is its own visitor (see `:bot` in
+  `PhoenixKitWebAnalytics.Collector`), so a prerender Chrome makes from the
+  visitor's own browser doesn't become, or join, the visitor's visit.
+
+  Only a navigational load is flagged. A `<link rel=prefetch>` of a page
+  carries the same header but `Sec-Fetch-Dest: empty`, and Chrome serves the
+  later click on it from its HTTP cache without a request the plug would
+  see — so that request is counted as the page view it most likely is.
 
   ## The site's own people
 
@@ -260,10 +268,13 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Chrome/Edge mark a Speculation-Rules prefetch or prerender this way (the
   # legacy `Purpose` header predates `Sec-Purpose`); a substring match catches
-  # both `prefetch;anonymous-client-ip` and `prefetch;prerender`.
+  # both `prefetch;anonymous-client-ip` and `prefetch;prerender`. A
+  # `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) is left a page view: its
+  # click is served from the HTTP cache, so nothing else would count it.
   defp prefetch_reason(conn) do
-    if speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose"),
-      do: "prefetch"
+    if header(conn, "sec-fetch-dest") != "empty" and
+         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
+       do: "prefetch"
   end
 
   defp speculative_header?(conn, name) do

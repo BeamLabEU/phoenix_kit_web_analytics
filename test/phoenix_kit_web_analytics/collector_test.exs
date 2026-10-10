@@ -2,6 +2,7 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
   use PhoenixKitWebAnalytics.DataCase, async: false
 
   alias PhoenixKitWebAnalytics.Collector
+  alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Schemas.Event
 
   @chrome "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -890,6 +891,49 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert {:ok, next_visit} = Collector.track(hit(%{inserted_at: later}))
       refute next_visit.session_id == first.session_id
       assert next_visit.session_start
+    end
+  end
+
+  # Chrome sends `Sec-Purpose: prefetch;prerender` for its own prerenders
+  # from the visitor's real IP and User-Agent — the human's own address.
+  describe "a hit with a forced bot verdict (:bot)" do
+    setup do
+      enable_tracking()
+      :ok
+    end
+
+    test "REGRESSION: is its own visitor, so the human's visit after it starts clean" do
+      assert {:ok, prefetch} = Collector.track(hit(%{bot: "prefetch"}))
+      assert {:ok, human} = Collector.track(hit())
+
+      assert prefetch.is_bot and prefetch.metadata["bot"] == "prefetch"
+      assert String.length(prefetch.visitor_id) == String.length(human.visitor_id)
+      refute human.visitor_id == prefetch.visitor_id
+      refute human.session_id == prefetch.session_id
+      assert human.session_start
+      refute human.is_bot
+      refute Map.has_key?(human.metadata, "bot")
+
+      # The visit is counted and listed, and not as a bot's.
+      filter = Reports.filter(period: "7d")
+      assert Reports.overview(filter).visitors == 1
+      assert [%{session_id: session_id}] = Reports.sessions(filter)
+      assert session_id == human.session_id
+    end
+
+    test "REGRESSION: a prefetch in the middle of a visit leaves the visit alone" do
+      assert {:ok, first} = Collector.track(hit())
+      assert {:ok, prefetch} = Collector.track(hit(%{path: "/next", bot: "prefetch"}))
+      assert {:ok, next} = Collector.track(hit(%{path: "/blog"}))
+
+      refute prefetch.session_id == first.session_id
+      assert next.session_id == first.session_id
+      refute next.session_start
+      refute next.is_bot
+
+      visit = Repo.all(from(e in Event, where: e.session_id == ^first.session_id))
+      assert length(visit) == 2
+      refute Enum.any?(visit, & &1.is_bot)
     end
   end
 end

@@ -374,6 +374,45 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert Reports.overview(Reports.filter(period: "7d")).pageviews == 0
     end
 
+    test "a speculative navigation (Sec-Fetch-Dest: document) is flagged" do
+      "/landing"
+      |> request([{"sec-purpose", "prefetch"}, {"sec-fetch-dest", "document"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      assert event.is_bot
+      assert event.metadata["bot"] == "prefetch"
+    end
+
+    # `<link rel=prefetch>` of a document: Chrome serves the later click from
+    # its HTTP cache without revalidating, so this request is the only one
+    # the visit ever makes.
+    test "REGRESSION: a <link rel=prefetch> (Sec-Fetch-Dest: empty) is counted as before" do
+      "/landing"
+      |> request([{"sec-purpose", "prefetch"}, {"sec-fetch-dest", "empty"}])
+      |> respond()
+
+      assert [event] = Repo.all(Event)
+      refute event.is_bot
+      refute Map.has_key?(event.metadata, "bot")
+    end
+
+    test "REGRESSION: the visitor's own prerender, then their visit: separate, the visit clean" do
+      "/landing"
+      |> request([{"sec-purpose", "prefetch;prerender"}, {"sec-fetch-dest", "document"}])
+      |> respond()
+
+      "/pricing" |> request() |> respond()
+
+      prefetch = Repo.get_by!(Event, path: "/landing")
+      human = Repo.get_by!(Event, path: "/pricing")
+      assert prefetch.is_bot
+      refute human.is_bot
+      assert human.session_start
+      refute human.session_id == prefetch.session_id
+      assert [_visit] = Reports.sessions(Reports.filter(period: "7d"))
+    end
+
     test "a plain request with neither header is unaffected (UA-based bot detection still applies)" do
       "/landing" |> request() |> respond()
 
