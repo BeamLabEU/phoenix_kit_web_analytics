@@ -23,9 +23,13 @@ can't, stays optional, and never writes a cookie or storage.
 - `plug.ex` — page views. In the request process: a method/path check, one
   cached settings read, `register_before_send/2`. Notes DNT/GPC in the session
   for the hook.
+  A Chrome Speculation-Rules prefetch/prerender (`Sec-Purpose`/`Purpose`) is
+  handed to the collector with `bot: "prefetch"`.
 - `live_hook.ex` — LiveView: page views for live navigation (`_live_referer` +
   `_mounts == 0`; a reconnect is not a view), interactions via an
-  `attach_hook(:handle_event)`, and registration with `LivePresence`.
+  `attach_hook(:handle_event)`, and registration with `LivePresence`. A first
+  connect carrying the host's prefetch params (`nav_delivery`, `prerendered`)
+  is a page view too (`"prefetch_connect"`): no plug request ever fired for it.
 - `live_presence.ex` — monitors LiveView processes; ETS "who is on which page
   now"; records a `"leave"` with `engaged_ms` on DOWN or on a patch.
 - `collector.ex` — enrichment + insert in a capped `Task.Supervisor` (drops,
@@ -92,6 +96,13 @@ can't, stays optional, and never writes a cookie or storage.
   that transaction. Rollups hold only `traffic_flags = 0` and `not is_bot`;
   a report filter carries its `excluded_flags` mask, and any mask other than
   "every bit" (or `flagged: true`) reads raw.
+- **A speculative prefetch is a bot, never the visitor.** `bot: "prefetch"`
+  forces `is_bot`, ignores `track_bots?`, and hashes the visitor on its own
+  input, so Chrome's prerender from a person's own browser neither starts nor
+  joins their visit. The person's click is recovered from the LiveView
+  connect (`prefetch_connect`, which also counts as JavaScript evidence in
+  `BotSignals`'s `@js_sources`). A new source reported only by JavaScript goes
+  in that list.
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.

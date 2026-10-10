@@ -3,10 +3,25 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.6.1 - 2026-10-10
 
 ### Fixed
 
+- **Chrome's speculative prefetch no longer shows up as a visit, and the
+  visitor it was fetched for is counted.** A request marked `Sec-Purpose:
+  prefetch…` / `Purpose: prefetch` is stored flagged `"prefetch"` (visible
+  under the reports' **Bots** switch, whatever **Record bot traffic** says),
+  as its own visitor, so a prerender sent from a person's own browser neither
+  starts nor joins their visit. A `<link rel=prefetch>` is still a page view.
+- **A LiveView page served from Chrome's prefetch cache is counted.** The
+  click makes no request, so the hook counts the first connect when the host
+  sends the `nav_delivery` / `prerendered` / `prerendering` / `doc_referrer`
+  connect params (snippet in `PhoenixKitWebAnalytics.LiveHook` and the
+  README's Installation step 5). It counts as JavaScript evidence for the
+  "no JavaScript" bot judgement.
+- The client script holds its reports and session recording of a prerendered
+  page until it is shown, so a page nobody opened sends nothing.
+- The visit page says why a prefetch is flagged (en/et/ru).
 - Staff-network expiry now follows every local staff sighting, while broadcasts
   keep their existing interval. Shortening the timeout no longer forgets a
   network with recent local activity. Concurrent sightings keep the newest time.
@@ -14,6 +29,10 @@ All notable changes to this project are documented here. This project follows
   and the new page's leave use its current identity.
 - HexDocs source links use the repository's `v`-prefixed tags; documentation no
   longer links to hidden modules or a removed historical function.
+
+### Changed
+
+- `AGENTS.md` records the prefetch rules.
 
 ## 0.6.0 - 2026-10-07
 

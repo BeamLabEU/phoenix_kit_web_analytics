@@ -19,10 +19,10 @@
  *
  * Nothing is sent while the page loads, nothing is stored in the browser, no
  * cookie is written. A page Chrome prerenders runs before anyone opens it:
- * nothing is sent until it is shown, and nothing at all if it never is. Visitors sending Do Not Track or Global Privacy Control
- * are skipped here as well as on the server. The server drops everything this
- * script sends unless "Client script" is switched on in Web Analytics
- * settings.
+ * nothing is sent until it is shown, and nothing at all if it never is.
+ * Visitors sending Do Not Track or Global Privacy Control are skipped here as
+ * well as on the server. The server drops everything this script sends unless
+ * "Client script" is switched on in Web Analytics settings.
  */
 window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
 
