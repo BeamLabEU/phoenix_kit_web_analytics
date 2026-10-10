@@ -165,6 +165,40 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert events("pageview") == []
     end
 
+    test "a page served from the prefetch cache is recovered over a real connect",
+         %{conn: conn} do
+      {:ok, _view, _html} =
+        conn
+        |> with_client()
+        |> put_connect_params(%{
+          "nav_delivery" => "navigational-prefetch",
+          "doc_referrer" => "https://www.google.com/"
+        })
+        |> live("/shop?gclid=EAIaIQob")
+
+      assert [pageview] = events("pageview")
+      assert pageview.metadata["source"] == "prefetch_connect"
+      assert pageview.click_id == "EAIaIQob"
+      assert pageview.referrer == "https://www.google.com/"
+      refute pageview.is_bot
+    end
+
+    test "a live navigation that also carries prefetch params is one live-navigation view",
+         %{conn: conn} do
+      {:ok, _view, _html} =
+        conn
+        |> with_client()
+        |> put_connect_params(%{
+          "_live_referer" => "http://www.example.com/pricing",
+          "nav_delivery" => "navigational-prefetch"
+        })
+        |> live("/shop")
+
+      assert [pageview] = events("pageview")
+      assert pageview.metadata["source"] == "live_navigation"
+      assert pageview.referrer == "http://www.example.com/pricing"
+    end
+
     # Under LongPoll a prerendered page can join before anyone opens it.
     test "REGRESSION: a connect made while the page is still prerendering records nothing" do
       socket = connected_socket(%{"_mounts" => 0, "prerendered" => true, "prerendering" => true})

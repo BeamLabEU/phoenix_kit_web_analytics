@@ -935,5 +935,17 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       assert length(visit) == 2
       refute Enum.any?(visit, & &1.is_bot)
     end
+
+    test "without an IP or User-Agent it doesn't join the visit of the user it names" do
+      user_uuid = Ecto.UUID.generate()
+      bare = %{path: "/pricing", site: "myapp.com", user_uuid: user_uuid}
+
+      assert {:ok, user_hit} = Collector.track(bare)
+      assert {:ok, flagged} = Collector.track(Map.put(bare, :bot, "prefetch"))
+
+      assert user_hit.visitor_id == "user:" <> user_uuid
+      refute flagged.visitor_id == user_hit.visitor_id
+      refute flagged.session_id == user_hit.session_id
+    end
   end
 end

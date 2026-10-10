@@ -87,13 +87,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
   `:bot` forces a bot verdict (`is_bot: true`, `metadata["bot"]` set to its
   value) instead of the usual behavioural judgement — for a hard signal
   that is never a heuristic guess, such as `PhoenixKitWebAnalytics.Plug`
-  marking a Chrome Speculation-Rules prefetch. Unlike a behavioural flag, it
-  is stored whatever `config.track_bots?` says; a hit whose User-Agent names
-  a bot is still dropped before that point when bot traffic isn't kept, like
-  any other. Such a hit is its own visitor — its visitor hash takes the
-  reason as an extra input — because Chrome sends its own prerenders from the
-  visitor's real address and browser: it neither starts nor joins the
-  person's visit, and it doesn't count toward their page-view speed.
+  marking a Chrome Speculation-Rules prefetch. Unlike the rate and automation
+  flags, it is stored whatever `config.track_bots?` says; a hit whose
+  User-Agent names a bot is still dropped before that point when bot traffic
+  isn't kept, like any other. Such a hit is never the person's visitor —
+  its visitor hash takes the reason as an extra input, and without an IP or
+  User-Agent it is its own visitor even when it names a user — because
+  Chrome sends its own prerenders from the visitor's real address and
+  browser: it neither starts nor joins the person's visit, and it doesn't
+  count toward their page-view speed.
   """
 
   require Logger
@@ -468,7 +470,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # A hit with no client identity at all — a server-side `track_event/2` with
   # neither IP nor User-Agent — would otherwise hash every such event on a day
   # to one "unknown" visitor and stitch them into one endless session. Such an
-  # event is its own visitor, unless it names a user.
+  # event is its own visitor, unless it names a user (and isn't a forced-bot
+  # hit, which must not join that user's visit).
   defp visitor_id(hit, anchor) do
     cond do
       hit[:ip] || hit[:user_agent] ->
@@ -477,7 +480,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
           salt -> Visitor.visitor_id(hit[:ip], hashed_agent(hit), salt, DateTime.to_date(anchor))
         end
 
-      is_binary(hit[:user_uuid]) ->
+      is_binary(hit[:user_uuid]) and not is_binary(hit[:bot]) ->
         "user:" <> hit[:user_uuid]
 
       true ->

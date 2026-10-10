@@ -18,7 +18,8 @@
  *     or form values. The server says per page whether to record.
  *
  * Nothing is sent while the page loads, nothing is stored in the browser, no
- * cookie is written. Visitors sending Do Not Track or Global Privacy Control
+ * cookie is written. A page Chrome prerenders runs before anyone opens it:
+ * nothing is sent until it is shown, and nothing at all if it never is. Visitors sending Do Not Track or Global Privacy Control
  * are skipped here as well as on the server. The server drops everything this
  * script sends unless "Client script" is switched on in Web Analytics
  * settings.
@@ -39,10 +40,37 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
   var endpoint = (prefix === "/" ? "" : prefix.replace(/\/$/, "")) + "/phoenix-kit/analytics/event";
   var DOWNLOAD = /\.(pdf|zip|rar|7z|gz|tar|dmg|exe|msi|apk|docx?|xlsx?|pptx?|csv|odt|ods|mp3|mp4|mov|avi|epub)$/i;
 
+  // A prerendered page (Speculation Rules) runs its scripts before it is
+  // shown. What it would report waits for the page to be shown — and the
+  // server sees the visitor's own page view only then — so it is never sent
+  // for a page nobody opened.
+  var held = document.prerendering === true ? [] : null;
+
+  function whenShown(fn) {
+    if (held) held.push(fn);
+    else fn();
+  }
+
+  if (held) {
+    document.addEventListener(
+      "prerenderingchange",
+      function () {
+        var queued = held;
+        held = null;
+        queued.forEach(function (fn) {
+          fn();
+        });
+      },
+      { once: true }
+    );
+  }
+
   function send(payload) {
-    try {
-      navigator.sendBeacon(endpoint, JSON.stringify(payload));
-    } catch (_e) {}
+    whenShown(function () {
+      try {
+        navigator.sendBeacon(endpoint, JSON.stringify(payload));
+      } catch (_e) {}
+    });
   }
 
   function here() {
@@ -378,7 +406,11 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
     if (ev.persisted) startRecording(location.pathname);
   });
 
-  startRecording(location.pathname);
+  // A recording joins the visit its page view opened, so a prerendered page
+  // asks only once it is shown.
+  whenShown(function () {
+    startRecording(location.pathname);
+  });
 
   measureScroll();
 })();

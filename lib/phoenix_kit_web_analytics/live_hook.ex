@@ -1,7 +1,7 @@
 defmodule PhoenixKitWebAnalytics.LiveHook do
   @moduledoc """
   Everything a visitor does on a LiveView page, recorded server-side from the
-  socket — no client-side script.
+  socket — the module's client script isn't needed for any of it.
 
   `PhoenixKitWebAnalytics.Plug` sees HTTP requests, which covers the first load
   of a page. Once a LiveView is connected, the visitor's clicks, form submits
@@ -11,6 +11,10 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     * **Page views for live navigation** — `push_navigate`, `push_patch`,
       `<.link navigate>` / `<.link patch>` change the URL without an HTTP
       request, so the plug never sees them.
+    * **Page views served from Chrome's prefetch cache** — a page Chrome
+      prefetched or prerendered and the visitor then opened never reaches the
+      plug; with the host's connect params, its first connect is counted
+      instead. See "Recovering a visitor served from a prefetch cache" below.
     * **Interactions** — every `phx-click`, `phx-submit`, `phx-keydown` … event
       the LiveView handles, by event name (`"add_to_cart"`, `"save"`). Form
       contents are never recorded; see "What an interaction stores" below.
@@ -69,7 +73,9 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   navigation is told apart by LiveView's `_live_referer` connect parameter,
   which the client sends only when it arrived by `push_navigate` / `<.link
   navigate>`. A **reconnect** (a deploy, a dropped network) remounts with
-  `_mounts > 0` and is never counted — the visitor didn't go anywhere.
+  `_mounts > 0` and is never counted — the visitor didn't go anywhere. The one
+  page load the hook does count is one the plug never saw: see "Recovering a
+  visitor served from a prefetch cache" below.
 
   ## What an interaction stores
 
