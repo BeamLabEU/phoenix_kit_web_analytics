@@ -131,6 +131,16 @@ Then enable **Web Analytics** on the admin Modules page, and:
    from headers your infrastructure controls — such as
    [`remote_ip`](https://hex.pm/packages/remote_ip) — **before** the tracking
    plug, or every visitor collapses into the CDN's addresses.
+5. **Optional: pages Chrome serves from its prefetch cache.** When Chrome
+   prefetches or prerenders a page (Speculation Rules — Google's search
+   results do it) and the visitor then opens it, no second request reaches
+   the plug; the prefetch itself is stored flagged as a bot's (see
+   [Bots](#bots)). To count the visit, send a few extra LiveSocket connect
+   params from your `assets/js/app.js` and connect only once a prerendered
+   page is shown — the snippet is in the "Recovering a visitor served from
+   a prefetch cache" section of `PhoenixKitWebAnalytics.LiveHook`. Only
+   LiveView pages are recovered this way: a controller-rendered page served
+   from the prefetch cache is not counted.
 
 The client script ships through the module's `js_sources/0`, so a host set up
 by `mix phoenix_kit.install` loads it with no change; switch **Accept the
@@ -220,6 +230,7 @@ matching the exclusion patterns (`/admin*` by default), visitors sending
 `DNT: 1` or `Sec-GPC: 1` (on every path, LiveView and client script
 included), and bots. All configurable in Settings. Tidewave's development
 re-fetch of a page (an `x-tidewave-diagnostic` header) is never a page view.
+A browser's speculative prefetch is stored, but as a bot's (see [Bots](#bots)).
 
 ### Bots
 
@@ -242,6 +253,16 @@ page), so every report drops it; later hits of the visit inherit the flag. A
 "no JavaScript" verdict can be wrong, so that visit's later hits are kept
 (flagged) and the flag lifts itself if the visit's JavaScript shows up after
 all — a tab left open without a click until it closes.
+
+A **speculative prefetch** — a page Chrome or Edge fetches or prerenders
+before anyone clicks it (`Sec-Purpose: prefetch…`, or the legacy
+`Purpose: prefetch`) — is stored flagged `"prefetch"` whatever **Record bot
+traffic** says, so it shows only with the reports' **Bots** switch on. It is
+kept apart from the visitor's own visit, even when Chrome sends it from the
+visitor's browser. A `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) isn't
+flagged: Chrome serves the later click on it from its cache without asking
+again, so that request is counted as the page view. How the visit behind a
+prefetch is still counted is step 5 of [Installation](#installation).
 
 ### Your own traffic
 

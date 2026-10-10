@@ -40,6 +40,29 @@ defmodule PhoenixKitWebAnalytics.Plug do
       header): it fetches the page again after every live navigation, which
       would count each one twice
 
+  ## Chrome's speculative prefetch
+
+  A request Chrome marks as its own speculative load — the Speculation Rules
+  API prefetching or prerendering a page a visitor hasn't clicked yet, carrying
+  `Sec-Purpose: prefetch…` / `Purpose: prefetch` (legacy) — is still stored,
+  since the owner wants to see the volume of prefetches, but flagged
+  `bot: "prefetch"` on the raw hit (same mechanism as
+  `PhoenixKitWebAnalytics.BotSignals`: `is_bot: true`,
+  `metadata["bot"] = "prefetch"`). That keeps it out of every default
+  visit/paid-visit count the same way any other declared bot is excluded, while
+  staying visible under the existing "show bot traffic" report switch. See
+  `PhoenixKitWebAnalytics.LiveHook`'s "Recovering a visitor served from a
+  prefetch cache" for how the human's own click still gets attributed when
+  Chrome serves this prefetch from cache instead of firing a second request.
+  The flagged hit is its own visitor (see `:bot` in
+  `PhoenixKitWebAnalytics.Collector`), so a prerender Chrome makes from the
+  visitor's own browser doesn't become, or join, the visitor's visit.
+
+  Only a navigational load is flagged. A `<link rel=prefetch>` of a page
+  carries the same header but `Sec-Fetch-Dest: empty`, and Chrome serves the
+  later click on it from its HTTP cache without a request the plug would
+  see — so that request is counted as the page view it most likely is.
+
   ## The site's own people
 
   A request by a signed-in user holding a staff role
@@ -175,7 +198,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
       true ->
         started_at = System.monotonic_time(:microsecond)
-        register_before_send(conn, &track(&1, started_at))
+        bot_reason = prefetch_reason(conn)
+        register_before_send(conn, &track(&1, started_at, bot_reason))
     end
   end
 
@@ -242,12 +266,30 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   defp opted_out?(_conn, _config), do: false
 
+  # Chrome/Edge mark a Speculation-Rules prefetch or prerender this way (the
+  # legacy `Purpose` header predates `Sec-Purpose`); a substring match catches
+  # both `prefetch;anonymous-client-ip` and `prefetch;prerender`. A
+  # `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) is left a page view: its
+  # click is served from the HTTP cache, so nothing else would count it.
+  defp prefetch_reason(conn) do
+    if header(conn, "sec-fetch-dest") != "empty" and
+         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
+       do: "prefetch"
+  end
+
+  defp speculative_header?(conn, name) do
+    case header(conn, name) do
+      nil -> false
+      value -> value |> String.downcase() |> String.contains?(["prefetch", "prerender"])
+    end
+  end
+
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
-  defp track(conn, started_at) do
+  defp track(conn, started_at, bot_reason) do
     if html_pageview?(conn) and not skipped?(conn) do
       duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
-      Collector.track_async(build_hit(conn, duration_ms))
+      Collector.track_async(build_hit(conn, duration_ms, bot_reason))
     end
 
     conn
@@ -268,7 +310,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
     end
   end
 
-  defp build_hit(conn, duration_ms) do
+  defp build_hit(conn, duration_ms, bot_reason) do
     query_params = fetch_campaign_params(conn)
 
     %{
@@ -285,7 +327,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
       status: conn.status,
       duration_ms: duration_ms,
       location: edge_location(conn),
-      metadata: live_metadata(conn)
+      metadata: live_metadata(conn),
+      bot: bot_reason
     }
   end
 

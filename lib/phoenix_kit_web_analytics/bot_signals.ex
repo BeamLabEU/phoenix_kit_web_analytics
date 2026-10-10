@@ -65,7 +65,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   @batch 2_000
 
   # Reports that only a browser running JavaScript sends.
-  @js_sources ["live_presence", "live_navigation", "client_script"]
+  @js_sources ["live_presence", "live_navigation", "prefetch_connect", "client_script"]
 
   # Live visits the hook had to skip: counted per hour, judged over a day.
   @live_window_hours 24

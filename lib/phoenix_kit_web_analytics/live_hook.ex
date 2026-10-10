@@ -1,7 +1,7 @@
 defmodule PhoenixKitWebAnalytics.LiveHook do
   @moduledoc """
   Everything a visitor does on a LiveView page, recorded server-side from the
-  socket — no client-side script.
+  socket — the module's client script isn't needed for any of it.
 
   `PhoenixKitWebAnalytics.Plug` sees HTTP requests, which covers the first load
   of a page. Once a LiveView is connected, the visitor's clicks, form submits
@@ -11,6 +11,10 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     * **Page views for live navigation** — `push_navigate`, `push_patch`,
       `<.link navigate>` / `<.link patch>` change the URL without an HTTP
       request, so the plug never sees them.
+    * **Page views served from Chrome's prefetch cache** — a page Chrome
+      prefetched or prerendered and the visitor then opened never reaches the
+      plug; with the host's connect params, its first connect is counted
+      instead. See "Recovering a visitor served from a prefetch cache" below.
     * **Interactions** — every `phx-click`, `phx-submit`, `phx-keydown` … event
       the LiveView handles, by event name (`"add_to_cart"`, `"save"`). Form
       contents are never recorded; see "What an interaction stores" below.
@@ -69,7 +73,9 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   navigation is told apart by LiveView's `_live_referer` connect parameter,
   which the client sends only when it arrived by `push_navigate` / `<.link
   navigate>`. A **reconnect** (a deploy, a dropped network) remounts with
-  `_mounts > 0` and is never counted — the visitor didn't go anywhere.
+  `_mounts > 0` and is never counted — the visitor didn't go anywhere. The one
+  page load the hook does count is one the plug never saw: see "Recovering a
+  visitor served from a prefetch cache" below.
 
   ## What an interaction stores
 
@@ -94,6 +100,63 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   `Sec-GPC: 1` visitor in the session and this hook reads it from there; such
   a visitor's LiveView activity is not recorded either. That needs the plug to
   run after `:fetch_session`, as it does in a standard `:browser` pipeline.
+
+  ## Recovering a visitor served from a prefetch cache
+
+  When Chrome delivers a page from a Speculation-Rules prefetch (or a
+  prerender gets activated), it makes no second HTTP request for it — the
+  human's click never reaches `PhoenixKitWebAnalytics.Plug` at all. Only this
+  hook's first `handle_params` after the connected mount sees them, with the
+  socket's real IP, so that connect is treated as a page view precisely when
+  it looks like one of these deliveries and isn't a reconnect of an
+  already-counted page (`_mounts == 0`, the same guard `live_navigation?/1`
+  uses).
+
+  The module's optional client script (`PhoenixKitWebAnalytics.js_sources/0`)
+  doesn't report these deliveries — the socket's connect params are the
+  host's — so the host reports them itself, by sending these LiveSocket
+  connect params from its own `assets/js/app.js` and connecting only once a
+  prerendered page is actually shown:
+
+      const nav = () => performance.getEntriesByType("navigation")[0]
+
+      let liveSocket = new LiveSocket("/live", Socket, {
+        // A function, so the values are read when the socket connects.
+        params: () => ({
+          _csrf_token: csrfToken,
+          nav_delivery: nav()?.deliveryType,
+          prerendered: (nav()?.activationStart ?? 0) > 0,
+          prerendering: document.prerendering === true,
+          doc_referrer: document.referrer || null
+        })
+      })
+
+      // Chrome runs a prerendered page's JavaScript before anyone opens it.
+      // It holds back a WebSocket until then, but LiveView's long-poll
+      // fallback would join anyway and count a page nobody saw.
+      if (document.prerendering) {
+        document.addEventListener("prerenderingchange", () => liveSocket.connect(), {once: true})
+      } else {
+        liveSocket.connect()
+      }
+
+  `deliveryType === "navigational-prefetch"` is Chrome/Edge 117+ only (MDN
+  `PerformanceResourceTiming.deliveryType`) — empty or undefined elsewhere, so
+  the hook simply never sees it on Firefox or Safari, which don't do this
+  prefetching. `prerendered` is true once a prerendered page has been
+  activated (`activationStart > 0`). `prerendering` is a guard for a page
+  that connects anyway while it is still being prerendered: such a connect is
+  never counted. `doc_referrer` (`document.referrer`) is the only way to
+  recover a referrer for this page at all, since no plug request ever fired
+  for it.
+
+  Only LiveView pages are recovered. A controller-rendered page Chrome served
+  from its prefetch cache has no socket to connect, so the visitor's click on
+  it is not counted at all (its prefetch is stored, flagged as a bot's).
+
+  See `PhoenixKitWebAnalytics.Plug`'s `bot: "prefetch"` flag for the phantom
+  side of this: the speculative request Chrome makes on its own, which the
+  visitor may never open.
   """
 
   import Phoenix.Component, only: [assign: 3]
@@ -165,10 +228,12 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
 
     cond do
       state.first? ->
-        # The connected mount's own handle_params. Counted only when the
-        # visitor got here by live navigation; a page load was already
-        # recorded by the plug during the dead render.
-        if state.live_navigation?, do: track_pageview(socket, parsed, state.live_referer)
+        # The connected mount's own handle_params. Counted when the visitor
+        # got here by live navigation, or when Chrome served this connect
+        # from its own prefetch cache (no plug request ever fired for it) —
+        # otherwise a page load was already recorded by the plug during the
+        # dead render.
+        track_first_connect(socket, parsed, state)
 
         if watchable?(path, socket.assigns[@client_key]) do
           LivePresence.watch(self(), socket.assigns[@client_key], %{
@@ -229,7 +294,20 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp repeated?({event, at}, event, now), do: now - at < @repeat_window_ms
   defp repeated?(_last, _event, _now), do: false
 
-  defp track_pageview(socket, parsed, referrer) do
+  defp track_first_connect(socket, parsed, state) do
+    cond do
+      state.live_navigation? ->
+        track_pageview(socket, parsed, state.live_referer)
+
+      prefetch_delivered?(socket) ->
+        track_pageview(socket, parsed, prefetch_referrer(socket), "prefetch_connect")
+
+      true ->
+        :ok
+    end
+  end
+
+  defp track_pageview(socket, parsed, referrer, source \\ "live_navigation") do
     path = parsed.path || "/"
 
     if trackable_path?(path) do
@@ -247,7 +325,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         user_uuid: Tracking.current_user_uuid(socket.assigns),
         roles: Tracking.current_roles(socket.assigns),
         status: 200,
-        metadata: %{"source" => "live_navigation"}
+        metadata: %{"source" => source}
       })
     end
   end
@@ -396,6 +474,32 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp live_referer(socket) do
     case get_connect_params(socket) do
       %{"_live_referer" => referer} when is_binary(referer) and referer != "" -> referer
+      _ -> nil
+    end
+  end
+
+  # Must also check `_mounts == 0` the same way live_navigation?/1 does —
+  # otherwise a later WebSocket reconnect of the SAME already-counted page
+  # (deploy, dropped network) would resend the same connect params and get
+  # double-counted as a second "new" visit.
+  defp prefetch_delivered?(socket) do
+    case get_connect_params(socket) do
+      %{"_mounts" => 0} = params -> prefetch_param?(params)
+      _ -> false
+    end
+  end
+
+  # A page still being prerendered isn't shown to anyone yet.
+  defp prefetch_param?(%{"prerendering" => p}) when p in [true, "true"], do: false
+  defp prefetch_param?(%{"nav_delivery" => "navigational-prefetch"}), do: true
+  defp prefetch_param?(%{"prerendered" => p}), do: p in [true, "true"]
+  defp prefetch_param?(_params), do: false
+
+  # `document.referrer` at connect time — this is the only way to recover a
+  # referrer for this page at all, since no plug request ever fired for it.
+  defp prefetch_referrer(socket) do
+    case get_connect_params(socket) do
+      %{"doc_referrer" => referrer} when is_binary(referrer) and referrer != "" -> referrer
       _ -> nil
     end
   end

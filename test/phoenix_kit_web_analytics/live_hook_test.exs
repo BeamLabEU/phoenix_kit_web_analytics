@@ -14,9 +14,11 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
   import Ecto.Query
 
   alias PhoenixKitWebAnalytics.BotSignals
+  alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.LiveHook
   alias PhoenixKitWebAnalytics.LivePresence
+  alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Test.Repo
   alias PhoenixKitWebAnalytics.Tracking
@@ -123,6 +125,141 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert pageview.path == "/shop/other"
       assert pageview.metadata["source"] == "live_navigation"
       assert pageview.referrer == "http://www.example.com/shop"
+    end
+
+    test "a connect delivered from Chrome's prefetch cache with a click id is recovered" do
+      socket =
+        connected_socket(%{
+          "_mounts" => 0,
+          "nav_delivery" => "navigational-prefetch"
+        })
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert [pageview] = events("pageview")
+      refute pageview.is_bot
+      assert pageview.click_id == "abc123"
+      assert pageview.click_param == "gclid"
+      assert pageview.referrer_medium == "paid"
+    end
+
+    test "a connect delivered from a prerender activation is recovered the same way" do
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert [pageview] = events("pageview")
+      refute pageview.is_bot
+      assert pageview.click_id == "abc123"
+    end
+
+    test "REGRESSION: a reconnect (_mounts > 0) of a prefetch-delivered page is not recorded again" do
+      socket =
+        connected_socket(%{"_mounts" => 1, "nav_delivery" => "navigational-prefetch"})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop?gclid=abc123")
+
+      assert events("pageview") == []
+    end
+
+    test "a page served from the prefetch cache is recovered over a real connect",
+         %{conn: conn} do
+      {:ok, _view, _html} =
+        conn
+        |> with_client()
+        |> put_connect_params(%{
+          "nav_delivery" => "navigational-prefetch",
+          "doc_referrer" => "https://www.google.com/"
+        })
+        |> live("/shop?gclid=EAIaIQob")
+
+      assert [pageview] = events("pageview")
+      assert pageview.metadata["source"] == "prefetch_connect"
+      assert pageview.click_id == "EAIaIQob"
+      assert pageview.referrer == "https://www.google.com/"
+      refute pageview.is_bot
+    end
+
+    test "a live navigation that also carries prefetch params is one live-navigation view",
+         %{conn: conn} do
+      {:ok, _view, _html} =
+        conn
+        |> with_client()
+        |> put_connect_params(%{
+          "_live_referer" => "http://www.example.com/pricing",
+          "nav_delivery" => "navigational-prefetch"
+        })
+        |> live("/shop")
+
+      assert [pageview] = events("pageview")
+      assert pageview.metadata["source"] == "live_navigation"
+      assert pageview.referrer == "http://www.example.com/pricing"
+    end
+
+    # Under LongPoll a prerendered page can join before anyone opens it.
+    test "REGRESSION: a connect made while the page is still prerendering records nothing" do
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true, "prerendering" => true})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert events("pageview") == []
+    end
+
+    test "REGRESSION: the visitor's own prerender doesn't make their recovered visit a bot's" do
+      salt = Config.hash_salt()
+
+      # What the plug stores for Chrome's prerender, from the visitor's own
+      # address and browser.
+      {:ok, prefetch} =
+        Collector.track(%{
+          path: "/shop",
+          site: "example.com",
+          ip: @peer.address,
+          user_agent: @ua,
+          bot: "prefetch"
+        })
+
+      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true})
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert [recovered] = Repo.all(from(e in Event, where: not e.is_bot))
+      assert recovered.visitor_id == Visitor.visitor_id(@peer.address, @ua, salt)
+      refute recovered.session_id == prefetch.session_id
+      assert recovered.session_start
+      refute Map.has_key?(recovered.metadata, "bot")
+
+      filter = Reports.filter(period: "7d")
+      assert [%{session_id: session_id}] = Reports.sessions(filter)
+      assert session_id == recovered.session_id
+    end
+
+    test "a normal connect with neither live_referer nor prefetch markers records nothing from the hook" do
+      socket = connected_socket(%{"_mounts" => 0})
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert events("pageview") == []
+    end
+
+    test "doc_referrer flows into the stored referrer for an organic prefetch-delivered click" do
+      socket =
+        connected_socket(%{
+          "_mounts" => 0,
+          "nav_delivery" => "navigational-prefetch",
+          "doc_referrer" => "https://www.google.com/search"
+        })
+
+      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
+      run_handle_params_hook(socket, "http://www.example.com/shop")
+
+      assert [pageview] = events("pageview")
+      assert pageview.referrer == "https://www.google.com/search"
     end
   end
 
