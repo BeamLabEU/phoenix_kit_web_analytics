@@ -36,6 +36,8 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
     * `k` — a click's kind: `"click"`, `"outbound"`, `"download"`, `"contact"`;
       `x` — what was clicked (a host + path, a file name, a label)
     * `ms` — visible time on the page (`"leave"`); `sd` — scroll depth 0–100
+    * `s` — the device's measurements (`"signals"`), validated by
+      `PhoenixKitWebAnalytics.Signals` — never part of a hit
 
   Free-form content is capped so an unbounded jsonb blob per event can't turn
   the analytics table into the largest one in the database: 20 properties,
@@ -83,13 +85,17 @@ defmodule PhoenixKitWebAnalytics.Web.BeaconPayload do
   `"event"` needs a non-empty name `n`; a payload with only a name is an
   event too (the 0.2 snippet's shape).
   """
-  @spec kind(map()) :: :pageview | :event | :click | :scroll | :leave | :automation | :unknown
+  @spec kind(map()) ::
+          :pageview | :event | :click | :scroll | :leave | :automation | :signals | :unknown
   def kind(%{"e" => "pageview"}), do: :pageview
   def kind(%{"e" => "click"}), do: :click
   def kind(%{"e" => "scroll"}), do: :scroll
   def kind(%{"e" => "leave"}), do: :leave
   # The client script's report that the browser is under automation.
   def kind(%{"e" => "automation"}), do: :automation
+  # The client script's measurements of the device; stored on the visitor's
+  # profile, not as an event.
+  def kind(%{"e" => "signals", "s" => signals}) when is_map(signals), do: :signals
 
   def kind(%{"e" => e, "n" => name}) when e in ["event", nil] and is_binary(name) and name != "",
     do: :event

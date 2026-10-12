@@ -50,6 +50,7 @@ scroll depth, and exits from pages without a LiveView.
 | Outbound / download / contact clicks, plain buttons, `data-analytics` elements | Browser click listener | client script |
 | Scroll depth; exits from non-LiveView pages | Browser scroll and page-hide listeners | client script |
 | Custom events | `PhoenixKitWebAnalytics.track_event/2` on the server; `phoenixKitAnalytics(name, props)` in the browser | — / client script |
+| Device measurements and a device hash (optional, off by default) | Screen, time zone, languages, processor, graphics card, fonts, canvas and audio rendering — once per page load, only when asked | client script + **Keep device measurements** |
 | Session recordings (optional, off by default) | Pointer movement, clicks, hovers and scrolling per page view — coordinates and element positions only, never text, typing or form values; replayed on the visit page | client script + **Record visits** |
 
 Signed-in users are attributed by their account on every hit, so a person's
@@ -68,6 +69,7 @@ Under **Web Analytics** in the PhoenixKit sidebar:
 | Acquisition | Channels (direct / search / social / referral / email / paid), referring sites, UTM campaigns |
 | Technology | Browsers, operating systems, devices, languages, countries |
 | Events | What visitors do (interactions), custom events, and a live feed of every hit |
+| Bots | Visitors by how much they look automated and why; grouped by network, subnet, address, device or User-Agent; the likely bots of a grouping as a list to block by |
 | Settings | Collection rules, bot detection, retention, interaction and client-script switches, session recordings, alerts, stored-data stats, installation checklist |
 
 Charts are core's server-rendered SVG components — no charting library, no
@@ -267,6 +269,33 @@ flagged: Chrome serves the later click on it from its cache without asking
 again, so that request is counted as the page view. How the visit behind a
 prefetch is still counted is step 5 of [Installation](#installation).
 
+#### Bot score and the Bots page
+
+A flag is a verdict: the visit leaves the reports. Beside it, every visitor
+something is kept about (see
+[What is kept about a visitor](#what-is-kept-about-a-visitor)) carries a
+**bot score** — the sum of the weights of the reasons found — and the
+reasons themselves. Nothing is dropped, flagged or blocked because of a
+score; it is there to look at and decide by.
+
+| Source | Reasons (weight) |
+|--------|------------------|
+| The request, when a visit starts | says it is a bot (100) · no User-Agent (70) · hosting provider's network (40) · a phone's User-Agent from a hosting provider (30) · HTTP/1.0 (30) · no `Accept-Language` (25) · a current browser's User-Agent without `Sec-Fetch-*` (25, HTTPS only) · a Chromium User-Agent without `Sec-CH-UA` (20, HTTPS only) · no `Accept` (15) |
+| The device, when the client script reports | device and User-Agent name different systems (50) · graphics drawn in software (40) · a screen or window with no size (40) · no browser language (40) · a phone's User-Agent without touch (30) |
+| Behaviour (the three checks above) | automation (90) · speed (70) · no JavaScript (50) |
+
+60 and over reads as *likely a bot*, 30 and over as *suspicious*. Header
+reasons need **Keep request headers**, network reasons **Keep the network's
+owner** and a resolver that knows it, device reasons **Keep device
+measurements**: what isn't collected can't count.
+
+**Web Analytics → Bots** lists those visitors, the likeliest first, with
+their reasons, and groups them by what several share — network, subnet,
+address, device, User-Agent. A group opens its visitors; the address-shaped
+groupings offer their likely bots as a plain list to paste into a firewall
+or a CDN rule. Declared bots only appear with **Record bot traffic** on —
+otherwise they are dropped before anything is kept.
+
 ### Your own traffic
 
 Visits by the site's own people are real traffic, but not the audience. They
@@ -379,14 +408,15 @@ of them off until switched on:
 | `web_analytics_store_user_agent` | The raw User-Agent string — which crawler, which library, which exact version |
 | `web_analytics_store_headers` | The request headers of a visit's first page view, in arrival order, with the protocol |
 | `web_analytics_store_network` | The network's number (ASN), its owner and whether it is a hosting provider — when your geo resolver returns `:asn`, `:network` and `:hosting` |
+| `web_analytics_store_signals` | What the client script measures about the device, and a salted hash of the stable part — a **device hash** that stays the same when the address changes. This is browser fingerprinting; it needs the client script on. The measurements are listed in `PhoenixKitWebAnalytics.Signals` |
 
 They are written to one row per visitor ID
 (`phoenix_kit_web_analytics_visitor_profiles`) when a visit starts, never to
 the event rows, and shown on the visit's page. A row goes when its visitor
 hasn't been seen for `web_analytics_retention_days`. Switching a setting off
 stops it being recorded; `PhoenixKitWebAnalytics.Profiles.forget/1` removes
-what is already stored (`:ip`, `:user_agent`, `:headers`, `:network` or
-`:all`).
+what is already stored (`:ip`, `:user_agent`, `:headers`, `:network`,
+`:signals` or `:all`).
 
 Never kept, whatever the settings: the value of a header that carries a
 credential (`Cookie`, `Authorization`, anything named like a token, key or
@@ -465,6 +495,7 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_store_user_agent` | `false` | Keep the raw User-Agent |
 | `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
 | `web_analytics_store_network` | `false` | Keep the network's ASN, owner and hosting flag (needs a resolver that returns them) |
+| `web_analytics_store_signals` | `false` | Keep the client script's device measurements and a device hash (needs the client script) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -610,7 +641,7 @@ options, so a LiveView page to leave out entirely goes in the
 ## Database
 
 Five tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V09),
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V10),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
@@ -618,7 +649,7 @@ UUIDv7 primary keys, prefix-safe for named-schema installs:
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
 - `phoenix_kit_web_analytics_visitor_profiles` — what is kept about a visitor,
-  one row per visitor ID; empty unless a setting asks for it (V09)
+  one row per visitor ID; empty unless a setting asks for it (V09, V10)
 
 On a busy install with a large events table, build V03's, V05's and V07's
 indexes `CONCURRENTLY` before upgrading — the migration then skips them; the

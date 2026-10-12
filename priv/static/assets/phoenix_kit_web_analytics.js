@@ -15,7 +15,11 @@
  *   - when session recording is switched on (off by default), how the
  *     pointer moved, what was clicked and hovered, and how the page scrolled
  *     — coordinates and short element selectors only, never text, keystrokes
- *     or form values. The server says per page whether to record.
+ *     or form values. The server says per page whether to record;
+ *   - when "Keep device measurements" is switched on (off by default), what
+ *     the device is: screen, time zone, languages, processor, graphics card,
+ *     fonts, and how it draws a canvas and renders a sound. Once per page
+ *     load, and only when the server asks.
  *
  * Nothing is sent while the page loads, nothing is stored in the browser, no
  * cookie is written. A page Chrome prerenders runs before anyone opens it:
@@ -231,6 +235,209 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
     }
   });
 
+  // ── device measurements (only when the server asks for them) ─────────────
+
+  // Measured the same way every time, so the same device gives the same
+  // answers; the server hashes them into a device ID (see Signals).
+  var FONTS = [
+    "Arial", "Arial Black", "Calibri", "Cambria", "Comic Sans MS", "Consolas", "Courier New",
+    "DejaVu Sans", "Fira Sans", "Futura", "Geneva", "Georgia", "Helvetica", "Helvetica Neue",
+    "Impact", "Liberation Sans", "Lucida Console", "Menlo", "Monaco", "Noto Sans", "Optima",
+    "Palatino", "Roboto", "Segoe UI", "SF Pro Text", "Tahoma", "Times New Roman",
+    "Trebuchet MS", "Ubuntu", "Verdana"
+  ];
+  var measured = false;
+
+  // FNV-1a over a string, as 8 hex characters.
+  function hash(text) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return ("0000000" + h.toString(16)).slice(-8);
+  }
+
+  function attempt(fn) {
+    try {
+      return fn();
+    } catch (_e) {
+      return undefined;
+    }
+  }
+
+  function canvasHash() {
+    var canvas = document.createElement("canvas");
+    canvas.width = 240;
+    canvas.height = 60;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#f60";
+    ctx.fillRect(100, 5, 80, 30);
+    ctx.fillStyle = "#069";
+    ctx.font = "15px Arial, sans-serif";
+    ctx.fillText("Cwm fjordbank glyphs vext quiz \ud83d\ude03", 2, 20);
+    ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+    ctx.font = "17px Times New Roman, serif";
+    ctx.fillText("Cwm fjordbank glyphs vext quiz", 4, 45);
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "rgb(255,0,255)";
+    ctx.beginPath();
+    ctx.arc(50, 30, 25, 0, Math.PI * 2, true);
+    ctx.fill();
+    return hash(canvas.toDataURL());
+  }
+
+  function graphics() {
+    var canvas = document.createElement("canvas");
+    var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (!gl) return {};
+    var info = gl.getExtension("WEBGL_debug_renderer_info");
+    return {
+      gv: String(gl.getParameter(info ? info.UNMASKED_VENDOR_WEBGL : gl.VENDOR) || ""),
+      gr: String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "")
+    };
+  }
+
+  // A font is installed when text set in it measures differently from the
+  // generic family it falls back to.
+  function fonts() {
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+    var text = "mmmmmmmmmmlli";
+    var bases = ["monospace", "sans-serif", "serif"];
+    var widths = bases.map(function (base) {
+      ctx.font = "72px " + base;
+      return ctx.measureText(text).width;
+    });
+    return FONTS.filter(function (font) {
+      return bases.some(function (base, i) {
+        ctx.font = "72px '" + font + "', " + base;
+        return ctx.measureText(text).width !== widths[i];
+      });
+    });
+  }
+
+  // How this device's audio stack renders one fixed sound. Resolves with a
+  // number as text, or undefined.
+  function audio() {
+    return new Promise(function (resolve) {
+      var Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!Offline) return resolve(undefined);
+      var timer = setTimeout(function () {
+        resolve(undefined);
+      }, 1000);
+      try {
+        var ctx = new Offline(1, 5000, 44100);
+        var osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.value = 10000;
+        var comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -50;
+        comp.knee.value = 40;
+        comp.ratio.value = 12;
+        comp.attack.value = 0;
+        comp.release.value = 0.25;
+        osc.connect(comp);
+        comp.connect(ctx.destination);
+        osc.start(0);
+        ctx.oncomplete = function (ev) {
+          clearTimeout(timer);
+          var data = ev.renderedBuffer.getChannelData(0);
+          var sum = 0;
+          for (var i = 4500; i < data.length; i++) sum += Math.abs(data[i]);
+          resolve(sum.toFixed(8));
+        };
+        ctx.startRendering();
+      } catch (_e) {
+        clearTimeout(timer);
+        resolve(undefined);
+      }
+    });
+  }
+
+  // The parts of the User-Agent a Chromium browser no longer puts in it.
+  function hints() {
+    var data = navigator.userAgentData;
+    if (!data || typeof data.getHighEntropyValues !== "function") return Promise.resolve({});
+    return Promise.race([
+      data.getHighEntropyValues(["architecture", "model", "platformVersion"]).then(function (v) {
+        return { uap: v.platform, uapv: v.platformVersion, uaa: v.architecture, uam: v.model, uamob: v.mobile === true };
+      }),
+      new Promise(function (resolve) {
+        setTimeout(function () {
+          resolve({});
+        }, 1000);
+      })
+    ]).catch(function () {
+      return {};
+    });
+  }
+
+  function media(query) {
+    return typeof window.matchMedia === "function" ? window.matchMedia(query).matches : undefined;
+  }
+
+  function measureDevice() {
+    if (measured || typeof Promise !== "function") return;
+    measured = true;
+
+    var nav = navigator;
+    var scr = window.screen || {};
+    var s = {
+      tz: attempt(function () {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone;
+      }),
+      tzo: new Date().getTimezoneOffset(),
+      lang: nav.language,
+      langs: nav.languages ? Array.prototype.slice.call(nav.languages, 0, 10) : undefined,
+      plat: nav.platform,
+      ven: nav.vendor,
+      hc: nav.hardwareConcurrency,
+      dm: nav.deviceMemory,
+      tp: nav.maxTouchPoints,
+      sw: scr.width,
+      sh: scr.height,
+      aw: scr.availWidth,
+      ah: scr.availHeight,
+      iw: window.innerWidth,
+      ih: window.innerHeight,
+      ow: window.outerWidth,
+      oh: window.outerHeight,
+      cd: scr.colorDepth,
+      dpr: window.devicePixelRatio,
+      ce: nav.cookieEnabled,
+      pdf: nav.pdfViewerEnabled,
+      pl: nav.plugins ? nav.plugins.length : undefined,
+      wd: nav.webdriver === true,
+      chr: typeof window.chrome === "object" && window.chrome !== null,
+      dark: media("(prefers-color-scheme: dark)"),
+      rm: media("(prefers-reduced-motion: reduce)"),
+      coarse: media("(pointer: coarse)"),
+      cv: attempt(canvasHash),
+      fonts: attempt(fonts)
+    };
+
+    var g = attempt(graphics) || {};
+    s.gv = g.gv;
+    s.gr = g.gr;
+
+    Promise.all([audio(), hints()])
+      .then(function (results) {
+        s.au = results[0];
+        var h = results[1] || {};
+        for (var key in h) if (Object.prototype.hasOwnProperty.call(h, key)) s[key] = h[key];
+      })
+      .catch(function () {})
+      .then(function () {
+        // Undefined and empty measurements are left out of the JSON.
+        for (var key in s) if (s[key] === undefined || s[key] === null || s[key] === "") delete s[key];
+        send({ e: "signals", s: s });
+      });
+  }
+
   // ── session recording (only when the server asks for it) ─────────────────
 
   var base = (prefix === "/" ? "" : prefix.replace(/\/$/, "")) + "/phoenix-kit/analytics/recording";
@@ -311,6 +518,7 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
         return r.ok ? r.json() : { record: false };
       })
       .then(function (answer) {
+        if (answer && answer.signals === true) measureDevice();
         if (mine !== rec || !answer || answer.record !== true) return;
         rec.on = true;
         frame(["s", Math.round(window.scrollX), Math.round(window.scrollY)]);

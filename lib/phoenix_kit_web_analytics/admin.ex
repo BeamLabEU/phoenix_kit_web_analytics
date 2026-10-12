@@ -33,7 +33,8 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :exclude_admin_network,
     :store_user_agent,
     :store_headers,
-    :store_network
+    :store_network,
+    :store_signals
   ]
   # Settings that are one word out of a few.
   @choices %{

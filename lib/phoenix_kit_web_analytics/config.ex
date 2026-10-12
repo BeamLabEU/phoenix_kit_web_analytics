@@ -45,9 +45,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_store_user_agent` | `false` | Keep the raw User-Agent string |
   | `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
   | `web_analytics_store_network` | `false` | Keep who runs the visitor's network, when the geo resolver says |
+  | `web_analytics_store_signals` | `false` | Keep what the client script measures about the device, and a hash of it |
   | `web_analytics_hash_secret` | generated | Secret mixed into the visitor hash |
 
-  The four `store_*` keys and the rotation decide what is kept about *who*
+  The five `store_*` keys and the rotation decide what is kept about *who*
   a visitor is — see `PhoenixKitWebAnalytics.Profiles`. All of them default
   to keeping nothing, which is what the module did before they existed.
 
@@ -97,6 +98,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   @store_user_agent_key "web_analytics_store_user_agent"
   @store_headers_key "web_analytics_store_headers"
   @store_network_key "web_analytics_store_network"
+  @store_signals_key "web_analytics_store_signals"
 
   @ip_modes [:off, :truncated, :full]
 
@@ -141,7 +143,8 @@ defmodule PhoenixKitWebAnalytics.Config do
     @store_ip_key,
     @store_user_agent_key,
     @store_headers_key,
-    @store_network_key
+    @store_network_key,
+    @store_signals_key
   ]
 
   @type collection_config :: %{
@@ -165,7 +168,8 @@ defmodule PhoenixKitWebAnalytics.Config do
           store_ip: :off | :truncated | :full,
           store_user_agent?: boolean(),
           store_headers?: boolean(),
-          store_network?: boolean()
+          store_network?: boolean(),
+          store_signals?: boolean()
         }
 
   @doc "Settings key for the module's master switch."
@@ -209,7 +213,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       store_ip: one_of(values[@store_ip_key], @ip_modes, :off),
       store_user_agent?: truthy?(values[@store_user_agent_key], false),
       store_headers?: truthy?(values[@store_headers_key], false),
-      store_network?: truthy?(values[@store_network_key], false)
+      store_network?: truthy?(values[@store_network_key], false),
+      store_signals?: truthy?(values[@store_signals_key], false)
     }
   rescue
     error ->
@@ -476,7 +481,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       store_ip: @store_ip_key,
       store_user_agent: @store_user_agent_key,
       store_headers: @store_headers_key,
-      store_network: @store_network_key
+      store_network: @store_network_key,
+      store_signals: @store_signals_key
     }
   end
 
@@ -504,7 +510,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       store_ip: :off,
       store_user_agent?: false,
       store_headers?: false,
-      store_network?: false
+      store_network?: false,
+      store_signals?: false
     }
   end
 

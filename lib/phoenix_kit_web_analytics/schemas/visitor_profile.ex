@@ -32,6 +32,10 @@ defmodule PhoenixKitWebAnalytics.Schemas.VisitorProfile do
     # Device measurements from the client script, and a hash of them.
     field(:signals, :map)
     field(:device_hash, :string)
+    # How much it looks like a bot (the sum of its reasons' weights) and why
+    # — see PhoenixKitWebAnalytics.BotScore.
+    field(:bot_score, :integer, default: 0)
+    field(:bot_reasons, {:array, :string}, default: [])
     # When the visitor's latest visit started.
     field(:last_seen_at, :utc_datetime_usec)
 

@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   | `web_analytics_store_user_agent` | the raw User-Agent string |
   | `web_analytics_store_headers` | the request headers of the visit's first page view |
   | `web_analytics_store_network` | the network's number, owner and whether it is a hosting provider |
+  | `web_analytics_store_signals` | what the client script measures about the device, and a hash of it (`PhoenixKitWebAnalytics.Signals`) |
 
   What is on is the operator's decision and the operator's responsibility:
   an address is personal data nearly everywhere, and which of these may be
@@ -54,15 +55,27 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   A resolver (`PhoenixKitWebAnalytics.Geo`) may return `:asn`, `:network` and
   `:hosting` beside the location. Nothing ships with the module that knows
   them; without a resolver that does, the setting keeps nothing.
+
+  ## Bot score
+
+  Every row carries `bot_reasons` and their sum, `bot_score`
+  (`PhoenixKitWebAnalytics.BotScore`). The request's reasons are worked out
+  when a visit starts, the device's when its measurements arrive, and
+  `PhoenixKitWebAnalytics.BotSignals`' verdicts are added as they are
+  reached. The User-Agent is read for this whether or not it is kept — as it
+  already is for the browser and system on every event — but headers and
+  network count only when they are.
   """
 
   import Ecto.Query
 
   require Logger
 
+  alias PhoenixKitWebAnalytics.BotScore
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.Schemas.VisitorProfile
+  alias PhoenixKitWebAnalytics.Signals
   alias PhoenixKitWebAnalytics.Tracking
 
   @fields [:ip, :user_agent, :headers, :asn, :network, :hosting]
@@ -91,7 +104,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   @spec wanted?(Config.collection_config()) :: boolean()
   def wanted?(config) do
     config.store_ip != :off or config.store_user_agent? or config.store_headers? or
-      config.store_network?
+      config.store_network? or config.store_signals?
   end
 
   @doc """
@@ -121,6 +134,16 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     with true <- wanted?(config),
          attrs when attrs != %{} <- capture(hit, config) do
       upsert(visitor_id, attrs, now)
+
+      rescore(
+        visitor_id,
+        :request,
+        BotScore.request_reasons(%{
+          user_agent: hit[:user_agent],
+          headers: attrs[:headers],
+          hosting: attrs[:hosting]
+        })
+      )
     end
 
     :ok
@@ -130,6 +153,99 @@ defmodule PhoenixKitWebAnalytics.Profiles do
       :ok
   catch
     :exit, _ -> :ok
+  end
+
+  @doc """
+  Stores what the client script measured for `visitor_id` — the cleaned
+  measurements (`Signals.clean/1`), the device hash, and the reasons they
+  give — creating the row when nothing else is kept. Does nothing unless
+  `web_analytics_store_signals` is on. Always returns `:ok`.
+  """
+  @spec record_signals(String.t(), map(), String.t() | nil, Config.collection_config(), keyword()) ::
+          :ok
+  def record_signals(visitor_id, raw, user_agent, config, opts \\ [])
+      when is_binary(visitor_id) do
+    with true <- config.store_signals?,
+         %{} = signals <- Signals.clean(raw),
+         salt when is_binary(salt) <- Keyword.get_lazy(opts, :salt, &Config.hash_salt/0) do
+      now = Keyword.get(opts, :now, DateTime.utc_now())
+
+      upsert_signals(visitor_id, signals, Signals.device_hash(signals, salt), now)
+      rescore(visitor_id, :signals, BotScore.signal_reasons(signals, user_agent))
+      if signals["wd"] == true, do: add_reason([visitor_id], "webdriver")
+
+      # With nothing else kept the visit's start wrote no row, so what the
+      # User-Agent alone says is added here.
+      Enum.each(
+        BotScore.request_reasons(%{user_agent: user_agent}),
+        &add_reason([visitor_id], &1)
+      )
+    end
+
+    :ok
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] device signals not stored: #{Exception.message(error)}")
+      :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  @doc """
+  Adds a reason to the profiles of `visitor_ids` (a list, or a query
+  selecting visitor IDs) that don't have it yet — a
+  `PhoenixKitWebAnalytics.BotSignals` verdict. Profiles that don't exist
+  aren't created. Returns the number changed.
+  """
+  @spec add_reason([String.t()] | Ecto.Query.t(), BotScore.reason()) :: non_neg_integer()
+  def add_reason(visitor_ids, reason) when is_binary(reason) do
+    weight = BotScore.weight(reason)
+
+    {count, _} =
+      VisitorProfile
+      |> for_visitors(visitor_ids)
+      |> where([p], fragment("NOT (? = ANY(?))", ^reason, p.bot_reasons))
+      |> update([p],
+        set: [
+          bot_reasons: fragment("array_append(?, ?)", p.bot_reasons, ^reason),
+          bot_score: p.bot_score + ^weight
+        ]
+      )
+      |> repo().update_all([])
+
+    count
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] bot reason not stored: #{Exception.message(error)}")
+      0
+  catch
+    :exit, _ -> 0
+  end
+
+  @doc "Takes a reason back from the profiles of `visitor_ids`. Returns the number changed."
+  @spec remove_reason([String.t()] | Ecto.Query.t(), BotScore.reason()) :: non_neg_integer()
+  def remove_reason(visitor_ids, reason) when is_binary(reason) do
+    weight = BotScore.weight(reason)
+
+    {count, _} =
+      VisitorProfile
+      |> for_visitors(visitor_ids)
+      |> where([p], fragment("? = ANY(?)", ^reason, p.bot_reasons))
+      |> update([p],
+        set: [
+          bot_reasons: fragment("array_remove(?, ?)", p.bot_reasons, ^reason),
+          bot_score: fragment("GREATEST(? - ?, 0)", p.bot_score, ^weight)
+        ]
+      )
+      |> repo().update_all([])
+
+    count
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] bot reason not removed: #{Exception.message(error)}")
+      0
+  catch
+    :exit, _ -> 0
   end
 
   @doc "The profile kept for a visitor ID, or `nil`."
@@ -158,13 +274,13 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   `:all` deletes every profile. Returns the number of rows changed or
   deleted.
   """
-  @spec forget(:ip | :user_agent | :headers | :network | :all) :: non_neg_integer()
+  @spec forget(:ip | :user_agent | :headers | :network | :signals | :all) :: non_neg_integer()
   def forget(:all) do
     {count, _} = repo().delete_all(VisitorProfile)
     count
   end
 
-  def forget(kind) when kind in [:ip, :user_agent, :headers, :network] do
+  def forget(kind) when kind in [:ip, :user_agent, :headers, :network, :signals] do
     columns = forget_columns(kind)
 
     {count, _} =
@@ -206,6 +322,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
 
     %{
       "http" => conn |> Plug.Conn.get_http_protocol() |> to_string(),
+      "scheme" => scheme(conn),
       "names" => Enum.map(headers, fn {name, _value} -> clip(name, @max_header_name) end),
       "values" => header_values(headers, address?)
     }
@@ -284,6 +401,49 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     )
   end
 
+  defp upsert_signals(visitor_id, signals, device_hash, now) do
+    row = %{
+      uuid: UUIDv7.generate(),
+      visitor_id: visitor_id,
+      signals: signals,
+      device_hash: device_hash,
+      inserted_at: now,
+      last_seen_at: now
+    }
+
+    repo().insert_all(VisitorProfile, [row],
+      on_conflict: {:replace, [:signals, :device_hash]},
+      conflict_target: [:visitor_id]
+    )
+  end
+
+  # Replaces one source's reasons on a profile, leaving the others'; writes
+  # only when that changes something.
+  defp rescore(visitor_id, source, found) do
+    case repo().one(
+           from(p in VisitorProfile, where: p.visitor_id == ^visitor_id, select: p.bot_reasons)
+         ) do
+      nil ->
+        :ok
+
+      current ->
+        reasons = BotScore.merge(current, source, found)
+
+        if reasons != current do
+          from(p in VisitorProfile, where: p.visitor_id == ^visitor_id)
+          |> repo().update_all(set: [bot_reasons: reasons, bot_score: BotScore.score(reasons)])
+        end
+
+        :ok
+    end
+  end
+
+  defp for_visitors(query, visitor_ids) when is_list(visitor_ids),
+    do: where(query, [p], p.visitor_id in ^visitor_ids)
+
+  defp for_visitors(query, %Ecto.Query{} = visitor_ids),
+    do: where(query, [p], p.visitor_id in subquery(visitor_ids))
+
   # A hit that already carries the network (an edge header, a test) is taken
   # at its word; otherwise the resolver is asked — once per visit, off the
   # request.
@@ -318,9 +478,17 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   # Already shaped by `request_headers/2`; anything else isn't headers.
   defp headers(%{"names" => names, "values" => values} = headers)
        when is_list(names) and is_map(values),
-       do: Map.take(headers, ["http", "names", "values"])
+       do: Map.take(headers, ["http", "scheme", "names", "values"])
 
   defp headers(_headers), do: nil
+
+  # As the browser saw it: a proxy that ends TLS says so in a header.
+  defp scheme(conn) do
+    case Plug.Conn.get_req_header(conn, "x-forwarded-proto") do
+      [proto | _] when proto in ["http", "https"] -> proto
+      _ -> to_string(conn.scheme)
+    end
+  end
 
   defp header_values(headers, address?) do
     for {name, value} <- headers,
@@ -362,6 +530,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   defp text(_value, _max), do: nil
 
   defp forget_columns(:network), do: [:asn, :network, :hosting]
+  defp forget_columns(:signals), do: [:signals, :device_hash]
   defp forget_columns(kind), do: [kind]
 
   defp not_null_any(columns) do

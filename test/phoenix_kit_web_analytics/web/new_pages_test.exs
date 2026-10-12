@@ -626,4 +626,153 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       nil -> flunk("no Page views tile")
     end
   end
+
+  # ── the Bots page ─────────────────────────────────────────────────────────
+
+  describe "the Bots page" do
+    alias PhoenixKitWebAnalytics.Schemas.VisitorProfile
+
+    @iphone "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1"
+
+    defp bot_profile(attrs) do
+      now = DateTime.utc_now()
+
+      Repo.insert!(
+        struct!(
+          VisitorProfile,
+          Map.merge(
+            %{
+              visitor_id: "visitor-#{System.unique_integer([:positive])}",
+              last_seen_at: now,
+              inserted_at: now
+            },
+            attrs
+          )
+        )
+      )
+    end
+
+    defp scrapers do
+      for n <- [91, 92] do
+        bot_profile(%{
+          ip: "43.156.37.#{n}",
+          user_agent: @iphone,
+          asn: 132_203,
+          network: "Tencent",
+          hosting: true,
+          bot_score: 70,
+          bot_reasons: ~w(hosting_network mobile_from_hosting)
+        })
+      end
+    end
+
+    test "says what to switch on while nothing is kept", %{conn: conn} do
+      {:ok, view, html} = live(conn, "#{@base}/bots")
+
+      assert html =~ "Nothing is kept about visitors yet."
+      refute has_element?(view, "#bots-visitors")
+    end
+
+    test "lists visitors with their score and reasons, the likeliest first", %{conn: conn} do
+      scrapers()
+      person = bot_profile(%{ip: "198.51.100.7", user_agent: @ua})
+
+      {:ok, view, html} = live(conn, "#{@base}/bots")
+
+      assert has_element?(view, "#bots-stat-likely", "2")
+      assert has_element?(view, "#bots-visitors", "43.156.37.91")
+      assert has_element?(view, "#bots-visitors", "Phone User-Agent from a server")
+      assert has_element?(view, "#bots-visitors", "AS132203 · Tencent")
+      assert has_element?(view, "#bot-#{person.visitor_id}", "198.51.100.7")
+
+      {scraper_at, _} = :binary.match(html, "43.156.37.9")
+      {person_at, _} = :binary.match(html, "198.51.100.7")
+      assert scraper_at < person_at
+    end
+
+    test "links a visitor to its latest visit", %{conn: conn} do
+      [scraper | _] = scrapers()
+      event = insert_event(%{visitor_id: scraper.visitor_id})
+
+      {:ok, view, _html} = live(conn, "#{@base}/bots")
+
+      assert has_element?(
+               view,
+               "#bot-#{scraper.visitor_id} a[href$='/sessions/#{event.session_id}']"
+             )
+    end
+
+    test "the score floor and a narrowing go into the URL", %{conn: conn} do
+      scrapers()
+      bot_profile(%{ip: "198.51.100.7", user_agent: @ua})
+
+      {:ok, view, _html} = live(conn, "#{@base}/bots?level=likely")
+      refute has_element?(view, "#bots-visitors", "198.51.100.7")
+      assert has_element?(view, "#bots-level a.btn-active", "Likely bots")
+
+      view |> element("#bots-visitors a", "43.156.37.91") |> render_click()
+      assert_patched(view, "#{@base}/bots?ip=43.156.37.91&level=likely")
+
+      refute has_element?(view, "#bots-visitors", "43.156.37.92")
+      assert has_element?(view, "a.badge", "43.156.37.91")
+    end
+
+    test "groups by what visitors share, and offers the likely bots as a list", %{conn: conn} do
+      scrapers()
+      bot_profile(%{ip: "198.51.100.7", user_agent: @ua})
+
+      {:ok, view, _html} = live(conn, "#{@base}/bots?group=subnet")
+
+      assert has_element?(view, "#bots-groups", "43.156.37.0/24")
+      assert has_element?(view, "#bots-groups", "198.51.100.0/24")
+      assert view |> element("#bots-firewall-list textarea") |> render() =~ "43.156.37.0/24"
+      refute view |> element("#bots-firewall-list textarea") |> render() =~ "198.51.100.0/24"
+
+      view |> element("#bots-groups a", "43.156.37.0/24") |> render_click()
+      assert_patched(view, "#{@base}/bots?subnet=43.156.37.0%2F24")
+      assert has_element?(view, "#bots-visitors", "43.156.37.92")
+
+      {:ok, view, _html} = live(conn, "#{@base}/bots?group=network")
+      assert has_element?(view, "#bots-groups", "AS132203")
+      assert has_element?(view, "#bots-groups", "Tencent")
+    end
+
+    test "a grouping with nothing kept for it says what it needs", %{conn: conn} do
+      bot_profile(%{ip: "198.51.100.7"})
+
+      {:ok, view, _html} = live(conn, "#{@base}/bots?group=device")
+
+      assert has_element?(view, "#bots-groups", "Needs device measurements kept")
+      refute has_element?(view, "#bots-firewall-list")
+    end
+
+    test "made-up parameters fall back instead of crashing", %{conn: conn} do
+      scrapers()
+
+      {:ok, view, _html} =
+        live(conn, "#{@base}/bots?group=nonsense&level=x&days=-4&asn=abc&ip=%27%3B--&device=zz")
+
+      assert has_element?(view, "#bots-visitors", "43.156.37.91")
+      assert has_element?(view, "#bots-period a.btn-active", "7 days")
+    end
+
+    test "a visit's page shows its visitor's score and what the device measured", %{conn: conn} do
+      event = insert_event(%{visitor_id: "scored"})
+
+      bot_profile(%{
+        visitor_id: "scored",
+        bot_score: 90,
+        bot_reasons: ["webdriver"],
+        device_hash: String.duplicate("c", 32),
+        signals: %{"gr" => "SwiftShader", "langs" => ["en", "et"]}
+      })
+
+      {:ok, view, _html} = live(conn, "#{@base}/sessions/#{event.session_id}")
+
+      assert has_element?(view, "#visitor-bot-score", "Browser under automation")
+      assert has_element?(view, "#visitor-bot-score", "Likely a bot")
+      assert has_element?(view, "#visitor-signals", "SwiftShader")
+      assert has_element?(view, "#visitor-signals", "en, et")
+    end
+  end
 end

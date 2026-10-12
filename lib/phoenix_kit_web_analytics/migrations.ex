@@ -56,6 +56,9 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       owner, client signals — one row per visitor ID, every column nullable
       and filled only when its setting is on. See
       `PhoenixKitWebAnalytics.Profiles`
+    * `10` — `bot_score` and `bot_reasons` on the profile: how much the
+      visitor looks like a bot and why (`PhoenixKitWebAnalytics.BotScore`),
+      with a partial index over the scored ones
 
   ## Large existing tables
 
@@ -96,7 +99,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 9
+  @current_version 10
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -655,6 +658,34 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     drop_if_exists(table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix))
   end
 
+  # V10 — how much a visitor looks like a bot, and why: the sum of the weights
+  # of the reasons found (`PhoenixKitWebAnalytics.BotScore`) and the reasons
+  # themselves. On the profile, so the Bots page can sort and filter in SQL.
+  defp up_v10(prefix) do
+    alter table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix) do
+      add_if_not_exists(:bot_score, :integer, null: false, default: 0)
+      add_if_not_exists(:bot_reasons, {:array, :string}, null: false, default: [])
+    end
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:bot_score],
+        prefix: prefix,
+        where: "bot_score > 0"
+      )
+    )
+  end
+
+  defp down_v10(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:bot_score], prefix: prefix)
+    )
+
+    alter table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix) do
+      remove_if_exists(:bot_score, :integer)
+      remove_if_exists(:bot_reasons, {:array, :string})
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -689,6 +720,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 8, prefix), do: down_v8(prefix)
   defp apply_step(:up, 9, prefix), do: up_v9(prefix)
   defp apply_step(:down, 9, prefix), do: down_v9(prefix)
+  defp apply_step(:up, 10, prefix), do: up_v10(prefix)
+  defp apply_step(:down, 10, prefix), do: down_v10(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

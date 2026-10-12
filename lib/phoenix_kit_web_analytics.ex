@@ -189,11 +189,18 @@ defmodule PhoenixKitWebAnalytics do
         657
       ),
       subtab(
+        :admin_web_analytics_bots,
+        gettext_noop("Bots"),
+        "hero-bug-ant",
+        "web-analytics/bots",
+        658
+      ),
+      subtab(
         :admin_web_analytics_settings,
         gettext_noop("Settings"),
         "hero-cog-6-tooth",
         "web-analytics/settings",
-        658
+        659
       )
     ]
   end

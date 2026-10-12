@@ -21,7 +21,8 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     * `GET` / `POST /phoenix-kit/analytics/recording` — session recordings:
       whether to record this visitor on this page, and the recorded chunks.
       Off unless `web_analytics_recording` is on; see
-      `PhoenixKitWebAnalytics.Recordings`.
+      `PhoenixKitWebAnalytics.Recordings`. The `GET` also tells the client
+      script whether to measure the device (`web_analytics_store_signals`).
 
   ## Trust boundary
 
@@ -39,11 +40,16 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
   use PhoenixKitWeb, :controller
 
+  alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Recordings
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Tracking
+  alias PhoenixKitWebAnalytics.TrafficFlags
+  alias PhoenixKitWebAnalytics.Visitor
   alias PhoenixKitWebAnalytics.Web.BeaconPayload
 
   # 43-byte transparent 1×1 GIF.
@@ -52,6 +58,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   @max_body 16_384
   # A recording chunk: up to a couple of thousand short frames.
   @max_recording_body 131_072
+  @max_signals_per_minute 5
 
   @doc "Records a hit reported by the beacon or the client script."
   @spec event(Plug.Conn.t(), map()) :: Plug.Conn.t()
@@ -60,6 +67,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
     case BeaconPayload.kind(params) do
       :automation -> flag_automation(conn)
+      :signals -> store_signals(conn, params["s"])
       _ -> track(conn, params)
     end
 
@@ -90,11 +98,12 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   """
   @spec recording_config(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def recording_config(conn, params) do
-    record? = Recordings.record?(recording_client(conn), params["p"])
+    client = recording_client(conn)
+    record? = Recordings.record?(client, params["p"])
 
     conn
     |> put_resp_header("cache-control", "private, max-age=60")
-    |> json(%{record: record?})
+    |> json(%{record: record?, signals: signals?(client, Config.collection_config())})
   end
 
   @doc "Stores a chunk of a session recording."
@@ -112,9 +121,38 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     config = Config.collection_config()
 
     if config.enabled? and config.client_script? and config.detect_bots?,
-      do: PhoenixKitWebAnalytics.BotSignals.flag_client(recording_client(conn), "webdriver")
+      do: BotSignals.flag_client(recording_client(conn), "webdriver")
 
     :ok
+  end
+
+  # Whether the client script should measure the device (see Signals): the
+  # setting is on, and the visitor isn't one the site doesn't follow.
+  defp signals?(client, config) do
+    config.enabled? and config.client_script? and config.store_signals? and
+      not (config.respect_dnt? and client.opted_out?) and
+      not TrafficFlags.excluded?(InternalTraffic.flags(client, config), config.excluded_flags)
+  end
+
+  # Off the request, and at most a few a minute from one visitor: a page
+  # sends its measurements once.
+  defp store_signals(conn, raw) do
+    config = Config.collection_config()
+    client = recording_client(conn)
+
+    if signals?(client, config),
+      do: Collector.run_async(fn -> record_signals(client, raw, config) end)
+
+    :ok
+  end
+
+  defp record_signals(client, raw, config) do
+    with salt when is_binary(salt) <- Config.hash_salt(),
+         visitor_id when is_binary(visitor_id) <-
+           Visitor.visitor_id(client.ip, client.user_agent, salt, nil, config.visitor_rotation),
+         true <- BotSignals.count(:signals, visitor_id) <= @max_signals_per_minute do
+      Profiles.record_signals(visitor_id, raw, client.user_agent, config, salt: salt)
+    end
   end
 
   defp recording_client(conn) do

@@ -50,6 +50,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   alias PhoenixKit.PubSub.Manager
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -248,6 +249,8 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
           from(e in Event, where: e.visitor_id == ^visitor_id and e.inserted_at >= ^today),
           reason
         )
+
+        Profiles.add_reason([visitor_id], reason)
       end
     end)
   end
@@ -367,6 +370,11 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
     if ids != [] do
       flag(from(e in Event, where: e.session_id in ^ids), "no_js")
+
+      Profiles.add_reason(
+        from(e in Event, where: e.session_id in ^ids, select: e.visitor_id),
+        "no_js"
+      )
     end
 
     flagged = flagged + length(ids)

@@ -829,6 +829,76 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   # ── formatting helpers (shared by the LiveViews) ───────────────────────────
 
   @doc """
+  A bot score as a badge: the capped score, coloured by what it amounts to
+  (`PhoenixKitWebAnalytics.BotScore.level/1`).
+  """
+  attr :score, :integer, required: true
+
+  def bot_score_badge(assigns) do
+    assigns = assign(assigns, :level, PhoenixKitWebAnalytics.BotScore.level(assigns.score))
+
+    ~H"""
+    <span
+      class={[
+        "badge badge-sm tabular-nums",
+        @level == :likely && "badge-error",
+        @level == :suspicious && "badge-warning",
+        @level == :low && "badge-ghost"
+      ]}
+      title={bot_level_label(@level)}
+    >
+      {PhoenixKitWebAnalytics.BotScore.percent(@score)}
+    </span>
+    """
+  end
+
+  @doc "The reasons behind a bot score, as badges, heaviest first."
+  attr :reasons, :list, required: true
+
+  def bot_reasons(assigns) do
+    assigns = assign(assigns, :reasons, PhoenixKitWebAnalytics.BotScore.sort(assigns.reasons))
+
+    ~H"""
+    <span class="flex flex-wrap gap-1">
+      <span
+        :for={reason <- @reasons}
+        class="badge badge-outline badge-sm h-auto whitespace-normal py-0.5 text-left"
+        title={"+#{PhoenixKitWebAnalytics.BotScore.weight(reason)}"}
+      >
+        {bot_reason_label(reason)}
+      </span>
+    </span>
+    """
+  end
+
+  @doc "What a bot-score level is called."
+  @spec bot_level_label(PhoenixKitWebAnalytics.BotScore.level()) :: String.t()
+  def bot_level_label(:likely), do: gettext("Likely a bot")
+  def bot_level_label(:suspicious), do: gettext("Suspicious")
+  def bot_level_label(:low), do: gettext("Nothing unusual")
+
+  @doc "One reason of a bot score, in words."
+  @spec bot_reason_label(String.t()) :: String.t()
+  def bot_reason_label("declared_bot"), do: gettext("Says it is a bot")
+  def bot_reason_label("webdriver"), do: gettext("Browser under automation")
+  def bot_reason_label("no_user_agent"), do: gettext("No User-Agent")
+  def bot_reason_label("rate"), do: gettext("Pages faster than a person reads")
+  def bot_reason_label("no_js"), do: gettext("Never ran JavaScript")
+  def bot_reason_label("platform_mismatch"), do: gettext("Device and User-Agent disagree")
+  def bot_reason_label("hosting_network"), do: gettext("Hosting provider's network")
+  def bot_reason_label("software_renderer"), do: gettext("Graphics drawn in software")
+  def bot_reason_label("no_screen"), do: gettext("No screen or window size")
+  def bot_reason_label("no_languages"), do: gettext("No browser language")
+  def bot_reason_label("mobile_from_hosting"), do: gettext("Phone User-Agent from a server")
+  def bot_reason_label("old_http"), do: gettext("HTTP/1.0")
+  def bot_reason_label("touch_mismatch"), do: gettext("Phone without a touch screen")
+  def bot_reason_label("no_accept_language"), do: gettext("No Accept-Language header")
+  def bot_reason_label("no_fetch_metadata"), do: gettext("No Sec-Fetch headers")
+  def bot_reason_label("no_client_hints"), do: gettext("No client-hint headers")
+  def bot_reason_label("no_accept"), do: gettext("No Accept header")
+  def bot_reason_label(reason), do: reason
+
+  @doc """
   Formats an integer with thousands separators.
 
       iex> PhoenixKitWebAnalytics.Web.Components.format_number(1234567)

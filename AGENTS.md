@@ -57,6 +57,15 @@ can't, stays optional, and never writes a cookie or storage.
 - `alerts.ex` — the "Website activity" notification type; turns stored hits
   and core's `{:user_created, user}` broadcast into activity entries per
   recipient (core routes them to inbox / email / Telegram / digests).
+- `profiles.ex` + `schemas/visitor_profile.ex` — what the `store_*` settings
+  keep about a visitor, one row per visitor ID: written when a visit starts
+  (after the hit's transaction), device measurements when the client script
+  reports them, bot reasons as they are found. `forget/1`, `prune/0`.
+- `signals.ex` — the trust boundary for device measurements (`clean/1`: an
+  allow-list of keys, types and bounds) and the salted `device_hash/2`. The
+  client script measures only when `GET …/recording` answers `signals: true`.
+- `bot_score.ex` — pure: reasons, weights, levels, and which source owns
+  which reason (`merge/3`).
 
 **Read path**
 
@@ -70,7 +79,10 @@ can't, stays optional, and never writes a cookie or storage.
   remainder can't count differently.
 - `session_stats.ex` — the per-session query shared by reports and rollup.
 - `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
-  Acquisition, Technology, Events, Settings.
+  Acquisition, Technology, Events, Bots, Settings.
+- `bots.ex` — the Bots page's queries over `visitor_profiles`: ranked
+  visitors, groups by network / subnet / address / device / User-Agent.
+  The page is links only (the whole filter is in the URL).
 - `web/{components,filters,user_names}.ex` — shared UI.
 - `admin.ex` — every operator mutation (settings, tracking switch, retention
   run, salt rotation), each logged to `PhoenixKit.Activity`.
@@ -82,14 +94,31 @@ can't, stays optional, and never writes a cookie or storage.
 
 ## Rules that are load-bearing
 
-- **Never store an IP address, a raw User-Agent, or a query string** — in a
-  path *or* a referrer. The schema has no column for the first two; the
-  collector strips the third from both. Campaign parameters get their own
-  columns before that point. An operator's own addresses in the host's app
-  config (`internal_networks`) aren't storage, and staff networks
-  (`InternalTraffic`) live in ETS only; what reaches a row is the
-  `traffic_flags` bits, never the address that set them. Don't put either in
-  a setting — every settings write is a permanent activity entry.
+- **Nothing that says who a visitor is gets stored unless a setting asks
+  for it, and every such setting defaults to off.** An address, a raw
+  User-Agent, request headers, the network's owner and device measurements
+  each have their own `web_analytics_store_*` key; all of them go to
+  `visitor_profiles` (one row per visitor ID, `Profiles`), never to an event
+  row — the events schema has no column for any of them. A new kind of
+  identifying data means a new setting, off by default, with a `forget/1`
+  kind. What may be kept is the operator's decision (the module is meant to
+  fit any law), so don't hard-code a privacy position in either direction.
+- **Never kept whatever the settings:** a query string (in a path, a
+  referrer or a stored `Referer` header — campaign parameters get their own
+  columns first), and the value of a credential header (`Profiles`'
+  `@secret_headers` / `@secret_words`).
+- **An operator's own addresses aren't a setting.** `internal_networks` is
+  app config and staff networks (`InternalTraffic`) live in ETS only; what
+  reaches a row is the `traffic_flags` bits. Every settings write is a
+  permanent activity entry.
+- **A bot score is evidence, never a verdict.** `BotScore` reasons and
+  their sum live on the profile and are only shown (the Bots page, a visit's
+  page). Nothing drops, flags `is_bot` or blocks because of a score. A new
+  reason is one observable fact with a weight, owned by exactly one source
+  (`:request`, `:signals`, `:behaviour`) — a test enforces that.
+- **A profile write must never cost the event.** `Profiles` calls run after
+  the hit's transaction or off its process (`Collector.note_reason/3`), and
+  rescue everything.
 - **Own traffic is marked, not dropped.** `traffic_flags` (bits in
   `TrafficFlags`) is worked out before the collector's transaction from
   memory only; a bit new to a visit is written back to the visit's rows in
@@ -134,7 +163,8 @@ Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
 the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
 `recordings`; V07 `click_id`, `click_param` + their partial indexes; V08
-`traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill). Adding a
+`traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill); V09
+`visitor_profiles`; V10 `bot_score` + `bot_reasons` on it. Adding a
 version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`, add the
 `apply_step/3` clauses, and keep every statement prefix-safe (pass `prefix:`
 through, bare index names, schema-anchored existence checks).

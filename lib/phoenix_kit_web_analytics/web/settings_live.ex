@@ -419,6 +419,18 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             </:description>
           </.checkbox>
 
+          <.checkbox
+            name="store_signals"
+            checked={@config.store_signals?}
+            label={gettext("Keep device measurements")}
+          >
+            <:description>
+              {gettext(
+                "What the client script can measure about the device — screen, time zone, languages, processor, graphics card, fonts, how it draws a canvas and renders a sound — and a hash of them that stays the same when the visitor's address changes. This is browser fingerprinting: it recognises a scraper across the addresses it rotates through, and a person across theirs. Needs the client script switched on."
+              )}
+            </:description>
+          </.checkbox>
+
           <p class="text-xs text-base-content/50">
             {gettext(
               "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."

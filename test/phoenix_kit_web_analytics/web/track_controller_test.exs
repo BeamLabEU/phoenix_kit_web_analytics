@@ -342,4 +342,90 @@ defmodule PhoenixKitWebAnalytics.Web.TrackControllerTest do
       assert [%Event{path: "/explicit"}] = events()
     end
   end
+
+  describe "device measurements (the client script's signals)" do
+    @recording_path "/phoenix-kit/analytics/recording"
+    @ua "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    @device %{"cv" => "a1b2c3d4", "gr" => "ANGLE (Apple, M2)", "plat" => "Win32", "sw" => 1920}
+
+    alias PhoenixKitWebAnalytics.Schemas.VisitorProfile
+
+    defp browser(conn), do: put_req_header(conn, "user-agent", @ua)
+
+    defp signals_on do
+      enable_tracking(%{
+        "web_analytics_client_script" => "true",
+        "web_analytics_store_signals" => "true"
+      })
+    end
+
+    test "the script is told to measure only when the setting is on", %{conn: conn} do
+      enable_tracking(%{"web_analytics_client_script" => "true"})
+
+      assert %{"signals" => false, "record" => false} =
+               conn |> browser() |> get(@recording_path, %{"p" => "/"}) |> json_response(200)
+
+      signals_on()
+
+      assert %{"signals" => true, "record" => false} =
+               conn |> browser() |> get(@recording_path, %{"p" => "/"}) |> json_response(200)
+    end
+
+    test "a visitor asking not to be tracked isn't measured", %{conn: conn} do
+      signals_on()
+
+      assert %{"signals" => false} =
+               conn
+               |> browser()
+               |> put_req_header("dnt", "1")
+               |> get(@recording_path, %{"p" => "/"})
+               |> json_response(200)
+    end
+
+    test "a report is stored on the visitor's profile, not as an event", %{conn: conn} do
+      signals_on()
+
+      conn =
+        conn
+        |> browser()
+        |> beacon_text(Jason.encode!(%{"e" => "signals", "s" => Map.put(@device, "junk", 1)}))
+
+      assert conn.status == 204
+      assert events() == []
+
+      assert [%VisitorProfile{signals: @device, device_hash: hash, ip: nil, user_agent: nil}] =
+               Repo.all(VisitorProfile)
+
+      assert is_binary(hash)
+    end
+
+    test "a report is dropped while the setting is off, or from an opted-out visitor", %{
+      conn: conn
+    } do
+      body = Jason.encode!(%{"e" => "signals", "s" => @device})
+
+      enable_tracking(%{"web_analytics_client_script" => "true"})
+      assert (conn |> browser() |> beacon_text(body)).status == 204
+
+      signals_on()
+      assert (conn |> browser() |> put_req_header("dnt", "1") |> beacon_text(body)).status == 204
+
+      assert Repo.aggregate(VisitorProfile, :count) == 0
+    end
+
+    test "a report that isn't measurements is accepted and stores nothing", %{conn: conn} do
+      signals_on()
+
+      for payload <- [
+            %{"e" => "signals"},
+            %{"e" => "signals", "s" => "x"},
+            %{"e" => "signals", "s" => %{"junk" => 1}}
+          ] do
+        assert (conn |> browser() |> beacon_text(Jason.encode!(payload))).status == 204
+      end
+
+      assert Repo.aggregate(VisitorProfile, :count) == 0
+      assert events() == []
+    end
+  end
 end

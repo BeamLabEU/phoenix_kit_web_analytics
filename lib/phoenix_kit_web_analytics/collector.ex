@@ -370,7 +370,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
     case bot_verdict(attrs, stitch, speed, config) do
       {:flag, reason} ->
         # Going over the speed limit also flags the visit's earlier hits.
-        if speed == :crossed, do: BotSignals.flag_session(stitch.session_id, "rate")
+        if speed == :crossed do
+          BotSignals.flag_session(stitch.session_id, "rate")
+          note_reason(:add, attrs.visitor_id, "rate")
+        end
 
         if config.track_bots?,
           do: store(flag_attrs(attrs, reason), stitch),
@@ -385,6 +388,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       :clear ->
         result = store(attrs, stitch)
         BotSignals.clear_no_js(stitch.session_id)
+        note_reason(:remove, attrs.visitor_id, "no_js")
         result
 
       :ok ->
@@ -452,6 +456,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
       true -> :ok
     end
   end
+
+  # The verdict on the visitor's profile, when one is kept (see BotScore).
+  # Off this process: it runs inside the hit's transaction, which a failed
+  # profile write must never abort.
+  defp note_reason(:add, visitor_id, reason),
+    do: run_async(fn -> Profiles.add_reason([visitor_id], reason) end)
+
+  defp note_reason(:remove, visitor_id, reason),
+    do: run_async(fn -> Profiles.remove_reason([visitor_id], reason) end)
 
   defp flag_attrs(attrs, reason) do
     attrs

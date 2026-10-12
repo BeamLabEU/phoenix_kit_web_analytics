@@ -261,7 +261,8 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
         "visitor_rotation" => "weekly",
         "store_user_agent" => "true",
         "store_headers" => "true",
-        "store_network" => "true"
+        "store_network" => "true",
+        "store_signals" => "true"
       })
 
       clear_settings_cache()
@@ -272,6 +273,7 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert config.store_user_agent?
       assert config.store_headers?
       assert config.store_network?
+      assert config.store_signals?
 
       assert has_element?(view, "#store_ip option[value='truncated'][selected]")
       assert has_element?(view, "input[name='store_user_agent'][checked]")
