@@ -37,21 +37,32 @@ defmodule PhoenixKitWebAnalytics.Geo do
 
   `resolve/1` receives an `:inet` address tuple and must return a map with
   `:country_code` (ISO 3166-1 alpha-2), `:region`, and `:city` — any of which
-  may be `nil` — or `:error` when the IP can't be located. It is called from a
+  may be `nil` — or `:error` when the IP can't be located.
+
+  A resolver that also knows whose network the address is on may add
+  `:asn` (the autonomous system number, an integer or `"AS13335"`),
+  `:network` (its owner's name) and `:hosting` (`true` for a hosting
+  provider or datacentre, where no person browses from). They are optional,
+  and kept only when `web_analytics_store_network` is on — see
+  `PhoenixKitWebAnalytics.Profiles`. It is called from a
   background task, never from the request process, but it must still be fast
   and must never raise: `PhoenixKitWebAnalytics.Collector` rescues failures and
   stores the event without location rather than losing it.
   """
 
   @type location :: %{
-          country_code: String.t() | nil,
-          region: String.t() | nil,
-          city: String.t() | nil
+          required(:country_code) => String.t() | nil,
+          required(:region) => String.t() | nil,
+          required(:city) => String.t() | nil,
+          optional(:asn) => pos_integer() | String.t() | nil,
+          optional(:network) => String.t() | nil,
+          optional(:hosting) => boolean() | nil
         }
 
   @callback resolve(:inet.ip_address()) :: location() | :error
 
   @empty %{country_code: nil, region: nil, city: nil}
+  @keys [:country_code, :region, :city, :asn, :network, :hosting]
 
   @doc """
   Resolves `ip` through the configured resolver.
@@ -75,7 +86,7 @@ defmodule PhoenixKitWebAnalytics.Geo do
 
   defp apply_resolver(resolver, ip) do
     case resolver.resolve(ip) do
-      %{} = location -> Map.merge(@empty, Map.take(location, [:country_code, :region, :city]))
+      %{} = location -> Map.merge(@empty, Map.take(location, @keys))
       _ -> @empty
     end
   rescue

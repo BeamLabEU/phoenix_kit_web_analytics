@@ -245,6 +245,56 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert PhoenixKitWebAnalytics.Config.collection_config().admin_network_hours == 12
     end
 
+    test "what is kept about a visitor is off until it is saved on", %{conn: conn} do
+      enable_tracking()
+
+      {:ok, view, html} = live(conn, "#{@base}/settings")
+      assert html =~ "Who a visitor is"
+      assert has_element?(view, "#store_ip option[value='off'][selected]")
+      assert has_element?(view, "#visitor_rotation option[value='daily'][selected]")
+      refute has_element?(view, "input[name='store_user_agent'][checked]")
+
+      view
+      |> element("form[phx-submit='save']")
+      |> render_submit(%{
+        "store_ip" => "truncated",
+        "visitor_rotation" => "weekly",
+        "store_user_agent" => "true",
+        "store_headers" => "true",
+        "store_network" => "true"
+      })
+
+      clear_settings_cache()
+      config = PhoenixKitWebAnalytics.Config.collection_config()
+
+      assert config.store_ip == :truncated
+      assert config.visitor_rotation == :weekly
+      assert config.store_user_agent?
+      assert config.store_headers?
+      assert config.store_network?
+
+      assert has_element?(view, "#store_ip option[value='truncated'][selected]")
+      assert has_element?(view, "input[name='store_user_agent'][checked]")
+    end
+
+    test "a made-up choice is refused and nothing is saved", %{conn: conn} do
+      enable_tracking()
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      html =
+        view
+        |> element("form[phx-submit='save']")
+        |> render_submit(%{"store_ip" => "everything", "store_user_agent" => "true"})
+
+      assert html =~ "Nothing was saved"
+      assert html =~ "IP address"
+
+      clear_settings_cache()
+      config = PhoenixKitWebAnalytics.Config.collection_config()
+      assert config.store_ip == :off
+      refute config.store_user_agent?
+    end
+
     test "counts only valid internal networks and says how many were skipped", %{conn: conn} do
       Application.put_env(:phoenix_kit_web_analytics, :internal_networks, [
         "203.0.113.0/24",

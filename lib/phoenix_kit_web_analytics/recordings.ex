@@ -280,8 +280,11 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   defp visitor_id(client) do
     case Config.hash_salt() do
-      nil -> nil
-      salt -> Visitor.visitor_id(client[:ip], client[:user_agent], salt)
+      nil ->
+        nil
+
+      salt ->
+        Visitor.visitor_id(client[:ip], client[:user_agent], salt, nil, Config.visitor_rotation())
     end
   end
 

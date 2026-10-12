@@ -29,12 +29,14 @@ scroll depth, and exits from pages without a LiveView.
 
 - **Nothing to download.** The plug and the LiveView hook add no bytes to a
   page; Core Web Vitals are what they were.
-- **No cookies, no consent banner.** Visitors are identified by a salted hash
-  of IP + User-Agent + date. No IP address, no raw User-Agent and no query
-  string is written to the database. (An ad platform's click identifier is
-  kept when a visit arrives with one — see [Privacy](#privacy).)
+- **No cookies, and by default nothing to ask consent for.** Visitors are
+  identified by a salted hash of IP + User-Agent + date. Out of the box no IP
+  address, no raw User-Agent and no query string is written to the database.
+  (An ad platform's click identifier is kept when a visit arrives with one —
+  see [Privacy](#privacy).) Keeping more is a setting, one kind of data at a
+  time — see [What is kept about a visitor](#what-is-kept-about-a-visitor).
 - **Ad blockers can't remove it.** The numbers are your server's.
-- **The data is yours.** Four tables in your own database; nothing leaves
+- **The data is yours.** Five tables in your own database; nothing leaves
   your infrastructure.
 
 ## What gets recorded
@@ -211,9 +213,10 @@ Stated explicitly, because it's what makes two analytics tools disagree:
 - **Page views** — HTML responses and LiveView navigations. A LiveView
   reconnect is not a page view, and neither is a patch that only changes the
   query string.
-- **Visitors** — distinct visitor hashes among page views. The hash includes
-  the date, so one person browsing on three days counts as three visitors over
-  a week — the honest consequence of not tracking people across days.
+- **Visitors** — distinct visitor hashes among page views. By default the
+  hash includes the date, so one person browsing on three days counts as three
+  visitors over a week — the honest consequence of not tracking people across
+  days. `web_analytics_visitor_rotation` makes an ID last longer.
 - **Sessions** — stitched server-side: a hit joins the visitor's previous
   session on the same site if it's within the inactivity window (30 minutes by
   default), otherwise it starts a new one. A session needs a page view.
@@ -316,8 +319,8 @@ data rather than their totals.
 
 ## Privacy
 
-There is no cookie, no local storage, no IP address column and no raw
-User-Agent. A visitor ID is
+There is no cookie and no local storage, and with the settings as they ship
+no IP address and no raw User-Agent is stored. A visitor ID is
 
 ```
 SHA256(salt + IP + User-Agent + date)
@@ -359,6 +362,41 @@ The **own-traffic marks** are a few bits on the event — never the address
 that set them. The internal networks are your app's config; staff networks
 are held in memory, by their network key, for their hours, and never written
 to the database or the settings.
+
+### What is kept about a visitor
+
+The defaults above are a starting point, not a rule the module enforces.
+What a site may keep, and whether it has to ask first, depends on the law it
+answers to and on what the data is for — telling crawlers apart and blocking
+abuse is not the same question as measuring an audience. So each kind of
+identifying data has its own setting (Settings → **Who a visitor is**), all
+of them off until switched on:
+
+| Setting | Keeps |
+|---------|-------|
+| `web_analytics_visitor_rotation` | How long a visitor ID lasts: `daily` (default), `weekly`, `monthly`, or `never` — the same ID for as long as the address, browser and salt stay the same, which recognises a returning visitor across days |
+| `web_analytics_store_ip` | The address: `off` (default), `truncated` (its `/24` or `/48` network) or `full` |
+| `web_analytics_store_user_agent` | The raw User-Agent string — which crawler, which library, which exact version |
+| `web_analytics_store_headers` | The request headers of a visit's first page view, in arrival order, with the protocol |
+| `web_analytics_store_network` | The network's number (ASN), its owner and whether it is a hosting provider — when your geo resolver returns `:asn`, `:network` and `:hosting` |
+
+They are written to one row per visitor ID
+(`phoenix_kit_web_analytics_visitor_profiles`) when a visit starts, never to
+the event rows, and shown on the visit's page. A row goes when its visitor
+hasn't been seen for `web_analytics_retention_days`. Switching a setting off
+stops it being recorded; `PhoenixKitWebAnalytics.Profiles.forget/1` removes
+what is already stored (`:ip`, `:user_agent`, `:headers`, `:network` or
+`:all`).
+
+Never kept, whatever the settings: the value of a header that carries a
+credential (`Cookie`, `Authorization`, anything named like a token, key or
+secret — its name still shows that it was sent), and the query string of
+`Referer`. Headers that carry the visitor's address (`X-Forwarded-For` and
+the like) keep their value only when the address itself is kept whole.
+
+A longer-lived ID changes what a count over several days sees: totals read
+from the daily rollups stay per-day counts, while anything counted from raw
+events finds one ID where it found one per day before.
 
 Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
@@ -422,6 +460,11 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_exclude_admin_network` | `true` | Leave visits from staff networks out of the statistics |
 | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-`, an emptied field, is no one) |
 | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network (`0` = never) |
+| `web_analytics_visitor_rotation` | `daily` | How long a visitor ID lasts: `daily`, `weekly`, `monthly`, `never` |
+| `web_analytics_store_ip` | `off` | Keep the visitor's address: `off`, `truncated`, `full` |
+| `web_analytics_store_user_agent` | `false` | Keep the raw User-Agent |
+| `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
+| `web_analytics_store_network` | `false` | Keep the network's ASN, owner and hosting flag (needs a resolver that returns them) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -467,7 +510,8 @@ as JSON is parsed by your endpoint's `Plug.Parsers` first, under its own
 
 ## Behind a reverse proxy
 
-The address is visitor-hash input only — it is never stored. The plug, the
+The address is visitor-hash input, and stored only if you switch that on
+([What is kept about a visitor](#what-is-kept-about-a-visitor)). The plug, the
 beacon and the LiveView hook read it the way PhoenixKit reads it for a login
 (`PhoenixKit.Utils.IpAddress`):
 
@@ -565,14 +609,16 @@ options, so a LiveView page to leave out entirely goes in the
 
 ## Database
 
-Four tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V08),
+Five tables, created by `mix phoenix_kit.update` through the module's own
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V09),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
 - `phoenix_kit_web_analytics_daily_stats` — per-day, per-site totals
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
+- `phoenix_kit_web_analytics_visitor_profiles` — what is kept about a visitor,
+  one row per visitor ID; empty unless a setting asks for it (V09)
 
 On a busy install with a large events table, build V03's, V05's and V07's
 indexes `CONCURRENTLY` before upgrading — the migration then skips them; the

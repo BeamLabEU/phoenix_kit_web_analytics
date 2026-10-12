@@ -14,6 +14,57 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
   @base "/en/admin/web-analytics"
   @ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
 
+  # ── a visit's stored profile ──────────────────────────────────────────────
+
+  describe "a visit's page and what was kept about its visitor" do
+    defp track(settings) do
+      enable_tracking(settings)
+
+      {:ok, event} =
+        PhoenixKitWebAnalytics.Collector.track(%{
+          path: "/pricing",
+          site: "myapp.com",
+          ip: {198, 51, 100, 23},
+          user_agent: @ua,
+          headers: %{
+            "http" => "HTTP/2",
+            "names" => ["host", "cookie", "accept-language"],
+            "values" => %{"host" => "myapp.com", "accept-language" => "et-EE"}
+          }
+        })
+
+      event
+    end
+
+    test "shows nothing about the visitor when nothing is kept", %{conn: conn} do
+      event = track(%{})
+
+      {:ok, view, html} = live(conn, "#{@base}/sessions/#{event.session_id}")
+
+      refute has_element?(view, "#visitor-profile")
+      refute html =~ "198.51.100"
+      refute html =~ "AppleWebKit"
+    end
+
+    test "shows the address, the User-Agent and the headers that were kept", %{conn: conn} do
+      event =
+        track(%{
+          "web_analytics_store_ip" => "full",
+          "web_analytics_store_user_agent" => "true",
+          "web_analytics_store_headers" => "true"
+        })
+
+      {:ok, view, html} = live(conn, "#{@base}/sessions/#{event.session_id}")
+
+      assert html =~ "198.51.100.23"
+      assert has_element?(view, "#visitor-profile", "AppleWebKit/537.36")
+      assert has_element?(view, "#visitor-profile", "HTTP/2")
+      assert has_element?(view, "#visitor-profile", "et-EE")
+      # A header whose value is never kept still shows that it was sent.
+      assert has_element?(view, "#visitor-profile", "(not kept)")
+    end
+  end
+
   # ── /live ─────────────────────────────────────────────────────────────────
 
   describe "paging on a busy site" do

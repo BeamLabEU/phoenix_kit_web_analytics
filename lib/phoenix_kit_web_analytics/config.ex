@@ -40,7 +40,16 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_exclude_admin_network` | `true` | Leave visits from the staff's networks out of the statistics |
   | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-` is no one) |
   | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network; `0` turns that off |
-  | `web_analytics_hash_secret` | generated | Secret mixed into the daily visitor hash |
+  | `web_analytics_visitor_rotation` | `daily` | How long a visitor ID lasts: `daily`, `weekly`, `monthly` or `never` |
+  | `web_analytics_store_ip` | `off` | Keep the visitor's address: `off`, `truncated` (its network only) or `full` |
+  | `web_analytics_store_user_agent` | `false` | Keep the raw User-Agent string |
+  | `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
+  | `web_analytics_store_network` | `false` | Keep who runs the visitor's network, when the geo resolver says |
+  | `web_analytics_hash_secret` | generated | Secret mixed into the visitor hash |
+
+  The four `store_*` keys and the rotation decide what is kept about *who*
+  a visitor is — see `PhoenixKitWebAnalytics.Profiles`. All of them default
+  to keeping nothing, which is what the module did before they existed.
 
   The flags behind the three `exclude_*` keys are described in
   `PhoenixKitWebAnalytics.TrafficFlags`. The internal networks themselves are
@@ -83,6 +92,13 @@ defmodule PhoenixKitWebAnalytics.Config do
   @exclude_admin_network_key "web_analytics_exclude_admin_network"
   @internal_roles_key "web_analytics_internal_roles"
   @admin_network_hours_key "web_analytics_admin_network_hours"
+  @visitor_rotation_key "web_analytics_visitor_rotation"
+  @store_ip_key "web_analytics_store_ip"
+  @store_user_agent_key "web_analytics_store_user_agent"
+  @store_headers_key "web_analytics_store_headers"
+  @store_network_key "web_analytics_store_network"
+
+  @ip_modes [:off, :truncated, :full]
 
   # One "leave this flag out of the statistics" switch per TrafficFlags bit.
   @exclude_flag_keys [
@@ -120,7 +136,12 @@ defmodule PhoenixKitWebAnalytics.Config do
     @exclude_admin_key,
     @exclude_admin_network_key,
     @internal_roles_key,
-    @admin_network_hours_key
+    @admin_network_hours_key,
+    @visitor_rotation_key,
+    @store_ip_key,
+    @store_user_agent_key,
+    @store_headers_key,
+    @store_network_key
   ]
 
   @type collection_config :: %{
@@ -139,7 +160,12 @@ defmodule PhoenixKitWebAnalytics.Config do
           event_params: [String.t()],
           excluded_flags: non_neg_integer(),
           internal_roles: [String.t()],
-          admin_network_hours: non_neg_integer()
+          admin_network_hours: non_neg_integer(),
+          visitor_rotation: PhoenixKitWebAnalytics.Visitor.rotation(),
+          store_ip: :off | :truncated | :full,
+          store_user_agent?: boolean(),
+          store_headers?: boolean(),
+          store_network?: boolean()
         }
 
   @doc "Settings key for the module's master switch."
@@ -177,7 +203,13 @@ defmodule PhoenixKitWebAnalytics.Config do
       event_params: parse_list(values[@event_params_key] || @default_event_params),
       excluded_flags: excluded_flags(values),
       internal_roles: parse_roles(values[@internal_roles_key]),
-      admin_network_hours: admin_network_hours(values[@admin_network_hours_key])
+      admin_network_hours: admin_network_hours(values[@admin_network_hours_key]),
+      visitor_rotation:
+        one_of(values[@visitor_rotation_key], PhoenixKitWebAnalytics.Visitor.rotations(), :daily),
+      store_ip: one_of(values[@store_ip_key], @ip_modes, :off),
+      store_user_agent?: truthy?(values[@store_user_agent_key], false),
+      store_headers?: truthy?(values[@store_headers_key], false),
+      store_network?: truthy?(values[@store_network_key], false)
     }
   rescue
     error ->
@@ -226,6 +258,14 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "Default hours a staff sign-in marks its network for."
   @spec default_admin_network_hours() :: pos_integer()
   def default_admin_network_hours, do: @default_admin_network_hours
+
+  @doc "How long a visitor ID lasts — see `PhoenixKitWebAnalytics.Visitor`."
+  @spec visitor_rotation() :: PhoenixKitWebAnalytics.Visitor.rotation()
+  def visitor_rotation, do: collection_config().visitor_rotation
+
+  @doc "The ways a visitor's address can be kept: not at all, its network, or whole."
+  @spec ip_modes() :: [:off | :truncated | :full]
+  def ip_modes, do: @ip_modes
 
   @doc "Whether the beacon / pixel endpoints accept hits."
   @spec beacon_enabled?() :: boolean()
@@ -431,7 +471,12 @@ defmodule PhoenixKitWebAnalytics.Config do
       exclude_admin: @exclude_admin_key,
       exclude_admin_network: @exclude_admin_network_key,
       internal_roles: @internal_roles_key,
-      admin_network_hours: @admin_network_hours_key
+      admin_network_hours: @admin_network_hours_key,
+      visitor_rotation: @visitor_rotation_key,
+      store_ip: @store_ip_key,
+      store_user_agent: @store_user_agent_key,
+      store_headers: @store_headers_key,
+      store_network: @store_network_key
     }
   end
 
@@ -454,9 +499,23 @@ defmodule PhoenixKitWebAnalytics.Config do
       event_params: [],
       excluded_flags: PhoenixKitWebAnalytics.TrafficFlags.all(),
       internal_roles: system_staff_roles(),
-      admin_network_hours: 0
+      admin_network_hours: 0,
+      visitor_rotation: :daily,
+      store_ip: :off,
+      store_user_agent?: false,
+      store_headers?: false,
+      store_network?: false
     }
   end
+
+  # A setting that is one of a few words. Anything else — unset, a typo, a
+  # value from a newer version — is the default, never an atom made up from
+  # what the table held.
+  defp one_of(value, allowed, default) when is_binary(value) do
+    Enum.find(allowed, default, &(Atom.to_string(&1) == String.trim(value)))
+  end
+
+  defp one_of(_value, _allowed, default), do: default
 
   # A bit is left out unless its setting says to count it in.
   defp excluded_flags(values) do

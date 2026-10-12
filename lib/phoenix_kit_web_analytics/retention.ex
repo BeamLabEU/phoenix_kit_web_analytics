@@ -107,6 +107,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
           backfill_session_starts()
           PhoenixKitWebAnalytics.BotSignals.judge_no_js()
           PhoenixKitWebAnalytics.Recordings.prune()
+          PhoenixKitWebAnalytics.Profiles.prune()
           %{rolled_up: rollup_pending_days(), pruned: prune_old_events()}
         after
           # Reports (and the cached watermark) re-read what this pass changed

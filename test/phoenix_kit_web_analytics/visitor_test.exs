@@ -25,6 +25,21 @@ defmodule PhoenixKitWebAnalytics.VisitorTest do
       refute today == tomorrow
     end
 
+    test "lasts as long as its rotation says" do
+      id = fn date, rotation -> Visitor.visitor_id({1, 2, 3, 4}, @ua, @salt, date, rotation) end
+      # 2026-03-04 is a Wednesday.
+      assert id.(@date, :weekly) == id.(~D[2026-03-08], :weekly)
+      refute id.(@date, :weekly) == id.(~D[2026-03-09], :weekly)
+      assert id.(@date, :monthly) == id.(~D[2026-03-31], :monthly)
+      refute id.(@date, :monthly) == id.(~D[2026-04-01], :monthly)
+      assert id.(@date, :never) == id.(~D[2031-01-01], :never)
+      assert id.(@date, :daily) == Visitor.visitor_id({1, 2, 3, 4}, @ua, @salt, @date)
+    end
+
+    test "an ISO week belongs to the year most of it falls in" do
+      assert Visitor.period(~D[2027-01-01], :weekly) == "2026-W53"
+    end
+
     test "differs per IP, per User-Agent, and per salt" do
       base = Visitor.visitor_id({1, 2, 3, 4}, @ua, @salt, @date)
 

@@ -26,6 +26,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.TrafficFlags
 
@@ -151,6 +152,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
+    |> assign(:profiles, Profiles.count())
     |> assign(:live_skips?, live_skips?())
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
   end
@@ -174,6 +176,23 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     _ -> default
   end
 
+  defp rotation_options do
+    [
+      {:daily, gettext("One day")},
+      {:weekly, gettext("One week")},
+      {:monthly, gettext("One month")},
+      {:never, gettext("Until the address or browser changes")}
+    ]
+  end
+
+  defp ip_options do
+    [
+      {:off, gettext("Not kept")},
+      {:truncated, gettext("Its network only")},
+      {:full, gettext("The whole address")}
+    ]
+  end
+
   defp field_label(:session_timeout), do: gettext("Visit timeout")
   defp field_label(:retention_days), do: gettext("Retention")
   defp field_label(:recording_sample), do: gettext("Visitors recorded")
@@ -185,6 +204,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:alert_paths), do: gettext("Landing pages")
   defp field_label(:alert_events), do: gettext("Alert on these events")
   defp field_label(:alert_channels), do: gettext("Only from these channels")
+  defp field_label(:visitor_rotation), do: gettext("A visitor ID lasts")
+  defp field_label(:store_ip), do: gettext("IP address")
   defp field_label(:internal_roles), do: gettext("Staff roles")
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
@@ -304,6 +325,104 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           </div>
           <p class="-mt-2 text-xs text-base-content/50">
             {gettext("0 keeps raw events forever. Daily totals are always kept.")}
+          </p>
+        </section>
+
+        <section
+          id="web-analytics-identity"
+          class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4"
+        >
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("Who a visitor is")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "By default nothing that identifies a visitor is kept: a visitor is a one-way hash of the address and the browser that changes every day. Each switch below keeps more — to see which network a crawler comes from, to tell scrapers apart, to have something to block by. An address is personal data, and what may be kept without asking the visitor depends on the law your site answers to; that decision is yours."
+              )}
+            </p>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("A visitor ID lasts")}</legend>
+              <label class="select w-full">
+                <select id="visitor_rotation" name="visitor_rotation">
+                  <option
+                    :for={{value, label} <- rotation_options()}
+                    value={value}
+                    selected={@config.visitor_rotation == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <p class="label whitespace-normal">
+                {gettext(
+                  "After that the same person counts as a new visitor. A longer period recognises a returning visitor across days; changing it splits today's open visits."
+                )}
+              </p>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("IP address")}</legend>
+              <label class="select w-full">
+                <select id="store_ip" name="store_ip">
+                  <option
+                    :for={{value, label} <- ip_options()}
+                    value={value}
+                    selected={@config.store_ip == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <p class="label whitespace-normal">
+                {gettext(
+                  "Its network is the first three parts of an IPv4 address, or the first 48 bits of an IPv6 one — enough to say whose network, not which machine."
+                )}
+              </p>
+            </fieldset>
+          </div>
+
+          <.checkbox
+            name="store_user_agent"
+            checked={@config.store_user_agent?}
+            label={gettext("Keep the browser's full User-Agent")}
+          >
+            <:description>
+              {gettext(
+                "The whole string the browser sent, beside the browser, system and device read out of it — which crawler it was, which library, which exact version."
+              )}
+            </:description>
+          </.checkbox>
+
+          <.checkbox
+            name="store_headers"
+            checked={@config.store_headers?}
+            label={gettext("Keep request headers")}
+          >
+            <:description>
+              {gettext(
+                "The headers of a visit's first page view, in the order they arrived: what a script posing as a browser rarely gets right. Cookies, authorisation and anything named like a token or key are never kept; headers carrying the visitor's address only when the whole address is."
+              )}
+            </:description>
+          </.checkbox>
+
+          <.checkbox
+            name="store_network"
+            checked={@config.store_network?}
+            label={gettext("Keep the network's owner")}
+          >
+            <:description>
+              {gettext(
+                "The network's number and name, and whether it is a hosting provider — when the site's geo resolver returns them. Nothing in the module knows them by itself."
+              )}
+            </:description>
+          </.checkbox>
+
+          <p class="text-xs text-base-content/50">
+            {gettext(
+              "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."
+            )}
           </p>
         </section>
 
@@ -603,7 +722,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
 
       <section class="rounded-xl border border-base-300 bg-base-100 p-4">
         <h2 class="text-sm font-semibold">{gettext("Stored data")}</h2>
-        <div class="mt-3 grid grid-cols-3 gap-4 text-sm">
+        <div class="mt-3 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <div>
             <div class="text-xs uppercase tracking-wide text-base-content/50">
               {gettext("Events")}
@@ -626,6 +745,14 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             </div>
             <div class="text-lg font-semibold">
               {if @storage.oldest, do: Calendar.strftime(@storage.oldest, "%Y-%m-%d"), else: "—"}
+            </div>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wide text-base-content/50">
+              {gettext("Visitor profiles")}
+            </div>
+            <div class="text-lg font-semibold tabular-nums">
+              {format_number(@profiles)}
             </div>
           </div>
         </div>

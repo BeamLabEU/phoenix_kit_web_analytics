@@ -30,8 +30,16 @@ defmodule PhoenixKitWebAnalytics.Admin do
     :recording,
     :exclude_internal_network,
     :exclude_admin,
-    :exclude_admin_network
+    :exclude_admin_network,
+    :store_user_agent,
+    :store_headers,
+    :store_network
   ]
+  # Settings that are one word out of a few.
+  @choices %{
+    visitor_rotation: Enum.map(PhoenixKitWebAnalytics.Visitor.rotations(), &Atom.to_string/1),
+    store_ip: Enum.map(Config.ip_modes(), &Atom.to_string/1)
+  }
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]
   @max_setting_length 1000
@@ -183,6 +191,9 @@ defmodule PhoenixKitWebAnalytics.Admin do
       Enum.map(@integers, fn {field, range} ->
         {field, Map.fetch!(keys, field), {:integer, range}}
       end) ++
+      Enum.map(@choices, fn {field, allowed} ->
+        {field, Map.fetch!(keys, field), {:choice, allowed}}
+      end) ++
       Enum.map(@alert_booleans, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :boolean}) ++
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
@@ -220,6 +231,14 @@ defmodule PhoenixKitWebAnalytics.Admin do
   end
 
   defp cast(:roles, _value, _params), do: :error
+
+  defp cast({:choice, _allowed}, nil, _params), do: :skip
+
+  defp cast({:choice, allowed}, value, _params) when is_binary(value) do
+    if value in allowed, do: {:ok, value}, else: :error
+  end
+
+  defp cast({:choice, _allowed}, _value, _params), do: :error
 
   defp cast({:integer, _range}, nil, _params), do: :skip
 

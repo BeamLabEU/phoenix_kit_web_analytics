@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   import PhoenixKitWebAnalytics.Web.Components
 
   alias PhoenixKitWebAnalytics.Paths
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Recordings
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.UserNames
@@ -50,6 +51,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      |> assign(:more?, rest != [])
      |> assign(:max_show, @max_show)
      |> assign(:summary, Reports.session_summary(session_id))
+     |> assign(:profile, Profiles.get(Enum.find_value(events, & &1.visitor_id)))
      |> assign(:recorded?, Recordings.recorded?(session_id))}
   end
 
@@ -88,6 +90,25 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   end
 
   defp show_param(_value), do: @page
+
+  # "AS16509 · Amazon.com, Inc. · hosting"
+  defp network_label(profile) do
+    [
+      profile.asn && "AS#{profile.asn}",
+      profile.network,
+      profile.hosting && gettext("hosting provider")
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join(" · ")
+  end
+
+  # In arrival order; a header whose value was not kept still shows its name.
+  defp header_rows(%{"names" => names} = headers) when is_list(names) do
+    values = headers["values"] || %{}
+    Enum.map(names, &{&1, values[&1]})
+  end
+
+  defp header_rows(_headers), do: []
 
   defp bot_reason("webdriver"), do: gettext("Yes — the browser was under automation")
   defp bot_reason("rate"), do: gettext("Yes — pages faster than a person reads")
@@ -190,6 +211,8 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             value={@summary.max_scroll && "#{@summary.max_scroll}%"}
           />
           <.fact :if={@summary.bot?} label={gettext("Bot")} value={bot_reason(@summary.bot_reason)} />
+          <.fact :if={@profile} label={gettext("IP address")} value={@profile.ip} mono />
+          <.fact :if={@profile} label={gettext("Network")} value={network_label(@profile)} />
           <.fact
             :if={(@summary[:traffic_flags] || 0) > 0}
             label={gettext("Own traffic")}
@@ -200,6 +223,34 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             }
           />
         </dl>
+      </div>
+
+      <div
+        :if={@profile && (@profile.user_agent || @profile.headers)}
+        id="visitor-profile"
+        class="space-y-3 rounded-xl border border-base-300 bg-base-100 p-4 text-sm"
+      >
+        <h2 class="text-sm font-semibold">{gettext("What the browser sent")}</h2>
+        <div :if={@profile.user_agent}>
+          <div class="text-xs uppercase tracking-wide text-base-content/50">
+            {gettext("User-Agent")}
+          </div>
+          <div class="break-all font-mono text-xs leading-5">{@profile.user_agent}</div>
+        </div>
+        <div :if={@profile.headers}>
+          <div class="text-xs uppercase tracking-wide text-base-content/50">
+            {gettext("Request headers")}
+            <span :if={@profile.headers["http"]} class="normal-case tracking-normal">
+              · {@profile.headers["http"]}
+            </span>
+          </div>
+          <dl class="font-mono text-xs leading-5">
+            <div :for={{name, value} <- header_rows(@profile.headers)} class="flex gap-2">
+              <dt class="shrink-0 text-base-content/50">{name}</dt>
+              <dd class="min-w-0 break-all">{value || gettext("(not kept)")}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
 
       <.report_card

@@ -70,12 +70,17 @@ defmodule PhoenixKitWebAnalytics.Collector do
         target: "https://example.com/x",    # what was clicked ("interaction")
         session_anchor: ~U[…],              # when the hit's page was opened
         location: %{country_code: "EE"},     # pre-resolved (edge headers)
+        headers: %{"names" => [...], ...},   # Profiles.request_headers/2
+        network: %{asn: 13335, ...},         # pre-resolved network owner
         metadata: %{"plan" => "pro"},
         bot: "prefetch"                      # forces is_bot + a metadata reason, see below
       }
 
-  `:ip` and `:user_agent` are used for the daily visitor hash and the client
-  classification, then discarded — see `PhoenixKitWebAnalytics.Visitor`.
+  `:ip` and `:user_agent` are used for the visitor hash and the client
+  classification — see `PhoenixKitWebAnalytics.Visitor`. They are kept only
+  when the operator switched that on, and then once per visitor rather than
+  on the event: see `PhoenixKitWebAnalytics.Profiles`, which also takes
+  `:headers` and `:network`.
 
   `:roles` is only read for the hit's traffic flags (below), never stored.
 
@@ -107,6 +112,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Tracking
@@ -285,7 +291,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     now = hit[:inserted_at] || DateTime.utc_now()
     anchor = session_anchor(hit[:session_anchor], now)
 
-    case visitor_id(hit, anchor) do
+    case visitor_id(hit, anchor, config) do
       nil ->
         {:error, :no_salt}
 
@@ -300,6 +306,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
         case result do
           {:ok, {%Event{} = event, new_session?}} ->
+            record_profile(new_session?, visitor_id, hit, config, now)
             PhoenixKitWebAnalytics.Alerts.event_recorded(event, new_session?)
             {:ok, event}
 
@@ -312,6 +319,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
         end
     end
   end
+
+  # What the settings keep about who the visitor is, once per visit — and
+  # after the hit's transaction: a profile is never worth the event.
+  defp record_profile(true, visitor_id, hit, config, now),
+    do: Profiles.record(visitor_id, hit, config, now)
+
+  defp record_profile(false, _visitor_id, _hit, _config, _now), do: :ok
 
   # A staff member's hit also marks their network (the plug does the same for
   # requests to excluded paths, before this point).
@@ -472,12 +486,21 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # to one "unknown" visitor and stitch them into one endless session. Such an
   # event is its own visitor, unless it names a user (and isn't a forced-bot
   # hit, which must not join that user's visit).
-  defp visitor_id(hit, anchor) do
+  defp visitor_id(hit, anchor, config) do
     cond do
       hit[:ip] || hit[:user_agent] ->
         case Config.hash_salt() do
-          nil -> nil
-          salt -> Visitor.visitor_id(hit[:ip], hashed_agent(hit), salt, DateTime.to_date(anchor))
+          nil ->
+            nil
+
+          salt ->
+            Visitor.visitor_id(
+              hit[:ip],
+              hashed_agent(hit),
+              salt,
+              DateTime.to_date(anchor),
+              config.visitor_rotation
+            )
         end
 
       is_binary(hit[:user_uuid]) and not is_binary(hit[:bot]) ->

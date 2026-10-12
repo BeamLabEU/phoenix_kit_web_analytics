@@ -91,8 +91,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   ## Client IP
 
-  The client address is visitor-hash input (and only that — no IP is ever
-  stored). It is read the way PhoenixKit reads it for a login
+  The client address is visitor-hash input, and stored only when the operator
+  asks for it (`web_analytics_store_ip`, off by default). It is read the way PhoenixKit reads it for a login
   (`PhoenixKit.Utils.IpAddress.client_address/1`): a public
   `conn.remote_ip` is the visitor; a private or loopback one is a reverse
   proxy on the same box or network, and the visitor is the **last**
@@ -126,6 +126,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Tracking
 
   @country_headers ~w(cf-ipcountry x-vercel-ip-country fastly-geo-country x-country-code)
@@ -199,7 +200,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       true ->
         started_at = System.monotonic_time(:microsecond)
         bot_reason = prefetch_reason(conn)
-        register_before_send(conn, &track(&1, started_at, bot_reason))
+        register_before_send(conn, &track(&1, started_at, bot_reason, config))
     end
   end
 
@@ -286,10 +287,14 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
-  defp track(conn, started_at, bot_reason) do
+  defp track(conn, started_at, bot_reason, config) do
     if html_pageview?(conn) and not skipped?(conn) do
       duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
-      Collector.track_async(build_hit(conn, duration_ms, bot_reason))
+
+      conn
+      |> build_hit(duration_ms, bot_reason)
+      |> put_headers(conn, config)
+      |> Collector.track_async()
     end
 
     conn
@@ -331,6 +336,13 @@ defmodule PhoenixKitWebAnalytics.Plug do
       bot: bot_reason
     }
   end
+
+  # Only when the operator keeps request headers (see Profiles); otherwise
+  # they are never copied out of the conn.
+  defp put_headers(hit, conn, %{store_headers?: true, store_ip: store_ip}),
+    do: Map.put(hit, :headers, Profiles.request_headers(conn, store_ip == :full))
+
+  defp put_headers(hit, _conn, _config), do: hit
 
   # A page whose LiveView runs `PhoenixKitWebAnalytics.LiveHook` will report
   # its live connection; one that never does ran no JavaScript (see
