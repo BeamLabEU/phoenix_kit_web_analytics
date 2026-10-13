@@ -160,10 +160,12 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     with salt when is_binary(salt) <- Config.hash_salt(),
          visitor_id when is_binary(visitor_id) <-
            Visitor.visitor_id(client.ip, client.user_agent, salt, nil, config.visitor_rotation),
+         # The visitor's own budget first: one runaway page then spends
+         # none of the budget everyone behind its address shares.
+         true <- BotSignals.count(:signals, visitor_id) <= @max_signals_per_minute,
          address = Visitor.visitor_id(client.ip, nil, salt, nil, config.visitor_rotation),
          true <-
-           BotSignals.count(:signals_address, address) <= @max_signals_per_address_minute,
-         true <- BotSignals.count(:signals, visitor_id) <= @max_signals_per_minute do
+           BotSignals.count(:signals_address, address) <= @max_signals_per_address_minute do
       Profiles.record_signals(visitor_id, raw, client.user_agent, config, salt: salt)
     end
   end

@@ -550,6 +550,15 @@ defmodule PhoenixKitWebAnalytics.ConsentEntryPointsTest do
       PhoenixKitWebAnalytics.track_event("order.placed", %{conn: conn})
       assert events() == []
 
+      # Not even as a view counted without a visitor.
+      enable_tracking(%{
+        "web_analytics_consent_measurement" => "consent",
+        "web_analytics_without_consent" => "anonymous"
+      })
+
+      PhoenixKitWebAnalytics.track_pageview(%{conn: conn, path: "/export"})
+      assert events() == []
+
       # The blunt switch off: the yes stands.
       enable_tracking(%{
         "web_analytics_consent_measurement" => "consent",

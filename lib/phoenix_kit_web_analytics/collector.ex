@@ -314,8 +314,11 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # as a visitor of its own with no user, no session to join and no profile.
   # A hit that carries no `:consent` came from the host's own code and is
   # taken as allowed.
-  defp consented(%{consent: %{measurement: false}} = hit, %{without_consent: :anonymous}) do
-    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]), do: anonymous(hit)
+  defp consented(
+         %{consent: %{measurement: false}} = hit,
+         %{without_consent: :anonymous} = config
+       ) do
+    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]), do: anonymous(hit, config)
   end
 
   defp consented(%{consent: %{measurement: false}}, _config), do: nil
@@ -325,8 +328,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # out: no user, no headers, no session to join — and no ad-click
   # identifier, which is one click's own ID (the `utm_*` names say only
   # which campaign). The row is marked, so it can be told from a visitor's.
-  defp anonymous(hit) do
+  #
+  # Whose traffic it is — the site's own people, an internal network — is
+  # worked out first, while the hit still says who made it: an anonymous
+  # view by a staff member is still the site's own traffic.
+  defp anonymous(hit, config) do
     hit
+    |> Map.put(:traffic_flags, InternalTraffic.flags(hit, config))
     |> Map.drop([:user_uuid, :roles, :headers, :network, :session_anchor])
     |> Map.put(:query_params, campaign_only(hit[:query_params]))
     |> Map.put(:metadata, anonymous_metadata(hit[:metadata]))
@@ -400,6 +408,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   # A staff member's hit also marks their network (the plug does the same for
   # requests to excluded paths, before this point).
+  defp hit_flags(%{traffic_flags: flags}, _config) when is_integer(flags), do: flags
+
   defp hit_flags(hit, config) do
     flags = InternalTraffic.flags(hit, config)
 
@@ -424,6 +434,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         hit
         |> base_attrs(now)
         |> Map.merge(identity_attrs(visitor_id, stitch.session_id, ua))
+        |> coarsen(hit)
         |> Map.merge(source_attrs(hit))
         |> Map.merge(location_attrs(hit))
         |> carry_language(stitch)
@@ -686,6 +697,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
       inserted_at: now
     }
   end
+
+  # A view counted without a visitor keeps which browser and system it was,
+  # not their exact builds: a full version string beside a language and a
+  # country can pick one visitor out of a small site's traffic.
+  defp coarsen(attrs, %{anonymous: true}) do
+    %{attrs | browser_version: major(attrs.browser_version), os_version: nil}
+  end
+
+  defp coarsen(attrs, _hit), do: attrs
+
+  defp major(version) when is_binary(version), do: version |> String.split(".") |> hd()
+  defp major(_version), do: nil
 
   defp identity_attrs(visitor_id, session_id, ua) do
     %{

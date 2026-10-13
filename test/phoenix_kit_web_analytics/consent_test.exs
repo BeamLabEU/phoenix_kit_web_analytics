@@ -465,7 +465,9 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
       assert event.session_id != agreed.session_id
       assert event.session_start
       assert event.user_uuid == nil
-      assert event.traffic_flags == 0
+      # Whose traffic it was is still marked — a staff member's view must not
+      # count as a visitor's — but the mark says "staff", not who.
+      assert event.traffic_flags != 0
       assert event.click_id == nil
       assert event.click_param == nil
       assert event.utm_source == "spring"
@@ -501,6 +503,39 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
       assert [anonymous, agreed] = events()
       assert {anonymous.country_code, anonymous.region, anonymous.city} == {"EE", nil, nil}
       assert {agreed.country_code, agreed.region, agreed.city} == {"EE", "Harjumaa", "Tallinn"}
+    end
+
+    test "a staff member's view is still marked as the site's own traffic" do
+      staff = %{
+        event_type: "pageview",
+        path: "/pricing",
+        site: "myapp.com",
+        ip: {203, 0, 113, 9},
+        user_agent: @chrome,
+        user_uuid: UUIDv7.generate(),
+        roles: ["Owner"],
+        consent: Consent.none()
+      }
+
+      assert {:ok, %Event{user_uuid: nil, traffic_flags: flags}} = Collector.track(staff)
+      assert flags != 0
+
+      # A visitor's is not.
+      visitor = Map.drop(%{staff | ip: {203, 0, 113, 10}}, [:user_uuid, :roles])
+      assert {:ok, %Event{traffic_flags: 0}} = Collector.track(visitor)
+    end
+
+    test "keeps the browser and its major version, not the exact builds" do
+      page("/pricing")
+      page("/pricing", consent("yes"))
+
+      assert [anonymous, agreed] = events()
+      assert {anonymous.browser, anonymous.browser_version} == {"Chrome", "120"}
+      assert anonymous.os == agreed.os
+      assert anonymous.os_version == nil
+
+      assert agreed.browser_version == "120.0.0.0"
+      assert is_binary(agreed.os_version)
     end
 
     test "is not a new visitor to alert anyone about" do

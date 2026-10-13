@@ -477,9 +477,12 @@ whose visits are counted. A page view that may not be counted is dropped, or
 — with `web_analytics_without_consent` set to `anonymous` — counted with no
 visitor: its own visitor and visit, no user, no profile, so page totals stay
 whole while visitor and visit counts rise with every such view. Such a view
-keeps its campaign (`utm_*`) and its country, and nothing finer: no ad-click
-identifier, no region, no city. Its row is marked `metadata["anon"]`, it never
-raises a new-visitor alert, and it is never judged a no-JavaScript bot.
+keeps its campaign (`utm_*`), its country, and the browser and system with
+the browser's major version, and nothing finer: no ad-click identifier, no
+region, no city, no exact build. It is still marked as the site's own traffic
+when it is (a staff member, an internal network). Its row is marked
+`metadata["anon"]`, it never raises a new-visitor alert, and it is never
+judged a no-JavaScript bot.
 
 **Where the answer comes from.** PhoenixKit's Legal module, when it is
 installed and its cookie banner is on: the banner reports each decision to the

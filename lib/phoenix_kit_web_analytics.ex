@@ -332,8 +332,7 @@ defmodule PhoenixKitWebAnalytics do
     attrs
     |> Map.merge(%{event_type: "event", event_name: name})
     |> Map.put_new(:path, "/")
-    |> from_conn()
-    |> Collector.track_async()
+    |> track()
   end
 
   @doc """
@@ -350,8 +349,7 @@ defmodule PhoenixKitWebAnalytics do
     attrs
     |> Map.put(:event_type, "pageview")
     |> Map.put_new(:path, "/")
-    |> from_conn()
-    |> Collector.track_async()
+    |> track()
   end
 
   # ── internals ──────────────────────────────────────────────────────────────
@@ -367,18 +365,22 @@ defmodule PhoenixKitWebAnalytics do
       conn |> Plug.Conn.get_req_header("user-agent") |> List.first()
     end)
     |> Map.put_new(:site, conn.host)
-    |> Map.put_new_lazy(:consent, fn -> conn_consent(conn, Config.collection_config()) end)
+    |> Map.put_new_lazy(:consent, fn -> Consent.for_conn(conn, Config.collection_config()) end)
   end
-
-  # A browser asking not to be tracked is left alone here as it is by the
-  # plug, while `web_analytics_respect_dnt` is on — in every consent mode.
-  defp conn_consent(conn, %{respect_dnt?: true} = config) do
-    if Consent.objected?(conn), do: Consent.none(), else: Consent.for_conn(conn, config)
-  end
-
-  defp conn_consent(conn, config), do: Consent.for_conn(conn, config)
 
   defp from_conn(attrs), do: Map.delete(attrs, :conn)
+
+  # A browser asking not to be tracked is left alone here as it is by the
+  # plug, while `web_analytics_respect_dnt` is on: nothing is handed to the
+  # collector at all, in any consent mode — not even a view counted without
+  # a visitor.
+  defp track(%{conn: %Plug.Conn{} = conn} = attrs) do
+    if Config.collection_config().respect_dnt? and Consent.objected?(conn),
+      do: :ok,
+      else: attrs |> from_conn() |> Collector.track_async()
+  end
+
+  defp track(attrs), do: attrs |> from_conn() |> Collector.track_async()
 
   defp subtab(id, label, icon, path, priority, opts \\ []) do
     %Tab{

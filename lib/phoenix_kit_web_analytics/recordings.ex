@@ -142,8 +142,10 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   # A page sends a chunk every ~10 s, plus one when it's hidden or left;
   # far more than that from one visitor is someone filling the table.
   defp within_rate?(client, visitor_id) do
-    BotSignals.count(:recording_address, address_key(client)) <= @max_chunks_per_address_minute and
-      BotSignals.count(:recording, visitor_id) <= @max_chunks_per_minute
+    # The visitor's own budget first: one runaway tab then spends none of
+    # the budget everyone behind its address shares.
+    BotSignals.count(:recording, visitor_id) <= @max_chunks_per_minute and
+      BotSignals.count(:recording_address, address_key(client)) <= @max_chunks_per_address_minute
   end
 
   # The address hashed like a visitor with no User-Agent, so the counters
