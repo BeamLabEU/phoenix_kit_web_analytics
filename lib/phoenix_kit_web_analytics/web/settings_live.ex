@@ -594,6 +594,12 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             )}
           </p>
 
+          <p id="web-analytics-consent-session" class="text-xs text-base-content/50">
+            {gettext(
+              "Live pages cannot read the banner's cookie: they follow a note the tracking plug leaves in the site's session. The plug must therefore run after the session is fetched — below :fetch_session in the browser pipeline. Where it runs earlier, or a live page is reached without it, nothing that waits for an answer is collected on live pages."
+            )}
+          </p>
+
           <div class="grid gap-4 sm:grid-cols-2">
             <fieldset class="fieldset">
               <legend class="fieldset-legend">{gettext("Without an answer that allows it")}</legend>

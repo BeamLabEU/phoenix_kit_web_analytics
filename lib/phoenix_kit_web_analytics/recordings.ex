@@ -59,6 +59,7 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   require Logger
 
+  alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.InternalTraffic
@@ -71,6 +72,10 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   @types ~w(m c h s r v)
   @max_frames 2_000
   @max_chunks_per_minute 30
+  # A visitor is a hash of address and User-Agent, so changing the
+  # User-Agent starts a fresh count. The address is held to its own ceiling,
+  # high enough for an office behind one address.
+  @max_chunks_per_address_minute @max_chunks_per_minute * 6
   # About an hour of chunks every ~10 s; a page open longer stops recording.
   @max_seq 400
   @max_selector 200
@@ -117,14 +122,14 @@ defmodule PhoenixKitWebAnalytics.Recordings do
   caller's process. Returns `:ok` when it was accepted for writing and
   `{:error, reason}` when it was refused — `:not_recording`, `:invalid`,
   `:too_fast` (over #{@max_chunks_per_minute} chunks a minute from one
-  visitor).
+  visitor, or #{@max_chunks_per_address_minute} from one address).
   """
   @spec store(map(), map()) :: :ok | {:error, :not_recording | :invalid | :too_fast}
   def store(client, params) when is_map(params) do
     with {:ok, chunk} <- validate(params),
          true <- record?(client, chunk.path) || {:error, :not_recording},
          visitor_id when is_binary(visitor_id) <- visitor_id(client),
-         true <- within_rate?(visitor_id) || {:error, :too_fast} do
+         true <- within_rate?(client, visitor_id) || {:error, :too_fast} do
       Collector.run_async(fn -> insert(client, visitor_id, chunk) end)
     else
       nil -> {:error, :not_recording}
@@ -136,8 +141,16 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
   # A page sends a chunk every ~10 s, plus one when it's hidden or left;
   # far more than that from one visitor is someone filling the table.
-  defp within_rate?(visitor_id),
-    do: PhoenixKitWebAnalytics.BotSignals.count(:recording, visitor_id) <= @max_chunks_per_minute
+  defp within_rate?(client, visitor_id) do
+    BotSignals.count(:recording_address, address_key(client)) <= @max_chunks_per_address_minute and
+      BotSignals.count(:recording, visitor_id) <= @max_chunks_per_minute
+  end
+
+  # The address hashed like a visitor with no User-Agent, so the counters
+  # hold no address in the clear.
+  defp address_key(client) do
+    Visitor.visitor_id(client[:ip], nil, Config.hash_salt() || "", nil, Config.visitor_rotation())
+  end
 
   @doc false
   # Public for the controller test: what a payload turns into, or :error.

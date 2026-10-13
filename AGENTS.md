@@ -118,8 +118,27 @@ can't, stays optional, and never writes a cookie or storage.
   hands the collector — a hit without the key is taken as the host's own
   call and allowed. A new kind of data about a visitor belongs to one of the
   four purposes or gets a fifth, with its own key. A consent source that
-  fails answers `:unknown`, never `:granted`. Nothing is queued for a later
-  yes.
+  fails answers `:denied` — raise, throw, exit, a return that is not one of
+  the three atoms, a malformed `consent_source` — and only a clean
+  `:unknown` is unknown: `unless_objected` collects on unknown, so a failure
+  must not read as one. `Consent.status/2` runs in `Plug.call/2` itself, so
+  it catches everything. Nothing is queued for a later yes.
+- **A LiveView session without the plug's note is objected-and-unanswered**
+  (`Consent.noted/1` → `{:unknown, true}`), and notes decode by exact match.
+  The note is therefore load-bearing: written for every visitor while a rule
+  waits for an answer, and declared in `DataCollection` (`storage`). The DNT
+  note beside it is deleted by the plug when the signal stops.
+- **A view counted without a visitor carries nothing that singles one out**
+  (`Collector.anonymous/1`): no user, roles, headers, session anchor or
+  click identifier, country only, `metadata["anon"]`, no `"lv"` (so it is
+  never judged no-JS), no profile, no new-visitor alert. A new identifying
+  hit key must be dropped there.
+- **`track_event/2` / `track_pageview/1` take `conn:`** and then follow the
+  visitor's answer; without it (and without `:consent`) the hit is the
+  host's own call.
+- **A per-visitor rate limit is not a limit**: the visitor ID includes the
+  User-Agent. Anything a public endpoint counts per visitor is also counted
+  per address (`:signals_address`, `:recording_address`).
 - **What is declared follows what is collected.** A new `store_*` setting or
   kind of data gets a line in `DataCollection.entries/0`, active only while
   it is on.
@@ -139,6 +158,13 @@ can't, stays optional, and never writes a cookie or storage.
 - **A profile write must never cost the event.** `Profiles` calls run after
   the hit's transaction or off its process (`Collector.note_reason/3`), and
   rescue everything.
+- **Reasons are rescored under a row lock, from what the row holds.**
+  `Profiles.rescore/3` is `SELECT … FOR UPDATE` + write in one transaction
+  (two sources report within a second of each other), and `:request`
+  reasons come from the stored headers / hosting, not the incoming hit — a
+  visit can start on a hit with no headers. `forget/1` takes back the
+  reasons read from what it blanks (`BotScore.derived_from/1`); a new
+  reason read from stored data goes in that list.
 - **Own traffic is marked, not dropped.** `traffic_flags` (bits in
   `TrafficFlags`) is worked out before the collector's transaction from
   memory only; a bit new to a visit is written back to the visit's rows in
@@ -214,7 +240,8 @@ Every string goes through `PhoenixKitWebAnalytics.Gettext` (LiveViews do
 `use Gettext, backend: PhoenixKitWebAnalytics.Gettext` after
 `use PhoenixKitWeb, :live_view`, which repoints `gettext/1` at this module's
 catalogue; tabs set `gettext_backend:`). After changing strings run
-`mix gettext.extract --merge` and fill en/et/ru — none may stay empty.
+`mix gettext.extract --merge --no-fuzzy` and fill en/et/ru — none may stay
+empty.
 
 ## Common Commands
 

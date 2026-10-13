@@ -36,6 +36,13 @@ defmodule PhoenixKitWebAnalytics.Consent do
       browser objection. `source/0` says which of the three is in effect, so
       the settings page can warn.
 
+  A source that fails answers `:denied`. One that raises, throws or exits,
+  or returns anything but those three atoms, could not say whether the
+  visitor refused — and under `:unless_objected` an "unknown" would collect
+  from a visitor who did. So the failure is read as a no, and logged once
+  per node, naming the source and never the visitor. A `consent_source` that
+  is not a `{module, function}` pair is a failure of the same kind.
+
   A browser objection is `Sec-GPC: 1` or `DNT: 1`. It decides
   `:unless_objected` on the first request, with no cookie needed; a visitor
   who explicitly said yes in the banner is taken at their word over a browser
@@ -50,7 +57,18 @@ defmodule PhoenixKitWebAnalytics.Consent do
   next full page load. Nothing collected before a yes is kept back for later:
   a hit that may not be stored is dropped (or counted without a visitor, see
   `web_analytics_without_consent`), never queued.
+
+  The note is the only thing a LiveView knows about the visitor's answer, so
+  a session without one is read as a visitor who objected and has not
+  answered: nothing that waits for an answer is collected on a LiveView
+  until the plug has written it. That needs the plug to run **after**
+  `:fetch_session` (it never starts a session itself) on the pages that lead
+  to a LiveView. While any rule waits for an answer the note is written for
+  every visitor — it lives in the site's own session cookie, and
+  `PhoenixKitWebAnalytics.DataCollection` declares it.
   """
+
+  require Logger
 
   import Plug.Conn, only: [get_req_header: 2, get_session: 2, put_session: 3]
 
@@ -59,6 +77,8 @@ defmodule PhoenixKitWebAnalytics.Consent do
   @legal PhoenixKit.Modules.Legal
   @legal_consent PhoenixKit.Modules.Legal.Consent
   @session_key "phoenix_kit_web_analytics_consent"
+  @statuses [:granted, :denied, :unknown]
+  @warned_key {__MODULE__, :source_failed_warned}
   @purposes [:measurement, :profile, :device, :recording]
   @all Map.new(@purposes, &{&1, true})
   @none Map.new(@purposes, &{&1, false})
@@ -123,7 +143,7 @@ defmodule PhoenixKitWebAnalytics.Consent do
   @doc """
   What may be collected for the visitor making this request.
 
-  Never raises: a consent source that fails answers `:unknown`.
+  Never raises: a consent source that fails answers `:denied`.
   """
   @spec for_conn(Plug.Conn.t(), Config.collection_config()) :: permissions()
   def for_conn(conn, config) do
@@ -139,18 +159,64 @@ defmodule PhoenixKitWebAnalytics.Consent do
   def objected?(conn),
     do: get_req_header(conn, "sec-gpc") == ["1"] or get_req_header(conn, "dnt") == ["1"]
 
-  @doc "What the visitor decided about a consent category, from whichever source is in effect."
+  @doc """
+  What the visitor decided about a consent category, from whichever source
+  is in effect.
+
+  Never raises, and fails closed: a source that raises, throws, exits or
+  returns something that is not `:granted`, `:denied` or `:unknown` answers
+  `:denied` (see the module doc). A source that cleanly says `:unknown` is
+  taken at its word.
+  """
   @spec status(Plug.Conn.t(), String.t()) :: status()
   def status(conn, category) do
-    case source() do
-      {:host, {module, function}} -> clean(apply(module, function, [conn, category]))
-      :legal -> clean(legal(@legal_consent, :status, [conn, category]))
-      :none -> :unknown
+    case configured() do
+      # Set, but not a `{module, function}` pair: the host meant to name a
+      # source, and falling back to another one would not be what it asked.
+      {:invalid, value} -> failed("consent_source #{inspect(value)}", "is not {module, function}")
+      _ -> ask(source(), conn, category)
+    end
+  end
+
+  defp ask(:none, _conn, _category), do: :unknown
+
+  # Everything is caught, not only exceptions: this runs in the plug's own
+  # `call/2`, where a throw or an exit from the host's consent tool would
+  # take the page down with it.
+  defp ask(source, conn, category) do
+    case answer_of(source, conn, category) do
+      status when status in @statuses -> status
+      _other -> failed(source_name(source), "returned something that is not an answer")
     end
   rescue
-    _ -> :unknown
+    error -> failed(source_name(source), "raised #{inspect(error.__struct__)}")
   catch
-    :exit, _ -> :unknown
+    kind, _reason -> failed(source_name(source), "ended with #{kind}")
+  end
+
+  defp answer_of({:host, {module, function}}, conn, category),
+    do: apply(module, function, [conn, category])
+
+  defp answer_of(:legal, conn, category), do: legal(@legal_consent, :status, [conn, category])
+
+  defp source_name({:host, {module, function}}), do: "#{inspect(module)}.#{function}/2"
+  defp source_name(:legal), do: "#{inspect(@legal_consent)}.status/2"
+
+  # Once per node, like the collector's missing-supervisor warning: a source
+  # that is down fails on every request. The text names the source and how
+  # it failed — never the error's message or the request, either of which
+  # could carry something about the visitor.
+  defp failed(source, how) do
+    unless :persistent_term.get(@warned_key, false) do
+      :persistent_term.put(@warned_key, true)
+
+      Logger.warning(
+        "[WebAnalytics] the consent source #{source} #{how}. Its visitors are treated as " <>
+          "having refused until it answers :granted, :denied or :unknown."
+      )
+    end
+
+    :denied
   end
 
   @doc """
@@ -159,12 +225,17 @@ defmodule PhoenixKitWebAnalytics.Consent do
   """
   @spec source() :: {:host, {module(), atom()}} | :legal | :none
   def source do
-    case Application.get_env(:phoenix_kit_web_analytics, :consent_source) do
-      {module, function} when is_atom(module) and is_atom(function) ->
-        {:host, {module, function}}
+    case configured() do
+      {:ok, pair} -> {:host, pair}
+      _ -> if legal_asking?(), do: :legal, else: :none
+    end
+  end
 
-      _ ->
-        if legal_asking?(), do: :legal, else: :none
+  defp configured do
+    case Application.get_env(:phoenix_kit_web_analytics, :consent_source) do
+      nil -> :unset
+      {module, function} when is_atom(module) and is_atom(function) -> {:ok, {module, function}}
+      value -> {:invalid, value}
     end
   end
 
@@ -175,7 +246,7 @@ defmodule PhoenixKitWebAnalytics.Consent do
   rescue
     _ -> false
   catch
-    :exit, _ -> false
+    _kind, _reason -> false
   end
 
   # `apply/3` rather than a direct call: the Legal module lives in an
@@ -186,9 +257,6 @@ defmodule PhoenixKitWebAnalytics.Consent do
   # controller.
   # credo:disable-for-next-line Credo.Check.Refactor.Apply
   defp legal(module, function, args), do: apply(module, function, args)
-
-  defp clean(status) when status in [:granted, :denied], do: status
-  defp clean(_status), do: :unknown
 
   # ── the session note for the LiveView hook ────────────────────────────────
 
@@ -207,23 +275,34 @@ defmodule PhoenixKitWebAnalytics.Consent do
 
   @doc """
   What may be collected on a LiveView, from the note the plug left in its
-  session. Without a note the visitor has given no answer.
+  session. Without a note nothing that waits for an answer is collected.
   """
   @spec for_session(map() | term(), Config.collection_config()) :: permissions()
   def for_session(session, config) do
     if needed?(config), do: permissions(config, noted(session)), else: @all
   end
 
-  @doc "The answer noted in a LiveView session; unknown and unobjecting without one."
+  @doc """
+  The answer noted in a LiveView session.
+
+  A session without a note — the plug ran before `:fetch_session`, or never
+  served the page — reads as objected and unanswered, `{:unknown, true}`:
+  the visitor may well have refused, and nothing here can tell. So does a
+  note this module did not write.
+  """
   @spec noted(map() | term()) :: answer()
   def noted(%{@session_key => note}), do: decode(note)
-  def noted(_session), do: {:unknown, false}
+  def noted(_session), do: {:unknown, true}
 
   defp encode({status, objected?}),
     do: Atom.to_string(status) <> if(objected?, do: ":objected", else: "")
 
-  defp decode("granted" <> rest), do: {:granted, rest == ":objected"}
-  defp decode("denied" <> rest), do: {:denied, rest == ":objected"}
-  defp decode("unknown:objected"), do: {:unknown, true}
-  defp decode(_note), do: {:unknown, false}
+  # Matched whole: a note is one of six strings, and anything else — a
+  # prefix of one included — is not an answer.
+  defp decode("granted"), do: {:granted, false}
+  defp decode("granted:objected"), do: {:granted, true}
+  defp decode("denied"), do: {:denied, false}
+  defp decode("denied:objected"), do: {:denied, true}
+  defp decode("unknown"), do: {:unknown, false}
+  defp decode(_note), do: {:unknown, true}
 end

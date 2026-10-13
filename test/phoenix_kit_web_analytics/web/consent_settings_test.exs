@@ -67,6 +67,15 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
     end
   end
 
+  describe "the note live pages follow" do
+    test "the section says where the plug has to run", %{conn: conn} do
+      {:ok, _view, html} = live(conn, @settings)
+
+      assert html =~ "web-analytics-consent-session"
+      assert html =~ ":fetch_session"
+    end
+  end
+
   describe "a preset" do
     test "fills the four rules and saves nothing until the form is saved", %{conn: conn} do
       {:ok, view, _html} = live(conn, @settings)
@@ -138,16 +147,49 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
       assert config.without_consent == :anonymous
     end
 
-    test "a rule that is not one of the three saves nothing", %{conn: conn} do
+    test "a rule that is not one of the three saves nothing and logs nothing", %{conn: conn} do
       {:ok, view, _html} = live(conn, @settings)
 
       html =
         view
         |> element("form[phx-submit='save']")
-        |> render_submit(%{"consent_measurement" => "sometimes"})
+        |> render_submit(%{
+          "consent_measurement" => "sometimes",
+          "consent_device" => "consent",
+          "retention_days" => "30"
+        })
 
       assert html =~ "Nothing was saved"
       assert html =~ "Counting visits"
+
+      clear_settings_cache()
+      config = Config.collection_config()
+
+      # Not the valid fields sent beside it, either.
+      assert config.consent ==
+               %{measurement: :always, profile: :always, device: :always, recording: :always}
+
+      assert Config.retention_days() == 365
+      refute_activity_logged("settings.updated")
+    end
+
+    test "saving a rule is logged, naming the setting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @settings)
+
+      # The first save of a fresh install stores every field; the second
+      # changes one.
+      view |> element("form[phx-submit='save']") |> render_submit()
+
+      view
+      |> element("form[phx-submit='save']")
+      |> render_submit(%{"consent_recording" => "consent"})
+
+      row =
+        assert_activity_logged("settings.updated",
+          metadata_has: %{"changed" => ["web_analytics_consent_recording"]}
+        )
+
+      assert row.module == "web_analytics"
     end
   end
 
@@ -155,13 +197,18 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
     test "reads as the default rather than an invented one" do
       enable_tracking(%{
         "web_analytics_consent_measurement" => "sometimes",
+        "web_analytics_consent_profile" => "CONSENT",
+        "web_analytics_consent_device" => "",
+        "web_analytics_consent_recording" => "unless-objected",
         "web_analytics_consent_category" => "necessary",
         "web_analytics_without_consent" => "queue"
       })
 
       config = Config.collection_config()
 
-      assert config.consent.measurement == :always
+      assert config.consent ==
+               %{measurement: :always, profile: :always, device: :always, recording: :always}
+
       assert config.consent_category == "analytics"
       assert config.without_consent == :drop
     end
@@ -220,6 +267,74 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
 
       assert entry("web_analytics.device").mode == :unless_objected
       assert entry("web_analytics.measurement").mode == :always
+    end
+
+    test "the answer kept for live pages is declared while a rule waits for one" do
+      enable_tracking()
+      assert Enum.all?(DataCollection.entries(), &(&1.storage == []))
+
+      enable_tracking(%{"web_analytics_consent_recording" => "unless_objected"})
+
+      assert [%{name: name, kind: "cookie (site session)", duration: "Session", purpose: purpose}] =
+               entry("web_analytics.measurement").storage
+
+      assert name == PhoenixKitWebAnalytics.Consent.session_key()
+      assert purpose =~ "session cookie"
+
+      # Declared once, on the entry every other one depends on.
+      for key <- ~w(profile device recording) do
+        assert entry("web_analytics.#{key}").storage == []
+      end
+    end
+
+    # One row per setting: what switching it on (or off) adds to what a
+    # visitor is told.
+    test "each setting changes what is declared, and nothing else" do
+      measurement = fn -> entry("web_analytics.measurement").data end
+      profile = fn -> entry("web_analytics.profile").data end
+
+      for {settings, read, said, text} <- [
+            {%{"web_analytics_store_ip" => "full"}, profile, true, "Your IP address"},
+            {%{"web_analytics_store_ip" => "full"}, profile, false,
+             "The network part of your IP address"},
+            {%{"web_analytics_store_user_agent" => "true"}, profile, true,
+             "Your browser's full User-Agent"},
+            {%{"web_analytics_store_headers" => "true"}, profile, true,
+             "The technical headers your browser sent with its first request"},
+            {%{"web_analytics_store_network" => "true"}, profile, true,
+             "Who runs the network you connect from"},
+            {%{}, measurement, true, "The buttons and links you use on our pages"},
+            {%{"web_analytics_track_interactions" => "false"}, measurement, false,
+             "The buttons and links you use on our pages"},
+            {%{}, measurement, false,
+             "Links you follow away from the site, and how far you scroll"},
+            {%{"web_analytics_client_script" => "true"}, measurement, true,
+             "Links you follow away from the site, and how far you scroll"},
+            {%{"web_analytics_visitor_rotation" => "weekly"}, measurement, true,
+             "A visitor number worked out from your IP address and browser, replaced every week"},
+            {%{"web_analytics_visitor_rotation" => "daily"}, measurement, true,
+             "A visitor number worked out from your IP address and browser, replaced every day"}
+          ] do
+        # Settings pile up down the table; no row reads what an earlier one set.
+        enable_tracking(settings)
+
+        assert text in read.() == said,
+               "#{inspect(settings)}: #{inspect(text)} should #{if said, do: "be", else: "not be"} declared"
+      end
+    end
+
+    test "one stored detail names only itself" do
+      enable_tracking(%{"web_analytics_store_headers" => "true"})
+
+      assert entry("web_analytics.profile").data ==
+               ["The technical headers your browser sent with its first request"]
+    end
+
+    test "with retention off, the data is kept until it is deleted" do
+      enable_tracking(%{"web_analytics_retention_days" => "0"})
+
+      assert entry("web_analytics.measurement").retention == "Until we delete it"
+      assert entry("web_analytics.profile").retention == "Until we delete it"
     end
 
     test "says how long a visitor number lasts" do

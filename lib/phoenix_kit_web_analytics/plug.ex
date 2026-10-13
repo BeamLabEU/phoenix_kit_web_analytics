@@ -204,11 +204,12 @@ defmodule PhoenixKitWebAnalytics.Plug do
         answer = Consent.answer(conn, config)
 
         conn
+        |> forget_opt_out()
         |> Consent.remember(answer)
         |> register_pageview(config, opts, Consent.permissions(config, answer))
 
       true ->
-        register_pageview(conn, config, opts, Consent.all())
+        conn |> forget_opt_out() |> register_pageview(config, opts, Consent.all())
     end
   end
 
@@ -270,6 +271,18 @@ defmodule PhoenixKitWebAnalytics.Plug do
     else
       conn
     end
+  end
+
+  # The note holds only as long as the signal does: a visitor whose browser
+  # stopped sending it (or a site that stopped honouring it) is no longer
+  # opted out, and without this the hook would leave them alone until the
+  # session expired. Only a session the host already fetched is touched.
+  defp forget_opt_out(conn) do
+    key = Tracking.dnt_session_key()
+
+    if session_fetched?(conn) and get_session(conn, key) != nil,
+      do: delete_session(conn, key),
+      else: conn
   end
 
   defp session_fetched?(conn), do: conn.private[:plug_session_fetch] == :done

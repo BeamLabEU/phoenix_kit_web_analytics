@@ -97,6 +97,23 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   @spec owned(source()) :: [reason()]
   def owned(source), do: Map.fetch!(@owned, source)
 
+  @doc """
+  The reasons read from one kind of stored data (a `Profiles.forget/1`
+  kind) — what stops being true to say once that data is forgotten. Finer
+  than `owned/1`: the request's reasons come from three kinds of data, and
+  forgetting the headers says nothing about the network.
+
+  The User-Agent's reasons aren't here: it is read on every hit whether or
+  not it is kept, so forgetting the stored copy changes nothing.
+  """
+  @spec derived_from(atom()) :: [reason()]
+  def derived_from(:headers),
+    do: ~w(old_http no_accept_language no_fetch_metadata no_client_hints no_accept)
+
+  def derived_from(:network), do: ~w(hosting_network mobile_from_hosting)
+  def derived_from(:signals), do: owned(:signals)
+  def derived_from(_kind), do: []
+
   @doc "The sum of the reasons' weights — what is stored."
   @spec score([reason()]) :: non_neg_integer()
   def score(reasons) when is_list(reasons),

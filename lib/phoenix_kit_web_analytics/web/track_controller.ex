@@ -60,6 +60,10 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   # A recording chunk: up to a couple of thousand short frames.
   @max_recording_body 131_072
   @max_signals_per_minute 5
+  # The visitor above is a hash of address and User-Agent, so a sender that
+  # changes its User-Agent is a new visitor every time. The address is
+  # counted too, with room for an office behind one address.
+  @max_signals_per_address_minute @max_signals_per_minute * 6
 
   @doc "Records a hit reported by the beacon or the client script."
   @spec event(Plug.Conn.t(), map()) :: Plug.Conn.t()
@@ -123,8 +127,9 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
     client = recording_client(conn)
 
+    # A visitor who asked not to be tracked is not looked up either.
     if config.enabled? and config.client_script? and config.detect_bots? and
-         client.consent.measurement,
+         client.consent.measurement and not (config.respect_dnt? and client.opted_out?),
        do: BotSignals.flag_client(client, "webdriver")
 
     :ok
@@ -155,6 +160,9 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     with salt when is_binary(salt) <- Config.hash_salt(),
          visitor_id when is_binary(visitor_id) <-
            Visitor.visitor_id(client.ip, client.user_agent, salt, nil, config.visitor_rotation),
+         address = Visitor.visitor_id(client.ip, nil, salt, nil, config.visitor_rotation),
+         true <-
+           BotSignals.count(:signals_address, address) <= @max_signals_per_address_minute,
          true <- BotSignals.count(:signals, visitor_id) <= @max_signals_per_minute do
       Profiles.record_signals(visitor_id, raw, client.user_agent, config, salt: salt)
     end

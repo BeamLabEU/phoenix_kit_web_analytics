@@ -59,6 +59,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Tracking
 
@@ -307,15 +308,31 @@ defmodule PhoenixKitWebAnalytics do
   Returns `:ok` immediately; the write happens in a supervised task.
 
   Without `:ip` and `:user_agent` the event still records, but under a visitor
-  hash that won't match that person's page views — pass `conn` values through
-  when the event happens inside a request and you want it attributed to the
-  same visitor.
+  hash that won't match that person's page views. When the event happens
+  inside a request, pass the conn:
+
+      PhoenixKitWebAnalytics.track_event("order.placed", %{conn: conn, path: "/checkout"})
+
+  With `:conn` the event takes the visitor's address, User-Agent and site
+  from the request (each only when `attrs` doesn't give its own), so it
+  joins that visitor's visit — and it takes the visitor's answer too
+  (`PhoenixKitWebAnalytics.Consent.for_conn/2`): an event for a visitor
+  whose visits may not be counted is not stored, and nothing is kept about
+  one who did not allow it.
+
+  **A hit with neither `:conn` nor `:consent` is stored as the host's own
+  decision.** Nothing is asked of the visitor for it. If you pass `:ip` or
+  `:user_agent` by hand while a `web_analytics_consent_*` rule waits for an
+  answer, an event and a profile are stored for a visitor who may have
+  refused — that is then yours to answer for. Pass `:conn`, or `:consent`
+  (a `PhoenixKitWebAnalytics.Consent` permissions map) yourself.
   """
   @spec track_event(String.t(), map()) :: :ok
   def track_event(name, attrs \\ %{}) when is_binary(name) do
     attrs
     |> Map.merge(%{event_type: "event", event_name: name})
     |> Map.put_new(:path, "/")
+    |> from_conn()
     |> Collector.track_async()
   end
 
@@ -324,16 +341,44 @@ defmodule PhoenixKitWebAnalytics do
 
   Only needed for pages the plug can't see — a response rendered by something
   other than the browser pipeline. Ordinary pages are already counted.
+
+  Takes `:conn` like `track_event/2`, and the same holds without it: a page
+  view with neither `:conn` nor `:consent` is stored on the host's word.
   """
   @spec track_pageview(map()) :: :ok
   def track_pageview(attrs) when is_map(attrs) do
     attrs
     |> Map.put(:event_type, "pageview")
     |> Map.put_new(:path, "/")
+    |> from_conn()
     |> Collector.track_async()
   end
 
   # ── internals ──────────────────────────────────────────────────────────────
+
+  # What a hit takes from the request it happened in: who the visitor is, as
+  # the plug would read it, and what they allowed. What the caller set
+  # itself stands, an explicit `:consent` included.
+  defp from_conn(%{conn: %Plug.Conn{} = conn} = attrs) do
+    attrs
+    |> Map.delete(:conn)
+    |> Map.put_new_lazy(:ip, fn -> Tracking.client_ip(conn) end)
+    |> Map.put_new_lazy(:user_agent, fn ->
+      conn |> Plug.Conn.get_req_header("user-agent") |> List.first()
+    end)
+    |> Map.put_new(:site, conn.host)
+    |> Map.put_new_lazy(:consent, fn -> conn_consent(conn, Config.collection_config()) end)
+  end
+
+  # A browser asking not to be tracked is left alone here as it is by the
+  # plug, while `web_analytics_respect_dnt` is on — in every consent mode.
+  defp conn_consent(conn, %{respect_dnt?: true} = config) do
+    if Consent.objected?(conn), do: Consent.none(), else: Consent.for_conn(conn, config)
+  end
+
+  defp conn_consent(conn, config), do: Consent.for_conn(conn, config)
+
+  defp from_conn(attrs), do: Map.delete(attrs, :conn)
 
   defp subtab(id, label, icon, path, priority, opts \\ []) do
     %Tab{

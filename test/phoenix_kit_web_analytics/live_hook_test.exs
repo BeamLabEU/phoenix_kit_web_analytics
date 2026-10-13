@@ -522,6 +522,22 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert BotSignals.live_visits() == %{tracked: 0, skipped: 1}
     end
 
+    # An endpoint whose connect_info lacks either key misses every live
+    # visit, exactly like the proxy case: each must pause the no-JavaScript
+    # judgement, or every visitor would look like one that never connected.
+    test "without :user_agent or :peer_data in connect_info, records nothing and counts the skip",
+         %{conn: conn} do
+      for info <- [[peer_data: @peer], [user_agent: @ua], []] do
+        view = live_navigation(conn, info)
+        view |> element("#add") |> render_click()
+      end
+
+      assert events() == []
+      assert LivePresence.list() == []
+      assert BotSignals.live_visits() == %{tracked: 0, skipped: 3}
+      assert BotSignals.skipping_live_visits?()
+    end
+
     test "with :x_headers listed but no forwarded header (no proxy), the peer is the visitor",
          %{conn: conn} do
       view = live_navigation(conn, peer_data: @proxy_peer, user_agent: @ua, x_headers: [])

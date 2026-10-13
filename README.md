@@ -177,6 +177,19 @@ PhoenixKitWebAnalytics.track_event("order.placed", %{
 })
 ```
 
+Inside a request, pass the conn: the event then takes the visitor's address,
+User-Agent and site from it, so it joins that visitor's visit, and it follows
+the visitor's answer under the [consent rules](#when-it-is-collected-consent):
+
+```elixir
+PhoenixKitWebAnalytics.track_event("order.placed", %{conn: conn, path: "/checkout"})
+```
+
+`track_pageview/1` takes `:conn` the same way. **A hit with neither `:conn`
+nor `:consent` is stored on your word** — the module asks nothing of the
+visitor for it. Passing `:ip` or `:user_agent` by hand while a rule waits for
+an answer stores an event and a profile for a visitor who may have refused.
+
 From the browser, with the client script enabled (or the `<.beacon />`
 component — `import PhoenixKitWebAnalytics.Web.Beacon` in the layout that
 renders it):
@@ -348,7 +361,9 @@ data rather than their totals.
 
 ## Privacy
 
-There is no cookie and no local storage, and with the settings as they ship
+The module sets no cookie and writes no local storage (the one thing it keeps
+in the host's session is described under
+[consent](#when-it-is-collected-consent)), and with the settings as they ship
 no IP address and no raw User-Agent is stored. A visitor ID is
 
 ```
@@ -416,7 +431,7 @@ the event rows, and shown on the visit's page. A row goes when its visitor
 hasn't been seen for `web_analytics_retention_days`. Switching a setting off
 stops it being recorded; `PhoenixKitWebAnalytics.Profiles.forget/1` removes
 what is already stored (`:ip`, `:user_agent`, `:headers`, `:network`,
-`:signals` or `:all`).
+`:signals` or `:all`), along with the bot reasons that were read from it.
 
 Never kept, whatever the settings: the value of a header that carries a
 credential (`Cookie`, `Authorization`, anything named like a token, key or
@@ -461,7 +476,10 @@ The last three kinds describe a visitor, so they are only ever kept for one
 whose visits are counted. A page view that may not be counted is dropped, or
 — with `web_analytics_without_consent` set to `anonymous` — counted with no
 visitor: its own visitor and visit, no user, no profile, so page totals stay
-whole while visitor and visit counts rise with every such view.
+whole while visitor and visit counts rise with every such view. Such a view
+keeps its campaign (`utm_*`) and its country, and nothing finer: no ad-click
+identifier, no region, no city. Its row is marked `metadata["anon"]`, it never
+raises a new-visitor alert, and it is never judged a no-JavaScript bot.
 
 **Where the answer comes from.** PhoenixKit's Legal module, when it is
 installed and its cookie banner is on: the banner reports each decision to the
@@ -478,24 +496,38 @@ With neither, every visitor is unanswered: `consent` collects nothing (the
 settings page warns) and `unless_objected` collects for everyone whose browser
 does not object.
 
+**A consent source that fails answers `:denied`.** One that raises, throws,
+exits or returns anything but those three atoms — or a `consent_source` that
+is not a `{module, function}` pair — could not say whether the visitor
+refused, so it is read as a refusal rather than as "no answer", which
+`unless_objected` would collect from. It is logged once per node, naming the
+source. A source that cleanly returns `:unknown` is taken at its word.
+
 **When the answer applies.** It is read from the request, so it is as fresh as
 the last page load. A LiveView cannot see cookies: the plug notes the answer
 in the session, and it holds for live navigation until the next full page
 load (the Legal banner reloads the page when a consent is taken back, so a
-withdrawal is not left waiting). The client script re-asks the server the
+withdrawal is not left waiting). The note is all a LiveView knows, so **the
+plug must run after `:fetch_session`**: a session with no note is read as a
+visitor who objected and has not answered, and nothing that waits for an
+answer is collected on LiveViews until the plug has written one. The client script re-asks the server the
 moment the banner reports a decision, so device measurements and a recording
 can start on the page where the visitor said yes. Nothing collected before a
 yes is held back for later — there is no queue to flush.
 
 `web_analytics_respect_dnt` is separate and blunter: while it is on, a browser
-sending `DNT` or `Sec-GPC` is not tracked under any rule.
+sending `DNT` or `Sec-GPC` is not tracked under any rule, a yes in the banner
+included. The plug notes that in the session for LiveViews too, and takes the
+note back on the first request that no longer carries the signal.
 
 **What visitors are told.** The module declares what it is collecting right
 now (`PhoenixKitWebAnalytics.data_collection/0`), following the settings: each
 kind with its rule, what exactly is kept, and for how long. The Legal module
 lists that under the matching toggle of its banner and in the Cookie Policy it
-generates. The module itself puts nothing on a visitor's device — no cookie,
-no storage.
+generates. The module sets no cookie of its own and writes no storage. While
+a rule waits for an answer, the visitor's answer is noted in the site's own
+session cookie (the note above); that is declared too, under the measurement
+entry's `storage`.
 
 ## Data growth and retention
 

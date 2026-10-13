@@ -654,6 +654,7 @@ window.PhoenixKitWebAnalyticsHooks.PhoenixKitWebAnalyticsReplay = {
 
   destroyed: function () {
     this.stop();
+    if (this.resizeObserver) this.resizeObserver.disconnect();
   },
 
   build: function () {

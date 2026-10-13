@@ -15,13 +15,18 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
   on the settings page changes what visitors are told, with nothing to edit
   by hand.
 
-  Nothing here is put on a visitor's device — the module writes no cookie
-  and no storage — so every `storage` list is empty.
+  The module sets no cookie of its own and writes no storage. One thing does
+  reach the visitor's device, and only while a rule waits for an answer
+  (`PhoenixKitWebAnalytics.Consent.needed?/1`): the visitor's privacy answer
+  is noted in the site's own session cookie, so live pages can follow it.
+  That is declared in the measurement entry's `storage`; every other
+  `storage` list is empty.
   """
 
   use Gettext, backend: PhoenixKitWebAnalytics.Gettext
 
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
 
   @doc "The module's declarations, for the current settings and locale."
   @spec entries() :: [map()]
@@ -42,7 +47,7 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
         active: config.enabled?,
         data: measurement_data(config),
         retention: events,
-        storage: []
+        storage: answer_storage(config)
       },
       %{
         key: "web_analytics.profile",
@@ -96,6 +101,27 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
         storage: []
       }
     ]
+  end
+
+  # The note `Consent.remember/2` leaves for the LiveView hook. It rides in
+  # the host's session cookie, whose name is the host's; what is declared is
+  # the entry inside it.
+  defp answer_storage(config) do
+    if Consent.needed?(config) do
+      [
+        %{
+          name: Consent.session_key(),
+          kind: gettext("cookie (site session)"),
+          duration: gettext("Session"),
+          purpose:
+            gettext(
+              "Keeps your privacy answer in this site's session cookie, so pages that update live follow it too."
+            )
+        }
+      ]
+    else
+      []
+    end
   end
 
   defp measurement_data(config) do

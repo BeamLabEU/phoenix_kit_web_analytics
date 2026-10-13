@@ -71,6 +71,43 @@ defmodule PhoenixKitWebAnalytics.ConsentTest do
       assert Consent.permissions(modes, {:unknown, false}) == Consent.none()
       assert Consent.permissions(modes, {:granted, false}) == Consent.all()
     end
+
+    # Every rule for every kind, against every answer: 81 × 6 combinations.
+    test "each kind is its own rule and the counting rule, for every combination" do
+      modes = [:always, :consent, :unless_objected]
+
+      for measurement <- modes,
+          profile <- modes,
+          device <- modes,
+          recording <- modes,
+          status <- [:granted, :denied, :unknown],
+          objected? <- [true, false] do
+        rules = %{
+          measurement: measurement,
+          profile: profile,
+          device: device,
+          recording: recording
+        }
+
+        permissions = Consent.permissions(config(rules), {status, objected?})
+        counted? = Consent.allows?(measurement, status, objected?)
+
+        assert permissions.measurement == counted?,
+               "measurement under #{inspect(rules)} for #{inspect({status, objected?})}"
+
+        for purpose <- [:profile, :device, :recording] do
+          assert permissions[purpose] ==
+                   (counted? and Consent.allows?(rules[purpose], status, objected?)),
+                 "#{purpose} under #{inspect(rules)} for #{inspect({status, objected?})}"
+        end
+      end
+    end
+
+    test "with every rule at always, everything is allowed whatever the answer" do
+      for status <- [:granted, :denied, :unknown], objected? <- [true, false] do
+        assert Consent.permissions(config(), {status, objected?}) == Consent.all()
+      end
+    end
   end
 
   describe "the session note" do
@@ -91,10 +128,18 @@ defmodule PhoenixKitWebAnalytics.ConsentTest do
       assert Consent.remember(conn, {:granted, false}) == conn
     end
 
-    test "a session without a note is a visitor who has not answered" do
-      assert Consent.noted(%{}) == {:unknown, false}
-      assert Consent.noted(nil) == {:unknown, false}
-      assert Consent.noted(%{Consent.session_key() => "garbage"}) == {:unknown, false}
+    # The plug ran before :fetch_session, or never served the page: the
+    # visitor may have refused, and a LiveView has no other way to know.
+    test "a session without a note is a visitor who objected and has not answered" do
+      assert Consent.noted(%{}) == {:unknown, true}
+      assert Consent.noted(nil) == {:unknown, true}
+    end
+
+    test "a note is read whole: a prefix of an answer is not one" do
+      for note <- ["garbage", "grantedX", "granted:", "granted:objectedX", "deniedX", "", 1] do
+        assert Consent.noted(%{Consent.session_key() => note}) == {:unknown, true},
+               "#{inspect(note)} was read as an answer"
+      end
     end
 
     test "for_session/2 allows everything when nothing waits for an answer" do
@@ -105,6 +150,14 @@ defmodule PhoenixKitWebAnalytics.ConsentTest do
                %{Consent.session_key() => "granted"},
                config(%{measurement: :consent})
              ) == Consent.all()
+    end
+
+    test "for_session/2 without a note collects nothing until a no, either" do
+      rules = config(%{measurement: :unless_objected})
+
+      assert Consent.for_session(%{}, rules) == Consent.none()
+      assert Consent.for_session(%{Consent.session_key() => "unknown"}, rules) == Consent.all()
+      assert Consent.for_session(%{Consent.session_key() => "grantedX"}, rules) == Consent.none()
     end
   end
 
@@ -132,6 +185,10 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
 
   import Ecto.Query
 
+  alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Roles
+  alias PhoenixKitWebAnalytics.BotSignals
+  alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.Plug, as: TrackingPlug
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -149,13 +206,27 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
       case Plug.Conn.get_req_header(conn, "x-test-consent") do
         ["yes"] -> :granted
         ["no"] -> :denied
-        ["boom"] -> raise "consent tool down"
+        ["boom"] -> raise "consent tool down for visitor-7@example.com"
+        ["throw"] -> throw(:consent_tool_down)
+        ["exit"] -> exit(:consent_tool_down)
+        ["string"] -> "granted"
+        ["tuple"] -> {:ok, :granted}
         _ -> :unknown
       end
     end
 
     def status(_conn, _category), do: :unknown
   end
+
+  defmodule Resolver do
+    @moduledoc false
+    @behaviour PhoenixKitWebAnalytics.Geo
+
+    @impl true
+    def resolve(_ip), do: %{country_code: "EE", region: "Harjumaa", city: "Tallinn"}
+  end
+
+  @warned {PhoenixKitWebAnalytics.Consent, :source_failed_warned}
 
   setup do
     Application.put_env(:phoenix_kit_web_analytics, :consent_source, {Source, :status})
@@ -185,9 +256,74 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
       assert Consent.source() == :none
     end
 
-    test "a consent source that raises answers unknown" do
-      conn = Plug.Test.conn(:get, "/") |> Plug.Conn.put_req_header("x-test-consent", "boom")
-      assert Consent.status(conn, "analytics") == :unknown
+    test "a source that says it does not know is taken at its word" do
+      assert Consent.status(Plug.Test.conn(:get, "/"), "analytics") == :unknown
+    end
+  end
+
+  describe "a consent source that fails" do
+    setup do
+      :persistent_term.erase(@warned)
+      on_exit(fn -> :persistent_term.erase(@warned) end)
+      :ok
+    end
+
+    defp asked(answer),
+      do: Plug.Test.conn(:get, "/") |> Plug.Conn.put_req_header("x-test-consent", answer)
+
+    # Whether the visitor refused could not be read, so it is read as a no.
+    test "answers denied when it raises, throws, exits or returns something else" do
+      ExUnit.CaptureLog.capture_log(fn ->
+        for failure <- ~w(boom throw exit string tuple) do
+          assert Consent.status(asked(failure), "analytics") == :denied, failure
+        end
+      end)
+    end
+
+    test "answers denied when the function does not exist" do
+      Application.put_env(:phoenix_kit_web_analytics, :consent_source, {Source, :missing})
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert Consent.status(asked("yes"), "analytics") == :denied
+      end)
+    end
+
+    test "answers denied when consent_source is not a {module, function} pair" do
+      for value <- [Source, {Source, :status, 2}, {"Source", :status}, "MyApp.Consent.status"] do
+        Application.put_env(:phoenix_kit_web_analytics, :consent_source, value)
+
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Consent.status(asked("yes"), "analytics") == :denied, inspect(value)
+        end)
+      end
+    end
+
+    test "is logged once per node, naming the source and never the visitor" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          for _ <- 1..3, do: Consent.status(asked("boom"), "analytics")
+          Consent.status(asked("throw"), "analytics")
+        end)
+
+      assert length(String.split(log, "the consent source")) == 2
+      assert log =~ "ConsentCollectionTest.Source.status/2"
+      assert log =~ "RuntimeError"
+      refute log =~ "visitor-7@example.com"
+    end
+
+    test "does not take the page down, and is not collected from under unless_objected" do
+      enable_tracking(%{
+        "web_analytics_consent_measurement" => "unless_objected",
+        "web_analytics_respect_dnt" => "false"
+      })
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        for failure <- ~w(boom throw exit string) do
+          assert %Plug.Conn{status: 200} = page("/pricing", consent(failure))
+        end
+      end)
+
+      assert events() == []
     end
   end
 
@@ -290,8 +426,139 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
       assert String.starts_with?(first.visitor_id, "anon:")
       assert first.visitor_id != second.visitor_id
       assert first.session_id != second.session_id
-      assert first.user_uuid == nil
+      assert first.metadata["anon"] == true
       assert Repo.all(VisitorProfile) == []
+    end
+
+    test "the view carries nothing that says who it was" do
+      user_uuid = Ecto.UUID.generate()
+      opened = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      hit = %{
+        event_type: "pageview",
+        path: "/pricing",
+        site: "myapp.com",
+        consent: Consent.none(),
+        ip: {203, 0, 113, 5},
+        user_agent: @chrome,
+        user_uuid: user_uuid,
+        roles: ["Admin"],
+        headers: %{"http" => "HTTP/2", "names" => ["host"], "values" => %{"host" => "myapp.com"}},
+        network: %{asn: 13_335, network: "Example Net", hosting: true},
+        query_params: %{"gclid" => "click-abc", "fbclid" => "fb-abc", "utm_source" => "spring"},
+        location: %{country_code: "EE", region: "Harjumaa", city: "Tallinn"},
+        session_anchor: opened,
+        metadata: %{"lv" => true}
+      }
+
+      # The same hit from a visitor who agreed, a minute earlier: what the
+      # refused one would join, were its anchor or its visitor kept.
+      {:ok, agreed} =
+        Collector.track(
+          %{hit | consent: Consent.all(), user_uuid: nil, session_anchor: nil}
+          |> Map.put(:inserted_at, opened)
+        )
+
+      assert {:ok, event} = Collector.track(hit)
+
+      assert String.starts_with?(event.visitor_id, "anon:")
+      assert event.session_id != agreed.session_id
+      assert event.session_start
+      assert event.user_uuid == nil
+      assert event.traffic_flags == 0
+      assert event.click_id == nil
+      assert event.click_param == nil
+      assert event.utm_source == "spring"
+      assert event.country_code == "EE"
+      assert event.region == nil
+      assert event.city == nil
+      assert event.metadata == %{"anon" => true}
+
+      stored = inspect(Repo.get!(Event, event.uuid))
+      refute stored =~ user_uuid
+      refute stored =~ "click-abc"
+      refute stored =~ "fb-abc"
+      refute stored =~ "Tallinn"
+
+      # One profile: the visitor's who agreed.
+      assert [%VisitorProfile{visitor_id: kept}] = Repo.all(VisitorProfile)
+      assert kept == agreed.visitor_id
+    end
+
+    test "a resolved location keeps only its country" do
+      previous = Application.get_env(:phoenix_kit_web_analytics, :geo_resolver)
+      Application.put_env(:phoenix_kit_web_analytics, :geo_resolver, __MODULE__.Resolver)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:phoenix_kit_web_analytics, :geo_resolver, previous),
+          else: Application.delete_env(:phoenix_kit_web_analytics, :geo_resolver)
+      end)
+
+      page("/pricing")
+      page("/pricing", consent("yes"))
+
+      assert [anonymous, agreed] = events()
+      assert {anonymous.country_code, anonymous.region, anonymous.city} == {"EE", nil, nil}
+      assert {agreed.country_code, agreed.region, agreed.city} == {"EE", "Harjumaa", "Tallinn"}
+    end
+
+    test "is not a new visitor to alert anyone about" do
+      # In an empty sandbox the first user becomes the Owner, who receives
+      # the alerts.
+      {:ok, user} =
+        %User{}
+        |> User.registration_changeset(%{
+          "email" => "owner#{System.unique_integer([:positive])}@example.com",
+          "password" => "ValidPassword123!"
+        })
+        |> Repo.insert()
+
+      {:ok, _role} = Roles.ensure_first_user_is_owner(user)
+
+      enable_tracking(%{
+        "web_analytics_consent_measurement" => "consent",
+        "web_analytics_without_consent" => "anonymous",
+        "web_analytics_alert_visitors" => "true"
+      })
+
+      page("/pricing")
+      page("/pricing")
+      refute_activity_logged("web_analytics.visitor_arrived")
+
+      # The alert itself works: a visitor who agreed is one.
+      page("/pricing", consent("yes"))
+      assert_activity_logged("web_analytics.visitor_arrived")
+    end
+
+    # A view of its own can never be matched to the live connection that
+    # follows it, so it must not be judged for lacking one.
+    test "a view of a LiveView page is not judged a no-JavaScript bot" do
+      start_supervised!({BotSignals, started_at: DateTime.add(DateTime.utc_now(), -86_400)})
+
+      :sys.get_state(BotSignals)
+      opened = hours_ago(2)
+
+      hooked = %{
+        event_type: "pageview",
+        path: "/shop",
+        site: "myapp.com",
+        ip: {203, 0, 113, 5},
+        user_agent: @chrome,
+        metadata: %{"lv" => true},
+        inserted_at: opened
+      }
+
+      {:ok, anonymous} = Collector.track(Map.put(hooked, :consent, Consent.none()))
+      refute Map.has_key?(anonymous.metadata, "lv")
+
+      # The judgement itself works: the same view from a counted visitor,
+      # with no live connection after it, is flagged.
+      {:ok, counted} = Collector.track(Map.put(hooked, :consent, Consent.all()))
+
+      assert BotSignals.judge_no_js() == 1
+
+      assert Repo.all(from(e in Event, where: e.is_bot, select: e.uuid)) == [counted.uuid]
     end
 
     test "a visitor who agreed is counted as themselves" do

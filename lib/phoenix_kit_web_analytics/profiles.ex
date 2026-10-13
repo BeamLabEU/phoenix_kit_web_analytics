@@ -135,15 +135,17 @@ defmodule PhoenixKitWebAnalytics.Profiles do
          attrs when attrs != %{} <- capture(hit, config) do
       upsert(visitor_id, attrs, now)
 
-      rescore(
-        visitor_id,
-        :request,
+      # From what the row holds now, not from this hit alone: a visit that
+      # starts on a live navigation or a beacon hit carries no headers, and
+      # scoring that as "nothing found" would take back what an earlier
+      # visit's headers — still stored — showed.
+      rescore(visitor_id, :request, fn stored ->
         BotScore.request_reasons(%{
           user_agent: hit[:user_agent],
-          headers: attrs[:headers],
-          hosting: attrs[:hosting]
+          headers: stored.headers,
+          hosting: stored.hosting
         })
-      )
+      end)
     end
 
     :ok
@@ -171,7 +173,11 @@ defmodule PhoenixKitWebAnalytics.Profiles do
       now = Keyword.get(opts, :now, DateTime.utc_now())
 
       upsert_signals(visitor_id, signals, Signals.device_hash(signals, salt), now)
-      rescore(visitor_id, :signals, BotScore.signal_reasons(signals, user_agent))
+
+      rescore(visitor_id, :signals, fn _stored ->
+        BotScore.signal_reasons(signals, user_agent)
+      end)
+
       if signals["wd"] == true, do: add_reason([visitor_id], "webdriver")
 
       # With nothing else kept the visit's start wrote no row, so what the
@@ -270,7 +276,9 @@ defmodule PhoenixKitWebAnalytics.Profiles do
 
   @doc """
   Blanks one kind of stored data on every profile — what switching its
-  setting off doesn't do by itself — and drops the rows left with nothing.
+  setting off doesn't do by itself — takes back the bot reasons that were
+  read from it (`BotScore.derived_from/1`), and drops the rows left with
+  nothing.
   `:all` deletes every profile. Returns the number of rows changed or
   deleted.
   """
@@ -287,6 +295,10 @@ defmodule PhoenixKitWebAnalytics.Profiles do
       VisitorProfile
       |> where(^not_null_any(columns))
       |> repo().update_all(set: Enum.map(columns, &{&1, nil}))
+
+    # What was worked out from the forgotten data goes with it: a reason
+    # left behind would still say what the data said.
+    Enum.each(BotScore.derived_from(kind), &strip_reason/1)
 
     drop_empty()
     count
@@ -401,6 +413,9 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     )
   end
 
+  # A device reporting in is the visitor being seen: without the time moving
+  # forward, a profile that only ever receives measurements would drop off
+  # the Bots page and be pruned as if it had gone away.
   defp upsert_signals(visitor_id, signals, device_hash, now) do
     row = %{
       uuid: UUIDv7.generate(),
@@ -411,31 +426,70 @@ defmodule PhoenixKitWebAnalytics.Profiles do
       last_seen_at: now
     }
 
+    update =
+      from(p in VisitorProfile,
+        update: [
+          set: [
+            signals: fragment("EXCLUDED.signals"),
+            device_hash: fragment("EXCLUDED.device_hash"),
+            last_seen_at: fragment("GREATEST(EXCLUDED.last_seen_at, ?)", p.last_seen_at)
+          ]
+        ]
+      )
+
     repo().insert_all(VisitorProfile, [row],
-      on_conflict: {:replace, [:signals, :device_hash]},
+      on_conflict: update,
       conflict_target: [:visitor_id]
     )
   end
 
   # Replaces one source's reasons on a profile, leaving the others'; writes
-  # only when that changes something.
+  # only when that changes something. `found` is given what the row holds.
+  #
+  # The row is locked from the read to the write. The request's and the
+  # device's reasons arrive within the same second on a page load, and
+  # without the lock the later write would put back the list it read before
+  # the other one landed, losing that source's reasons.
   defp rescore(visitor_id, source, found) do
-    case repo().one(
-           from(p in VisitorProfile, where: p.visitor_id == ^visitor_id, select: p.bot_reasons)
-         ) do
-      nil ->
-        :ok
+    repo().transaction(fn ->
+      stored =
+        repo().one(
+          from(p in VisitorProfile,
+            where: p.visitor_id == ^visitor_id,
+            lock: "FOR UPDATE",
+            select: map(p, [:bot_reasons, :headers, :hosting])
+          )
+        )
 
-      current ->
-        reasons = BotScore.merge(current, source, found)
+      if stored, do: write_reasons(visitor_id, stored.bot_reasons, source, found.(stored))
+    end)
 
-        if reasons != current do
-          from(p in VisitorProfile, where: p.visitor_id == ^visitor_id)
-          |> repo().update_all(set: [bot_reasons: reasons, bot_score: BotScore.score(reasons)])
-        end
+    :ok
+  end
 
-        :ok
+  defp write_reasons(visitor_id, current, source, found) do
+    reasons = BotScore.merge(current, source, found)
+
+    if reasons != current do
+      from(p in VisitorProfile, where: p.visitor_id == ^visitor_id)
+      |> repo().update_all(set: [bot_reasons: reasons, bot_score: BotScore.score(reasons)])
     end
+  end
+
+  # One statement per reason, on every profile that has it.
+  defp strip_reason(reason) do
+    weight = BotScore.weight(reason)
+
+    from(p in VisitorProfile,
+      where: fragment("? = ANY(?)", ^reason, p.bot_reasons),
+      update: [
+        set: [
+          bot_reasons: fragment("array_remove(?, ?)", p.bot_reasons, ^reason),
+          bot_score: fragment("GREATEST(? - ?, 0)", p.bot_score, ^weight)
+        ]
+      ]
+    )
+    |> repo().update_all([])
   end
 
   defp for_visitors(query, visitor_ids) when is_list(visitor_ids),

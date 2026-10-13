@@ -6,6 +6,7 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
 
   alias PhoenixKitWebAnalytics.BotScore
   alias PhoenixKitWebAnalytics.Signals
+  alias PhoenixKitWebAnalytics.Web.Components
 
   @chrome "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   @iphone "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
@@ -124,6 +125,29 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
 
       # A source can't report a reason that isn't its own.
       assert BotScore.merge([], :signals, ["rate"]) == []
+    end
+
+    test "every reason has a label in each language, not its raw key" do
+      for locale <- ~w(en et ru), reason <- Map.keys(BotScore.weights()) do
+        label =
+          Gettext.with_locale(PhoenixKitWebAnalytics.Gettext, locale, fn ->
+            Components.bot_reason_label(reason)
+          end)
+
+        assert is_binary(label) and label != "" and label != reason,
+               "#{reason} has no label in #{locale}"
+      end
+    end
+
+    test "what forgetting a kind of data takes back is that source's own" do
+      for {kind, source} <- [headers: :request, network: :request, signals: :signals] do
+        assert BotScore.derived_from(kind) != []
+        assert BotScore.derived_from(kind) -- BotScore.owned(source) == []
+      end
+
+      assert BotScore.derived_from(:signals) == BotScore.owned(:signals)
+      assert BotScore.derived_from(:ip) == []
+      assert BotScore.derived_from(:user_agent) == []
     end
 
     test "every reason belongs to exactly one source" do

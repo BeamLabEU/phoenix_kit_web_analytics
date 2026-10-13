@@ -108,6 +108,126 @@ defmodule PhoenixKitWebAnalytics.BotsTest do
 
       assert %{bot_score: 70, bot_reasons: ["rate"]} = profile(event)
     end
+
+    @script_headers %{@browser_headers | "names" => ["host", "user-agent"]}
+
+    # A live navigation or a beacon hit starts a visit with no headers; the
+    # ones the first visit sent are still on the profile.
+    test "a later visit that carries no headers keeps what the stored ones showed" do
+      {:ok, event} = Collector.track(hit(%{headers: @script_headers}))
+      scored = profile(event)
+
+      assert scored.bot_reasons ==
+               ~w(no_accept_language no_fetch_metadata no_client_hints no_accept)
+
+      Profiles.record(
+        event.visitor_id,
+        hit(%{headers: nil, metadata: %{"source" => "live_navigation"}}),
+        Config.collection_config()
+      )
+
+      assert %{bot_reasons: reasons, bot_score: score, headers: headers} = profile(event)
+      assert reasons == scored.bot_reasons
+      assert score == scored.bot_score
+      assert headers == @script_headers
+    end
+
+    test "a later visit with other headers is scored on those" do
+      {:ok, event} = Collector.track(hit(%{headers: @script_headers}))
+
+      Profiles.record(event.visitor_id, hit(%{}), Config.collection_config())
+
+      assert %{bot_reasons: [], bot_score: 0} = profile(event)
+    end
+
+    test "the stored network counts for a later visit that resolves none" do
+      {:ok, event} =
+        Collector.track(hit(%{network: %{asn: 132_203, network: "Tencent", hosting: true}}))
+
+      assert profile(event).bot_reasons == ["hosting_network"]
+
+      Profiles.record(event.visitor_id, hit(%{network: %{}}), Config.collection_config())
+
+      assert profile(event).bot_reasons == ["hosting_network"]
+    end
+  end
+
+  describe "the request's and the device's reasons, arriving together" do
+    setup do
+      enable_tracking(@everything)
+      :ok
+    end
+
+    @headless %{"cv" => "a1b2c3d4", "gr" => "Google SwiftShader", "plat" => "Win32", "sw" => 1920}
+    @old_http %{@browser_headers | "http" => "HTTP/1.0"}
+    @query_event [:phoenix_kit_web_analytics, :test, :repo, :query]
+
+    test "each source's reasons survive the other's rescore, in both orders" do
+      config = Config.collection_config()
+
+      {:ok, first} = Collector.track(hit(%{}))
+      Profiles.record_signals(first.visitor_id, @headless, @chrome, config)
+      Profiles.record(first.visitor_id, hit(%{headers: @old_http}), config)
+      assert profile(first).bot_reasons == ~w(software_renderer old_http)
+
+      {:ok, second} = Collector.track(hit(%{ip: {203, 0, 113, 6}}))
+      Profiles.record(second.visitor_id, hit(%{headers: @old_http}), config)
+      Profiles.record_signals(second.visitor_id, @headless, @chrome, config)
+      assert profile(second).bot_reasons == ~w(software_renderer old_http)
+    end
+
+    # The signals rescore is held right after it reads the profile's
+    # reasons (Ecto runs query telemetry in the caller), and the request
+    # rescore is started in that gap. Unlocked, the request's reasons land
+    # in the gap and the held write then puts back the list it read before
+    # them. Locked, the request waits for the held one to finish.
+    test "REGRESSION: one rescore cannot overwrite another that ran between its read and its write" do
+      config = Config.collection_config()
+      {:ok, event} = Collector.track(hit(%{}))
+      test = self()
+      handler = "hold-rescore-#{System.unique_integer([:positive])}"
+
+      :telemetry.attach(
+        handler,
+        @query_event,
+        fn _event, _measurements, %{query: query}, _config ->
+          if Process.get(:hold_after_read) && query =~ ~r/\ASELECT.*"bot_reasons"/s do
+            Process.delete(:hold_after_read)
+            send(test, {:read, self()})
+
+            receive do
+              :continue -> :ok
+            after
+              500 -> :ok
+            end
+          end
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      signals =
+        Task.async(fn ->
+          Process.put(:hold_after_read, true)
+          Profiles.record_signals(event.visitor_id, @headless, @chrome, config)
+        end)
+
+      assert_receive {:read, held}, 1_000
+
+      request =
+        Task.async(fn ->
+          Profiles.record(event.visitor_id, hit(%{headers: @old_http}), config)
+        end)
+
+      # Unlocked, this returns at once; locked, when the hold runs out.
+      early = Task.yield(request, 300)
+      send(held, :continue)
+      early || Task.await(request)
+      Task.await(signals)
+
+      assert %{bot_reasons: ~w(software_renderer old_http), bot_score: 70} = profile(event)
+    end
   end
 
   describe "record_signals/5" do
@@ -199,6 +319,74 @@ defmodule PhoenixKitWebAnalytics.BotsTest do
       Profiles.record_signals("visitor-b", @device, @chrome, Config.collection_config())
 
       assert Repo.aggregate(VisitorProfile, :count) == 0
+    end
+
+    # Today such a profile would age off the Bots page and be pruned as if
+    # the visitor had gone, while its device keeps reporting.
+    test "a device reporting in is the visitor being seen" do
+      config = Config.collection_config()
+      long_ago = DateTime.add(DateTime.utc_now(), -10 * 86_400, :second)
+      now = DateTime.utc_now()
+
+      Profiles.record_signals("visitor-a", @device, @chrome, config, now: long_ago)
+      assert [_none] = Bots.visitors(%{days: 30})
+      assert Bots.visitors(%{days: 7}) == []
+
+      Profiles.record_signals("visitor-a", @device, @chrome, config, now: now)
+
+      assert %{last_seen_at: seen, inserted_at: inserted} =
+               Repo.get_by!(VisitorProfile, visitor_id: "visitor-a")
+
+      assert DateTime.diff(now, seen, :second) == 0
+      assert DateTime.diff(inserted, long_ago, :second) == 0
+      assert [%{visitor_id: "visitor-a"}] = Bots.visitors(%{days: 7})
+
+      # A report that arrives late never moves the time back.
+      Profiles.record_signals("visitor-a", @device, @chrome, config, now: long_ago)
+      assert Repo.get_by!(VisitorProfile, visitor_id: "visitor-a").last_seen_at == seen
+    end
+
+    test "forget(:signals) takes back the reasons the measurements gave" do
+      {:ok, event} = Collector.track(hit(%{headers: %{@browser_headers | "http" => "HTTP/1.0"}}))
+      config = Config.collection_config()
+
+      headless =
+        Map.merge(@device, %{"plat" => "Linux x86_64", "gr" => "SwiftShader", "wd" => true})
+
+      Profiles.record_signals(event.visitor_id, headless, @chrome, config)
+
+      assert Enum.sort(profile(event).bot_reasons) ==
+               ~w(old_http platform_mismatch software_renderer webdriver)
+
+      Profiles.forget(:signals)
+
+      # The request's reason and the automation verdict are not the
+      # measurements'.
+      assert %{bot_reasons: ~w(old_http webdriver), bot_score: 120, signals: nil} =
+               profile(event)
+    end
+
+    test "forget(:headers) and forget(:network) take back only their own reasons" do
+      {:ok, event} =
+        Collector.track(
+          hit(%{
+            network: %{asn: 132_203, network: "Tencent", hosting: true},
+            headers: %{@browser_headers | "http" => "HTTP/1.0"}
+          })
+        )
+
+      Profiles.add_reason([event.visitor_id], "rate")
+      assert Enum.sort(profile(event).bot_reasons) == ~w(hosting_network old_http rate)
+
+      Profiles.forget(:headers)
+      assert %{bot_reasons: ~w(hosting_network rate), bot_score: 110} = profile(event)
+
+      Profiles.forget(:network)
+      assert %{bot_reasons: ["rate"], bot_score: 70} = profile(event)
+
+      # The address and the User-Agent gave no reason of their own.
+      Profiles.forget(:user_agent)
+      assert %{bot_reasons: ["rate"], bot_score: 70} = profile(event)
     end
 
     test "forget(:signals) blanks them and drops rows left with nothing" do
@@ -352,6 +540,12 @@ defmodule PhoenixKitWebAnalytics.BotsTest do
                Bots.summary(%{Bots.default_filter() | level: :likely})
 
       assert %{visitors: 5, likely: 3} = Bots.summary(%{Bots.default_filter() | days: 0})
+    end
+
+    # `%{filter | level: :all}` raised for a filter without the key, and
+    # the rescue turned that into four zeros.
+    test "summary/1 counts for a filter that names no floor" do
+      assert %{visitors: 4, likely: 2, suspicious: 1, devices: 2} = Bots.summary(%{days: 7})
     end
 
     test "latest_sessions/1 finds each visitor's newest visit" do

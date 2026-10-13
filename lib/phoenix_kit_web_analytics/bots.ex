@@ -115,7 +115,7 @@ defmodule PhoenixKitWebAnalytics.Bots do
     likely = BotScore.threshold(:likely)
     suspicious = BotScore.threshold(:suspicious)
 
-    from(p in base(%{filter | level: :all}),
+    from(p in base(Map.put(filter, :level, :all)),
       select: %{
         visitors: count(),
         likely: filter(count(), p.bot_score >= ^likely),

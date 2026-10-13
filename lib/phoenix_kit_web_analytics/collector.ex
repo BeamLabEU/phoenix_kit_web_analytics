@@ -197,11 +197,24 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
     cond do
       not Application.get_env(:phoenix_kit_web_analytics, :async_tracking, true) -> job.()
-      Process.whereis(@task_supervisor) -> Task.Supervisor.start_child(@task_supervisor, job)
+      Process.whereis(@task_supervisor) -> start_job(job)
       true -> warn_no_supervisor()
     end
 
     :ok
+  end
+
+  # The supervisor is capped so a burst can't pile work up; a job it has no
+  # room for is dropped, and said so — silently, a burst of profile writes
+  # going missing would look like a bug somewhere else.
+  defp start_job(job) do
+    case Task.Supervisor.start_child(@task_supervisor, job) do
+      {:error, :max_children} ->
+        Logger.debug("[WebAnalytics] background job dropped: the task supervisor is full")
+
+      _started ->
+        :ok
+    end
   end
 
   @doc """
@@ -302,15 +315,36 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # A hit that carries no `:consent` came from the host's own code and is
   # taken as allowed.
   defp consented(%{consent: %{measurement: false}} = hit, %{without_consent: :anonymous}) do
-    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]) do
-      hit
-      |> Map.drop([:user_uuid, :roles, :headers, :session_anchor])
-      |> Map.put(:anonymous, true)
-    end
+    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]), do: anonymous(hit)
   end
 
   defp consented(%{consent: %{measurement: false}}, _config), do: nil
   defp consented(hit, _config), do: hit
+
+  # A view counted without a visitor carries nothing that could single one
+  # out: no user, no headers, no session to join — and no ad-click
+  # identifier, which is one click's own ID (the `utm_*` names say only
+  # which campaign). The row is marked, so it can be told from a visitor's.
+  defp anonymous(hit) do
+    hit
+    |> Map.drop([:user_uuid, :roles, :headers, :network, :session_anchor])
+    |> Map.put(:query_params, campaign_only(hit[:query_params]))
+    |> Map.put(:metadata, anonymous_metadata(hit[:metadata]))
+    |> Map.put(:anonymous, true)
+  end
+
+  defp campaign_only(params) when is_map(params),
+    do: Map.drop(params, Tracking.click_param_names())
+
+  defp campaign_only(_params), do: %{}
+
+  # Without `"lv"`: the view is its own visitor, so the live connection that
+  # follows the page can never be matched to it, and the no-JavaScript
+  # judgement (`BotSignals`) would call every such view a bot's.
+  defp anonymous_metadata(metadata) when is_map(metadata),
+    do: metadata |> Map.delete("lv") |> Map.put("anon", true)
+
+  defp anonymous_metadata(_metadata), do: %{"anon" => true}
 
   defp insert_event(hit, config, ua) do
     now = hit[:inserted_at] || DateTime.utc_now()
@@ -332,7 +366,14 @@ defmodule PhoenixKitWebAnalytics.Collector do
         case result do
           {:ok, {%Event{} = event, new_session?}} ->
             record_profile(new_session?, visitor_id, hit, config, now)
-            PhoenixKitWebAnalytics.Alerts.event_recorded(event, new_session?)
+
+            # Every view counted without a visitor starts a visit of its own;
+            # none of them is a new visitor to tell anyone about.
+            PhoenixKitWebAnalytics.Alerts.event_recorded(
+              event,
+              new_session? and hit[:anonymous] != true
+            )
+
             {:ok, event}
 
           # Flagged as a bot by its behaviour, with bot traffic not kept.
@@ -752,14 +793,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # An edge-provided location (Cloudflare et al.) is already there and free;
   # only fall back to the configured resolver when it isn't.
   defp location_attrs(hit) do
-    case hit[:location] do
-      %{country_code: code} = location when is_binary(code) and code != "" ->
-        Map.take(location, [:country_code, :region, :city])
+    location =
+      case hit[:location] do
+        %{country_code: code} = location when is_binary(code) and code != "" -> location
+        _ -> Geo.resolve(hit[:ip])
+      end
 
-      _ ->
-        Map.take(Geo.resolve(hit[:ip]), [:country_code, :region, :city])
-    end
+    Map.take(location, location_fields(hit))
   end
+
+  # A view counted without a visitor keeps its country and nothing finer.
+  defp location_fields(%{anonymous: true}), do: [:country_code]
+  defp location_fields(_hit), do: [:country_code, :region, :city]
 
   # A referrer is stored without its query string or fragment, for the same
   # reason paths are: an internal referrer is often the previous page's full
