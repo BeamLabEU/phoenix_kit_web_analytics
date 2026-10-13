@@ -33,7 +33,7 @@ router doesn't route and the assertions don't match. Not caused by the PR — bu
 on `main`. Router scope, `@base` constants, `live_case.ex` and the `test_helper.exs` /
 `test_router.ex` comments now use `/admin/web-analytics`.
 
-### IMPROVEMENT - HIGH — `visitors` stops being a lossless per-day number as soon as the rotation isn't `daily` (documented, not fixed)
+### IMPROVEMENT - HIGH — `visitors` stops being a lossless per-day number as soon as the rotation isn't `daily` (documented here; fixed afterwards in `f6a239d`)
 
 `RollupReader` is built on one stated fact: *"Distinct visitors add up across days exactly,
 because the visitor ID itself changes every day."* The PR adds `web_analytics_visitor_rotation`
@@ -44,6 +44,10 @@ counts `distinct visitor_id` over the whole range. With a longer rotation a retu
 counted once per day in the first and once in the second, so the same headline moves when the
 operator ticks **Bots** or filters to a path, and a "last 7 days" total overstates the people
 by up to 7×.
+
+**Update:** `f6a239d` (see `CODEX_REVIEW.md`) took the first option — every raw read now counts
+`distinct (visitor_id, UTC day)`, and session aggregates use daily portions, so raw and rolled-up
+numbers agree under every rotation. The paragraph below is the state at review time.
 
 Not fixed because it needs a product decision, not a patch: either count
 `distinct (visitor_id, day)` on every raw read (changes the meaning of every raw `visitors`
