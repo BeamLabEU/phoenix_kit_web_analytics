@@ -92,11 +92,21 @@ defmodule PhoenixKitWebAnalytics.Recordings do
 
     config.enabled? and config.recording? and is_binary(path) and
       not Config.excluded?(path, config.exclusions) and
-      not (config.respect_dnt? and client[:opted_out?] == true) and
+      permitted?(client, config) and
       not UserAgent.bot?(client[:user_agent]) and
       not TrafficFlags.excluded?(InternalTraffic.flags(client, config), config.excluded_flags) and
       sampled?(visitor_id(client), config.recording_sample)
   end
+
+  # The visitor neither asked not to be tracked nor withheld an answer the
+  # recording rule waits for.
+  defp permitted?(client, config) do
+    not (config.respect_dnt? and client[:opted_out?] == true) and recording_allowed?(client)
+  end
+
+  # A client that says nothing about consent is the host's own caller.
+  defp recording_allowed?(%{consent: %{recording: allowed?}}), do: allowed?
+  defp recording_allowed?(_client), do: true
 
   defp sampled?(nil, _percent), do: false
   defp sampled?(_visitor_id, 100), do: true

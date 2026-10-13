@@ -43,6 +43,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Recordings
@@ -120,8 +121,11 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   defp flag_automation(conn) do
     config = Config.collection_config()
 
-    if config.enabled? and config.client_script? and config.detect_bots?,
-      do: BotSignals.flag_client(recording_client(conn), "webdriver")
+    client = recording_client(conn)
+
+    if config.enabled? and config.client_script? and config.detect_bots? and
+         client.consent.measurement,
+       do: BotSignals.flag_client(client, "webdriver")
 
     :ok
   end
@@ -130,6 +134,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   # setting is on, and the visitor isn't one the site doesn't follow.
   defp signals?(client, config) do
     config.enabled? and config.client_script? and config.store_signals? and
+      client.consent.device and
       not (config.respect_dnt? and client.opted_out?) and
       not TrafficFlags.excluded?(InternalTraffic.flags(client, config), config.excluded_flags)
   end
@@ -157,6 +162,7 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
 
   defp recording_client(conn) do
     %{
+      consent: Consent.for_conn(conn, Config.collection_config()),
       ip: Tracking.client_ip(conn),
       user_agent: conn |> get_req_header("user-agent") |> List.first(),
       site: Referrer.normalize_host(conn.host),
@@ -172,7 +178,9 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
     config = Config.collection_config()
 
     if reported?(params) and accepted?(params, config) and not opted_out?(conn, config) do
-      hit = BeaconPayload.to_hit(conn, params)
+      hit =
+        conn |> BeaconPayload.to_hit(params) |> Map.put(:consent, Consent.for_conn(conn, config))
+
       unless Config.excluded?(hit.path, config.exclusions), do: Collector.track_async(hit)
     end
 

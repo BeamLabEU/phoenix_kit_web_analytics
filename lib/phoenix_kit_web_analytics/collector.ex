@@ -278,6 +278,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
   end
 
   defp do_track(hit, config) do
+    case consented(hit, config) do
+      nil -> {:error, :no_consent}
+      hit -> track_consented(hit, config)
+    end
+  end
+
+  defp track_consented(hit, config) do
     ua = UserAgent.parse(hit[:user_agent])
 
     if ua.bot? and not config.track_bots? do
@@ -286,6 +293,24 @@ defmodule PhoenixKitWebAnalytics.Collector do
       insert_event(hit, config, ua)
     end
   end
+
+  # What `hit[:consent]` (see `PhoenixKitWebAnalytics.Consent`) leaves of a
+  # hit: itself, when visits may be counted; nothing, when they may not —
+  # unless page views are then counted without a visitor
+  # (`web_analytics_without_consent`), in which case only the view survives,
+  # as a visitor of its own with no user, no session to join and no profile.
+  # A hit that carries no `:consent` came from the host's own code and is
+  # taken as allowed.
+  defp consented(%{consent: %{measurement: false}} = hit, %{without_consent: :anonymous}) do
+    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]) do
+      hit
+      |> Map.drop([:user_uuid, :roles, :headers, :session_anchor])
+      |> Map.put(:anonymous, true)
+    end
+  end
+
+  defp consented(%{consent: %{measurement: false}}, _config), do: nil
+  defp consented(hit, _config), do: hit
 
   defp insert_event(hit, config, ua) do
     now = hit[:inserted_at] || DateTime.utc_now()
@@ -322,10 +347,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   # What the settings keep about who the visitor is, once per visit — and
   # after the hit's transaction: a profile is never worth the event.
-  defp record_profile(true, visitor_id, hit, config, now),
-    do: Profiles.record(visitor_id, hit, config, now)
+  defp record_profile(true, visitor_id, hit, config, now) do
+    if profile_allowed?(hit), do: Profiles.record(visitor_id, hit, config, now), else: :ok
+  end
 
   defp record_profile(false, _visitor_id, _hit, _config, _now), do: :ok
+
+  defp profile_allowed?(%{anonymous: true}), do: false
+  defp profile_allowed?(%{consent: %{profile: false}}), do: false
+  defp profile_allowed?(_hit), do: true
 
   # A staff member's hit also marks their network (the plug does the same for
   # requests to excluded paths, before this point).
@@ -501,6 +531,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # hit, which must not join that user's visit).
   defp visitor_id(hit, anchor, config) do
     cond do
+      # Counted without a visitor: every such view is its own.
+      hit[:anonymous] == true ->
+        "anon:" <> String.replace(UUIDv7.generate(), "-", "")
+
       hit[:ip] || hit[:user_agent] ->
         case Config.hash_salt() do
           nil ->

@@ -508,12 +508,14 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
     } catch (_e) {}
   }
 
-  function startRecording(path) {
+  // `fresh` skips the browser's cached answer: the visitor has just answered
+  // the consent banner, and the answer the server gave a minute ago is stale.
+  function startRecording(path, fresh) {
     if (rec) flush();
     rec = { key: pageKey(), seq: 0, path: path, t0: performance.now(), frames: [], on: false, w: window.innerWidth, h: window.innerHeight, x: -1, y: -1, lastMove: 0 };
     var mine = rec;
     if (typeof fetch !== "function") return;
-    fetch(base + "?p=" + encodeURIComponent(path), { credentials: "same-origin" })
+    fetch(base + "?p=" + encodeURIComponent(path) + (fresh ? "&t=" + Date.now() : ""), { credentials: "same-origin" })
       .then(function (r) {
         return r.ok ? r.json() : { record: false };
       })
@@ -612,6 +614,14 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
 
   window.addEventListener("pageshow", function (ev) {
     if (ev.persisted) startRecording(location.pathname);
+  });
+
+  // The Legal module's banner says so once the server holds a visitor's
+  // answer. What that answer newly allows on this page — measuring the
+  // device, recording — starts now rather than at the next page load; what
+  // it no longer allows stops, since the server answers "no" to both.
+  window.addEventListener("phx:consent-recorded", function () {
+    startRecording(location.pathname, true);
   });
 
   // A recording joins the visit its page view opened, so a prerendered page

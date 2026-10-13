@@ -39,7 +39,13 @@ defmodule PhoenixKitWebAnalytics.Admin do
   # Settings that are one word out of a few.
   @choices %{
     visitor_rotation: Enum.map(PhoenixKitWebAnalytics.Visitor.rotations(), &Atom.to_string/1),
-    store_ip: Enum.map(Config.ip_modes(), &Atom.to_string/1)
+    store_ip: Enum.map(Config.ip_modes(), &Atom.to_string/1),
+    consent_measurement: Enum.map(Config.consent_modes(), &Atom.to_string/1),
+    consent_profile: Enum.map(Config.consent_modes(), &Atom.to_string/1),
+    consent_device: Enum.map(Config.consent_modes(), &Atom.to_string/1),
+    consent_recording: Enum.map(Config.consent_modes(), &Atom.to_string/1),
+    consent_category: Config.consent_categories(),
+    without_consent: Enum.map(Config.without_consent_modes(), &Atom.to_string/1)
   }
   @alert_booleans [:visitors, :signups, :skip_users]
   @lists [:exclude_paths, :ignore_events, :event_params]

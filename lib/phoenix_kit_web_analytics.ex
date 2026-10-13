@@ -213,6 +213,15 @@ defmodule PhoenixKitWebAnalytics do
   @doc "The events + daily stats tables (run by `mix phoenix_kit.update`)."
   def migration_module, do: PhoenixKitWebAnalytics.Migrations
 
+  @doc """
+  What the module collects right now, for PhoenixKit's Legal module to list
+  in its cookie banner and policy — see
+  `PhoenixKitWebAnalytics.DataCollection`. Not a `PhoenixKit.Module`
+  callback: Legal finds it by name.
+  """
+  @spec data_collection() :: [map()]
+  def data_collection, do: PhoenixKitWebAnalytics.DataCollection.entries()
+
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_web_analytics]
 

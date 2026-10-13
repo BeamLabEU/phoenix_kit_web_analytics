@@ -34,6 +34,9 @@ defmodule PhoenixKitWebAnalytics.Plug do
     * paths matching the exclusion patterns in settings (`/admin*` by default)
     * requests sending `DNT: 1` or `Sec-GPC: 1`, when
       `web_analytics_respect_dnt` is on (it is by default)
+    * visitors whose answer doesn't allow it, when a
+      `web_analytics_consent_*` mode waits for one — see
+      `PhoenixKitWebAnalytics.Consent`
     * automated User-Agents, unless `web_analytics_track_bots` is on
     * anything explicitly marked with `skip/1`
     * requests from Tidewave's development tooling (an `x-tidewave-diagnostic`
@@ -125,6 +128,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Tracking
@@ -194,13 +198,27 @@ defmodule PhoenixKitWebAnalytics.Plug do
       opted_out?(conn, config) ->
         remember_opt_out(conn)
 
-      not trackable_path?(conn.request_path, config, opts) ->
+      # Before the path check, like the opt-out: the hook reads the note on
+      # whichever page the visitor live-navigates to next.
+      Consent.needed?(config) ->
+        answer = Consent.answer(conn, config)
+
         conn
+        |> Consent.remember(answer)
+        |> register_pageview(config, opts, Consent.permissions(config, answer))
 
       true ->
-        started_at = System.monotonic_time(:microsecond)
-        bot_reason = prefetch_reason(conn)
-        register_before_send(conn, &track(&1, started_at, bot_reason, config))
+        register_pageview(conn, config, opts, Consent.all())
+    end
+  end
+
+  defp register_pageview(conn, config, opts, consent) do
+    if trackable_path?(conn.request_path, config, opts) do
+      started_at = System.monotonic_time(:microsecond)
+      bot_reason = prefetch_reason(conn)
+      register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
+    else
+      conn
     end
   end
 
@@ -287,12 +305,13 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
-  defp track(conn, started_at, bot_reason, config) do
+  defp track(conn, started_at, {bot_reason, consent}, config) do
     if html_pageview?(conn) and not skipped?(conn) do
       duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
 
       conn
       |> build_hit(duration_ms, bot_reason)
+      |> Map.put(:consent, consent)
       |> put_headers(conn, config)
       |> Collector.track_async()
     end
@@ -339,8 +358,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Only when the operator keeps request headers (see Profiles); otherwise
   # they are never copied out of the conn.
-  defp put_headers(hit, conn, %{store_headers?: true, store_ip: store_ip}),
-    do: Map.put(hit, :headers, Profiles.request_headers(conn, store_ip == :full))
+  defp put_headers(%{consent: %{profile: true}} = hit, conn, %{
+         store_headers?: true,
+         store_ip: store_ip
+       }),
+       do: Map.put(hit, :headers, Profiles.request_headers(conn, store_ip == :full))
 
   defp put_headers(hit, _conn, _config), do: hit
 

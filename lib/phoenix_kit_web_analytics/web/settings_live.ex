@@ -25,6 +25,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Alerts
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Reports
@@ -36,6 +37,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
      socket
      |> assign(:page_title, gettext("Settings"))
      |> assign(:retention_running?, false)
+     |> assign(:consent_draft, nil)
+     |> assign(:consent_rev, 0)
      |> load()}
   end
 
@@ -62,6 +65,22 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
              fields: Enum.map_join(fields, ", ", &field_label/1)
            )
          )}
+    end
+  end
+
+  # Fills the four selects with a ready-made combination. Nothing is saved
+  # until the form is; the selects are re-created so a hand-changed one
+  # takes the new value too.
+  def handle_event("consent_preset", %{"preset" => preset}, socket) do
+    case consent_preset(preset) do
+      nil ->
+        {:noreply, socket}
+
+      modes ->
+        {:noreply,
+         socket
+         |> assign(:consent_draft, modes)
+         |> assign(:consent_rev, socket.assigns.consent_rev + 1)}
     end
   end
 
@@ -140,6 +159,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     socket
     |> assign(:enabled?, PhoenixKitWebAnalytics.enabled?())
     |> assign(:config, Config.collection_config())
+    |> assign(:consent_draft, nil)
+    |> assign(:consent_source, Consent.source())
     |> assign(:alerts, Alerts.config())
     |> assign(:exclude_paths, Config.exclude_paths_raw())
     |> assign(:ignore_events, raw(keys.ignore_events, Config.default_ignore_events()))
@@ -185,6 +206,77 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     ]
   end
 
+  defp consent_mode_options do
+    [
+      {:always, gettext("Always — visitors are told, not asked")},
+      {:consent, gettext("Only after the visitor agrees")},
+      {:unless_objected, gettext("Until the visitor objects")}
+    ]
+  end
+
+  defp consent_purposes do
+    [
+      {:measurement, gettext("Counting visits"),
+       gettext("Page views, visits and what visitors do, under the visitor ID.")},
+      {:profile, gettext("Details about a visitor"),
+       gettext("Whatever “Who a visitor is” keeps: address, User-Agent, headers, network.")},
+      {:device, gettext("Device measurements"),
+       gettext("The measurements the client script takes, and their hash.")},
+      {:recording, gettext("Session recordings"),
+       gettext("Pointer movement, clicks and scrolling.")}
+    ]
+  end
+
+  defp consent_presets do
+    [
+      {"tell", gettext("Tell, don't ask")},
+      {"count", gettext("Count visits, ask for the rest")},
+      {"ask", gettext("Ask first")},
+      {"object", gettext("Collect until refused")}
+    ]
+  end
+
+  defp consent_preset("tell"), do: all_purposes(:always)
+  defp consent_preset("ask"), do: all_purposes(:consent)
+  defp consent_preset("object"), do: all_purposes(:unless_objected)
+  defp consent_preset("count"), do: %{all_purposes(:consent) | measurement: :always}
+  defp consent_preset(_preset), do: nil
+
+  defp all_purposes(mode), do: Map.new(Config.consent_purposes(), &{&1, mode})
+
+  defp consent_mode(nil, config, purpose), do: config.consent[purpose]
+  defp consent_mode(draft, _config, purpose), do: draft[purpose]
+
+  defp consent_category_options do
+    [
+      {"analytics", gettext("Analytics")},
+      {"marketing", gettext("Marketing")},
+      {"preferences", gettext("Preferences")}
+    ]
+  end
+
+  defp without_consent_options do
+    [
+      {:drop, gettext("Nothing is recorded")},
+      {:anonymous, gettext("The page view is counted, with no visitor")}
+    ]
+  end
+
+  defp consent_source_text(:legal),
+    do: gettext("Answers come from the Legal module's cookie banner.")
+
+  defp consent_source_text({:host, {module, function}}),
+    do:
+      gettext("Answers come from the site's own consent tool (%{source}).",
+        source: "#{inspect(module)}.#{function}/2"
+      )
+
+  defp consent_source_text(:none),
+    do: gettext("Nothing on this site asks visitors: no visitor has given an answer.")
+
+  defp waits_for_yes?(config),
+    do: Enum.any?(config.consent, fn {_purpose, mode} -> mode == :consent end)
+
   defp ip_options do
     [
       {:off, gettext("Not kept")},
@@ -206,6 +298,12 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:alert_channels), do: gettext("Only from these channels")
   defp field_label(:visitor_rotation), do: gettext("A visitor ID lasts")
   defp field_label(:store_ip), do: gettext("IP address")
+  defp field_label(:consent_measurement), do: gettext("Counting visits")
+  defp field_label(:consent_profile), do: gettext("Details about a visitor")
+  defp field_label(:consent_device), do: gettext("Device measurements")
+  defp field_label(:consent_recording), do: gettext("Session recordings")
+  defp field_label(:consent_category), do: gettext("Asked under")
+  defp field_label(:without_consent), do: gettext("Without an answer that allows it")
   defp field_label(:internal_roles), do: gettext("Staff roles")
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
@@ -436,6 +534,131 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."
             )}
           </p>
+        </section>
+
+        <section
+          id="web-analytics-consent"
+          class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4"
+        >
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("When it is collected")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "Whether a visitor has to be asked first depends on the law your site answers to, so each kind of collection has its own rule. “Always” is how the module has always worked. The other two read the visitor's answer from the consent banner, and a browser that sends Global Privacy Control or Do Not Track counts as an objection."
+              )}
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-base-content/60">{gettext("Start from:")}</span>
+            <button
+              :for={{preset, label} <- consent_presets()}
+              type="button"
+              class="btn btn-xs btn-outline"
+              phx-click="consent_preset"
+              phx-value-preset={preset}
+              phx-disable-with={label}
+            >
+              {label}
+            </button>
+            <span :if={@consent_draft} class="text-xs text-warning">
+              {gettext("Not saved yet.")}
+            </span>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset :for={{purpose, label, hint} <- consent_purposes()} class="fieldset">
+              <legend class="fieldset-legend">{label}</legend>
+              <label class="select w-full">
+                <select
+                  id={"consent_#{purpose}_#{@consent_rev}"}
+                  name={"consent_#{purpose}"}
+                  aria-label={label}
+                >
+                  <option
+                    :for={{value, option} <- consent_mode_options()}
+                    value={value}
+                    selected={consent_mode(@consent_draft, @config, purpose) == value}
+                  >
+                    {option}
+                  </option>
+                </select>
+              </label>
+              <p class="label whitespace-normal">{hint}</p>
+            </fieldset>
+          </div>
+
+          <p class="text-xs text-base-content/50">
+            {gettext(
+              "Details, device measurements and recordings describe a visitor, so they are only ever kept for one whose visits are counted."
+            )}
+          </p>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Without an answer that allows it")}</legend>
+              <label class="select w-full">
+                <select id="without_consent" name="without_consent">
+                  <option
+                    :for={{value, label} <- without_consent_options()}
+                    value={value}
+                    selected={@config.without_consent == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <p class="label whitespace-normal">
+                {gettext(
+                  "For a visitor whose visits may not be counted. Counting the view keeps page totals honest, but every such view is a visitor and a visit of its own, so those two numbers rise with it."
+                )}
+              </p>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend class="fieldset-legend">{gettext("Asked under")}</legend>
+              <label class="select w-full">
+                <select id="consent_category" name="consent_category">
+                  <option
+                    :for={{value, label} <- consent_category_options()}
+                    value={value}
+                    selected={@config.consent_category == value}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+              <p class="label whitespace-normal">
+                {gettext("The banner's category whose answer these rules follow.")}
+              </p>
+            </fieldset>
+          </div>
+
+          <p id="web-analytics-consent-source" class="text-xs text-base-content/60">
+            {consent_source_text(@consent_source)}
+          </p>
+
+          <div
+            :if={@consent_source == :none and waits_for_yes?(@config)}
+            id="web-analytics-consent-unasked"
+            role="alert"
+            class="alert alert-warning text-sm"
+          >
+            {gettext(
+              "Something here waits for a yes, and nothing asks for one — so it is never collected. Switch on the Legal module's cookie banner, or point consent_source at your own consent tool."
+            )}
+          </div>
+
+          <div
+            :if={@config.store_signals? and @config.consent.device != :consent}
+            id="web-analytics-consent-device"
+            role="alert"
+            class="alert alert-warning text-sm"
+          >
+            {gettext(
+              "Device measurements are taken without the visitor's agreement. They read the device to recognise it again — browser fingerprinting — which EU and UK regulators treat as needing consent whatever it is used for, security included. Elsewhere the rule differs; the choice is yours."
+            )}
+          </div>
         </section>
 
         <section
