@@ -51,8 +51,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   polling when a websocket can't be opened (a corporate proxy, a flaky
   network), and a visitor on the fallback transport is invisible to this hook
   if only `websocket:` carries them. If `:peer_data` or `:user_agent` is
-  missing the hook stays inert and only full page loads are counted — check
-  this first if LiveView activity isn't showing up.
+  missing the hook stays inert, counts the skip (as below) and only full page
+  loads are counted — check this first if LiveView activity isn't showing up.
 
   `:x_headers` is what lets the hook see the visitor behind a reverse proxy:
   when the socket's peer is a private or loopback address (the proxy), the
@@ -100,6 +100,15 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   `Sec-GPC: 1` visitor in the session and this hook reads it from there; such
   a visitor's LiveView activity is not recorded either. That needs the plug to
   run after `:fetch_session`, as it does in a standard `:browser` pipeline.
+  The plug takes the note back on the first request without the signal.
+
+  ## Consent
+
+  The visitor's answer under the `web_analytics_consent_*` rules reaches the
+  hook the same way, as a note in the session
+  (`PhoenixKitWebAnalytics.Consent`). A session without that note is read as
+  a visitor who objected and has not answered, so while a rule waits for an
+  answer nothing is recorded here until the plug has written one.
 
   ## Recovering a visitor served from a prefetch cache
 
@@ -165,6 +174,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.LivePresence
   alias PhoenixKitWebAnalytics.Referrer
@@ -191,19 +201,24 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
           {:cont, Phoenix.LiveView.Socket.t()}
   def on_mount(:track_navigation, _params, session, socket) do
     if Phoenix.LiveView.connected?(socket) and not opted_out?(session) do
-      mount_connected(socket)
+      mount_connected(socket, session)
     else
       # The dead render is an ordinary HTTP response — the plug has it.
       {:cont, socket}
     end
   end
 
-  defp mount_connected(socket) do
+  defp mount_connected(socket, session) do
     case client_info(socket) do
       nil ->
         {:cont, socket}
 
       client ->
+        # The socket can't see the consent cookie; what the plug noted in the
+        # session at the page load stands until the next one.
+        client =
+          Map.put(client, :consent, Consent.for_session(session, Config.collection_config()))
+
         socket =
           socket
           |> assign(@client_key, client)
@@ -325,7 +340,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         user_uuid: Tracking.current_user_uuid(socket.assigns),
         roles: Tracking.current_roles(socket.assigns),
         status: 200,
-        metadata: %{"source" => source}
+        metadata: %{"source" => source},
+        consent: client[:consent] || Consent.all()
       })
     end
   end
@@ -347,7 +363,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         language: client[:language],
         user_uuid: Tracking.current_user_uuid(socket.assigns),
         roles: Tracking.current_roles(socket.assigns),
-        metadata: interaction_metadata(params)
+        metadata: interaction_metadata(params),
+        consent: client[:consent] || Consent.all()
       })
     end
   end
@@ -395,8 +412,14 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     config = Config.collection_config()
 
     config.enabled? and not Config.excluded?(path, config.exclusions) and
-      (config.track_bots? or not UserAgent.bot?(client && client[:user_agent]))
+      (config.track_bots? or not UserAgent.bot?(client && client[:user_agent])) and
+      measured?(client)
   end
+
+  # A visitor whose visits may not be counted is not listed as on a page
+  # either, and leaves no leave.
+  defp measured?(%{consent: %{measurement: false}}), do: false
+  defp measured?(_client), do: true
 
   # What "Right now" leaves out by default: the open page's own flags,
   # worked out like a hit's (from memory, no query).
@@ -420,22 +443,25 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp opted_out?(_session), do: false
 
   # nil (rather than an empty map) signals "can't identify this visitor the same
-  # way the plug would" — see the moduledoc. A socket that has both inputs but
-  # sits behind a proxy without `:x_headers` is counted as skipped, which
-  # pauses the no-JavaScript bot judgement while visits are being missed.
+  # way the plug would" — see the moduledoc. Every such socket is counted as
+  # skipped, which pauses the no-JavaScript bot judgement while visits are
+  # being missed: one behind a proxy without `:x_headers`, and one on an
+  # endpoint whose `connect_info` lacks `:user_agent` or `:peer_data`.
   defp client_info(socket) do
     user_agent = get_connect_info(socket, :user_agent)
     peer_data = get_connect_info(socket, :peer_data)
+    named? = is_binary(user_agent) and match?(%{address: _}, peer_data)
 
-    with {ua, %{address: _}} when is_binary(ua) <- {user_agent, peer_data},
-         ip when not is_nil(ip) <- counted(Tracking.socket_ip(socket)) do
-      %{
-        ip: ip,
-        user_agent: ua,
-        language: accept_language(get_connect_info(socket, :x_headers))
-      }
-    else
-      _ -> nil
+    case counted(if(named?, do: Tracking.socket_ip(socket))) do
+      nil ->
+        nil
+
+      ip ->
+        %{
+          ip: ip,
+          user_agent: user_agent,
+          language: accept_language(get_connect_info(socket, :x_headers))
+        }
     end
   end
 

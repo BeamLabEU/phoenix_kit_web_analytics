@@ -49,6 +49,14 @@ defmodule PhoenixKitWebAnalytics.Paths do
   @spec session(String.t()) :: String.t()
   def session(session_id), do: Routes.path("#{@base}/sessions/#{session_id}")
 
+  @doc "Bots — the visitors a profile is kept for, by how much they look automated."
+  @spec bots() :: String.t()
+  def bots, do: Routes.path("#{@base}/bots")
+
+  @doc "The Bots page carrying its filters."
+  @spec bots(map()) :: String.t()
+  def bots(params) when is_map(params), do: with_query(bots(), params)
+
   @doc "Settings page for the module."
   @spec settings() :: String.t()
   def settings, do: Routes.path("#{@base}/settings")

@@ -65,13 +65,13 @@ defmodule PhoenixKitWebAnalyticsTest do
     end
 
     test "declares a parent tab plus one subtab per report page", %{tabs: tabs} do
-      assert length(tabs) == 9
+      assert length(tabs) == 10
 
       parents = Enum.filter(tabs, &is_nil(&1.parent))
       assert [%Tab{id: :admin_web_analytics}] = parents
 
       subtabs = Enum.filter(tabs, &(&1.parent == :admin_web_analytics))
-      assert length(subtabs) == 8
+      assert length(subtabs) == 9
 
       assert Enum.all?(tabs, &(&1.gettext_backend == PhoenixKitWebAnalytics.Gettext))
     end

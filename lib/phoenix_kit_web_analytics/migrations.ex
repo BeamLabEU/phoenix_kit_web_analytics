@@ -51,6 +51,14 @@ defmodule PhoenixKitWebAnalytics.Migrations do
       No index (unflagged traffic is nearly every row, and the filter always
       runs with `inserted_at`) and no backfill: rows stored before it stay
       unflagged
+    * `9` — `phoenix_kit_web_analytics_visitor_profiles`: what is kept about
+      who a visitor is — address, raw User-Agent, request headers, network
+      owner, client signals — one row per visitor ID, every column nullable
+      and filled only when its setting is on. See
+      `PhoenixKitWebAnalytics.Profiles`
+    * `10` — `bot_score` and `bot_reasons` on the profile: how much the
+      visitor looks like a bot and why (`PhoenixKitWebAnalytics.BotScore`),
+      with a partial index over the scored ones
 
   ## Large existing tables
 
@@ -91,7 +99,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 8
+  @current_version 10
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -586,6 +594,98 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # ── v9 ────────────────────────────────────────────────────────────────────
+
+  # Who a visitor is, as far as the operator chose to keep it. Its own table
+  # rather than columns on events: a visitor ID is a hash of the address and
+  # the User-Agent, so both are the same for every one of its hits — one row
+  # holds them once, and with every setting off the table stays empty.
+  defp up_v9(prefix) do
+    create_if_not_exists table(:phoenix_kit_web_analytics_visitor_profiles,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:visitor_id, :string, size: 64, null: false)
+      # Whole ("203.0.113.7") or its network ("203.0.113.0/24"), as the
+      # setting says. Text: both shapes, and both address families.
+      add(:ip, :string, size: 50)
+      add(:user_agent, :text)
+      # %{"http" => "HTTP/2", "names" => [...], "values" => %{...}} — see
+      # Profiles.
+      add(:headers, :map)
+      add(:asn, :bigint)
+      add(:network, :string, size: 255)
+      add(:hosting, :boolean)
+      # What the client script measured about the device, and a hash of it.
+      add(:signals, :map)
+      add(:device_hash, :string, size: 64)
+      add(:last_seen_at, :utc_datetime_usec, null: false)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(:phoenix_kit_web_analytics_visitor_profiles, [:visitor_id], prefix: prefix)
+    )
+
+    # Pruning walks the longest unseen first.
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:last_seen_at], prefix: prefix)
+    )
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:ip],
+        prefix: prefix,
+        where: "ip IS NOT NULL"
+      )
+    )
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:device_hash],
+        prefix: prefix,
+        where: "device_hash IS NOT NULL"
+      )
+    )
+  end
+
+  defp down_v9(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix))
+  end
+
+  # V10 — how much a visitor looks like a bot, and why: the sum of the weights
+  # of the reasons found (`PhoenixKitWebAnalytics.BotScore`) and the reasons
+  # themselves. On the profile, so the Bots page can sort and filter in SQL.
+  defp up_v10(prefix) do
+    alter table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix) do
+      add_if_not_exists(:bot_score, :integer, null: false, default: 0)
+      add_if_not_exists(:bot_reasons, {:array, :string}, null: false, default: [])
+    end
+
+    create_if_not_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:bot_score],
+        prefix: prefix,
+        where: "bot_score > 0"
+      )
+    )
+  end
+
+  defp down_v10(prefix) do
+    drop_if_exists(
+      index(:phoenix_kit_web_analytics_visitor_profiles, [:bot_score], prefix: prefix)
+    )
+
+    alter table(:phoenix_kit_web_analytics_visitor_profiles, prefix: prefix) do
+      remove_if_exists(:bot_score, :integer)
+      remove_if_exists(:bot_reasons, {:array, :string})
+    end
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -618,6 +718,10 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 7, prefix), do: down_v7(prefix)
   defp apply_step(:up, 8, prefix), do: up_v8(prefix)
   defp apply_step(:down, 8, prefix), do: down_v8(prefix)
+  defp apply_step(:up, 9, prefix), do: up_v9(prefix)
+  defp apply_step(:down, 9, prefix), do: down_v9(prefix)
+  defp apply_step(:up, 10, prefix), do: up_v10(prefix)
+  defp apply_step(:down, 10, prefix), do: down_v10(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,
@@ -635,7 +739,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
 
     opts
     |> Map.put(:quoted_prefix, inspect(opts.prefix))
-    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
+    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "''"))
   end
 
   defp read_version(repo, escaped_prefix) do

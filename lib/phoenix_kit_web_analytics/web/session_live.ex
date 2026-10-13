@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   import PhoenixKitWebAnalytics.Web.Components
 
   alias PhoenixKitWebAnalytics.Paths
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Recordings
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.UserNames
@@ -50,6 +51,7 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
      |> assign(:more?, rest != [])
      |> assign(:max_show, @max_show)
      |> assign(:summary, Reports.session_summary(session_id))
+     |> assign(:profile, Profiles.get(Enum.find_value(events, & &1.visitor_id)))
      |> assign(:recorded?, Recordings.recorded?(session_id))}
   end
 
@@ -88,6 +90,35 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
   end
 
   defp show_param(_value), do: @page
+
+  # "AS16509 · Amazon.com, Inc. · hosting"
+  defp network_label(profile) do
+    [
+      profile.asn && "AS#{profile.asn}",
+      profile.network,
+      profile.hosting && gettext("hosting provider")
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join(" · ")
+  end
+
+  # In arrival order; a header whose value was not kept still shows its name.
+  defp header_rows(%{"names" => names} = headers) when is_list(names) do
+    values = headers["values"] || %{}
+    Enum.map(names, &{&1, values[&1]})
+  end
+
+  defp header_rows(_headers), do: []
+
+  # The measurements by key (see Signals), lists joined.
+  defp signal_rows(signals) do
+    signals
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(fn
+      {key, value} when is_list(value) -> {key, Enum.join(value, ", ")}
+      {key, value} -> {key, to_string(value)}
+    end)
+  end
 
   defp bot_reason("webdriver"), do: gettext("Yes — the browser was under automation")
   defp bot_reason("rate"), do: gettext("Yes — pages faster than a person reads")
@@ -190,6 +221,9 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             value={@summary.max_scroll && "#{@summary.max_scroll}%"}
           />
           <.fact :if={@summary.bot?} label={gettext("Bot")} value={bot_reason(@summary.bot_reason)} />
+          <.fact :if={@profile} label={gettext("IP address")} value={@profile.ip} mono />
+          <.fact :if={@profile} label={gettext("Network")} value={network_label(@profile)} />
+          <.fact :if={@profile} label={gettext("Device hash")} value={@profile.device_hash} mono />
           <.fact
             :if={(@summary[:traffic_flags] || 0) > 0}
             label={gettext("Own traffic")}
@@ -200,6 +234,63 @@ defmodule PhoenixKitWebAnalytics.Web.SessionLive do
             }
           />
         </dl>
+      </div>
+
+      <div
+        :if={@profile && @profile.bot_reasons != []}
+        id="visitor-bot-score"
+        class="space-y-2 rounded-xl border border-base-300 bg-base-100 p-4 text-sm"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="text-sm font-semibold">{gettext("Bot score")}</h2>
+          <.bot_score_badge score={@profile.bot_score} />
+          <span class="text-xs text-base-content/60">
+            {bot_level_label(PhoenixKitWebAnalytics.BotScore.level(@profile.bot_score))}
+          </span>
+        </div>
+        <.bot_reasons reasons={@profile.bot_reasons} />
+      </div>
+
+      <div
+        :if={@profile && is_map(@profile.signals)}
+        id="visitor-signals"
+        class="space-y-3 rounded-xl border border-base-300 bg-base-100 p-4 text-sm"
+      >
+        <h2 class="text-sm font-semibold">{gettext("What the device measured")}</h2>
+        <dl class="grid grid-cols-1 gap-x-6 font-mono text-xs leading-5 sm:grid-cols-2">
+          <div :for={{key, value} <- signal_rows(@profile.signals)} class="flex gap-2">
+            <dt class="w-14 shrink-0 text-base-content/50">{key}</dt>
+            <dd class="min-w-0 break-all">{value}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div
+        :if={@profile && (@profile.user_agent || @profile.headers)}
+        id="visitor-profile"
+        class="space-y-3 rounded-xl border border-base-300 bg-base-100 p-4 text-sm"
+      >
+        <h2 class="text-sm font-semibold">{gettext("What the browser sent")}</h2>
+        <div :if={@profile.user_agent}>
+          <div class="text-xs uppercase tracking-wide text-base-content/50">
+            {gettext("User-Agent")}
+          </div>
+          <div class="break-all font-mono text-xs leading-5">{@profile.user_agent}</div>
+        </div>
+        <div :if={@profile.headers}>
+          <div class="text-xs uppercase tracking-wide text-base-content/50">
+            {gettext("Request headers")}
+            <span :if={@profile.headers["http"]} class="normal-case tracking-normal">
+              · {@profile.headers["http"]}
+            </span>
+          </div>
+          <dl class="font-mono text-xs leading-5">
+            <div :for={{name, value} <- header_rows(@profile.headers)} class="flex gap-2">
+              <dt class="shrink-0 text-base-content/50">{name}</dt>
+              <dd class="min-w-0 break-all">{value || gettext("(not kept)")}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
 
       <.report_card

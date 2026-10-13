@@ -29,12 +29,14 @@ scroll depth, and exits from pages without a LiveView.
 
 - **Nothing to download.** The plug and the LiveView hook add no bytes to a
   page; Core Web Vitals are what they were.
-- **No cookies, no consent banner.** Visitors are identified by a salted hash
-  of IP + User-Agent + date. No IP address, no raw User-Agent and no query
-  string is written to the database. (An ad platform's click identifier is
-  kept when a visit arrives with one — see [Privacy](#privacy).)
+- **No cookies, and by default nothing to ask consent for.** Visitors are
+  identified by a salted hash of IP + User-Agent + date. Out of the box no IP
+  address, no raw User-Agent and no query string is written to the database.
+  (An ad platform's click identifier is kept when a visit arrives with one —
+  see [Privacy](#privacy).) Keeping more is a setting, one kind of data at a
+  time — see [What is kept about a visitor](#what-is-kept-about-a-visitor).
 - **Ad blockers can't remove it.** The numbers are your server's.
-- **The data is yours.** Four tables in your own database; nothing leaves
+- **The data is yours.** Five tables in your own database; nothing leaves
   your infrastructure.
 
 ## What gets recorded
@@ -48,6 +50,7 @@ scroll depth, and exits from pages without a LiveView.
 | Outbound / download / contact clicks, plain buttons, `data-analytics` elements | Browser click listener | client script |
 | Scroll depth; exits from non-LiveView pages | Browser scroll and page-hide listeners | client script |
 | Custom events | `PhoenixKitWebAnalytics.track_event/2` on the server; `phoenixKitAnalytics(name, props)` in the browser | — / client script |
+| Device measurements and a device hash (optional, off by default) | Screen, time zone, languages, processor, graphics card, fonts, canvas and audio rendering — once per page load, only when asked | client script + **Keep device measurements** |
 | Session recordings (optional, off by default) | Pointer movement, clicks, hovers and scrolling per page view — coordinates and element positions only, never text, typing or form values; replayed on the visit page | client script + **Record visits** |
 
 Signed-in users are attributed by their account on every hit, so a person's
@@ -66,6 +69,7 @@ Under **Web Analytics** in the PhoenixKit sidebar:
 | Acquisition | Channels (direct / search / social / referral / email / paid), referring sites, UTM campaigns |
 | Technology | Browsers, operating systems, devices, languages, countries |
 | Events | What visitors do (interactions), custom events, and a live feed of every hit |
+| Bots | Visitors by how much they look automated and why; grouped by network, subnet, address, device or User-Agent; the likely bots of a grouping as a list to block by |
 | Settings | Collection rules, bot detection, retention, interaction and client-script switches, session recordings, alerts, stored-data stats, installation checklist |
 
 Charts are core's server-rendered SVG components — no charting library, no
@@ -173,6 +177,19 @@ PhoenixKitWebAnalytics.track_event("order.placed", %{
 })
 ```
 
+Inside a request, pass the conn: the event then takes the visitor's address,
+User-Agent and site from it, so it joins that visitor's visit, and it follows
+the visitor's answer under the [consent rules](#when-it-is-collected-consent):
+
+```elixir
+PhoenixKitWebAnalytics.track_event("order.placed", %{conn: conn, path: "/checkout"})
+```
+
+`track_pageview/1` takes `:conn` the same way. **A hit with neither `:conn`
+nor `:consent` is stored on your word** — the module asks nothing of the
+visitor for it. Passing `:ip` or `:user_agent` by hand while a rule waits for
+an answer stores an event and a profile for a visitor who may have refused.
+
 From the browser, with the client script enabled (or the `<.beacon />`
 component — `import PhoenixKitWebAnalytics.Web.Beacon` in the layout that
 renders it):
@@ -211,9 +228,10 @@ Stated explicitly, because it's what makes two analytics tools disagree:
 - **Page views** — HTML responses and LiveView navigations. A LiveView
   reconnect is not a page view, and neither is a patch that only changes the
   query string.
-- **Visitors** — distinct visitor hashes among page views. The hash includes
-  the date, so one person browsing on three days counts as three visitors over
-  a week — the honest consequence of not tracking people across days.
+- **Visitors** — distinct visitor hashes among page views. By default the
+  hash includes the date, so one person browsing on three days counts as three
+  visitors over a week — the honest consequence of not tracking people across
+  days. `web_analytics_visitor_rotation` makes an ID last longer.
 - **Sessions** — stitched server-side: a hit joins the visitor's previous
   session on the same site if it's within the inactivity window (30 minutes by
   default), otherwise it starts a new one. A session needs a page view.
@@ -263,6 +281,33 @@ visitor's browser. A `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) isn't
 flagged: Chrome serves the later click on it from its cache without asking
 again, so that request is counted as the page view. How the visit behind a
 prefetch is still counted is step 5 of [Installation](#installation).
+
+#### Bot score and the Bots page
+
+A flag is a verdict: the visit leaves the reports. Beside it, every visitor
+something is kept about (see
+[What is kept about a visitor](#what-is-kept-about-a-visitor)) carries a
+**bot score** — the sum of the weights of the reasons found — and the
+reasons themselves. Nothing is dropped, flagged or blocked because of a
+score; it is there to look at and decide by.
+
+| Source | Reasons (weight) |
+|--------|------------------|
+| The request, when a visit starts | says it is a bot (100) · no User-Agent (70) · hosting provider's network (40) · a phone's User-Agent from a hosting provider (30) · HTTP/1.0 (30) · no `Accept-Language` (25) · a current browser's User-Agent without `Sec-Fetch-*` (25, HTTPS only) · a Chromium User-Agent without `Sec-CH-UA` (20, HTTPS only) · no `Accept` (15) |
+| The device, when the client script reports | device and User-Agent name different systems (50) · graphics drawn in software (40) · a screen or window with no size (40) · no browser language (40) · a phone's User-Agent without touch (30) |
+| Behaviour (the three checks above) | automation (90) · speed (70) · no JavaScript (50) |
+
+60 and over reads as *likely a bot*, 30 and over as *suspicious*. Header
+reasons need **Keep request headers**, network reasons **Keep the network's
+owner** and a resolver that knows it, device reasons **Keep device
+measurements**: what isn't collected can't count.
+
+**Web Analytics → Bots** lists those visitors, the likeliest first, with
+their reasons, and groups them by what several share — network, subnet,
+address, device, User-Agent. A group opens its visitors; the address-shaped
+groupings offer their likely bots as a plain list to paste into a firewall
+or a CDN rule. Declared bots only appear with **Record bot traffic** on —
+otherwise they are dropped before anything is kept.
 
 ### Your own traffic
 
@@ -316,8 +361,10 @@ data rather than their totals.
 
 ## Privacy
 
-There is no cookie, no local storage, no IP address column and no raw
-User-Agent. A visitor ID is
+The module sets no cookie and writes no local storage (the one thing it keeps
+in the host's session is described under
+[consent](#when-it-is-collected-consent)), and with the settings as they ship
+no IP address and no raw User-Agent is stored. A visitor ID is
 
 ```
 SHA256(salt + IP + User-Agent + date)
@@ -360,9 +407,130 @@ that set them. The internal networks are your app's config; staff networks
 are held in memory, by their network key, for their hours, and never written
 to the database or the settings.
 
+### What is kept about a visitor
+
+The defaults above are a starting point, not a rule the module enforces.
+What a site may keep, and whether it has to ask first, depends on the law it
+answers to and on what the data is for — telling crawlers apart and blocking
+abuse is not the same question as measuring an audience. So each kind of
+identifying data has its own setting (Settings → **Who a visitor is**), all
+of them off until switched on:
+
+| Setting | Keeps |
+|---------|-------|
+| `web_analytics_visitor_rotation` | How long a visitor ID lasts: `daily` (default), `weekly`, `monthly`, or `never` — the same ID for as long as the address, browser and salt stay the same, which recognises a returning visitor across days |
+| `web_analytics_store_ip` | The address: `off` (default), `truncated` (its `/24` or `/48` network) or `full` |
+| `web_analytics_store_user_agent` | The raw User-Agent string — which crawler, which library, which exact version |
+| `web_analytics_store_headers` | The request headers of a visit's first page view, in arrival order, with the protocol |
+| `web_analytics_store_network` | The network's number (ASN), its owner and whether it is a hosting provider — when your geo resolver returns `:asn`, `:network` and `:hosting` |
+| `web_analytics_store_signals` | What the client script measures about the device, and a salted hash of the stable part — a **device hash** that stays the same when the address changes. This is browser fingerprinting; it needs the client script on. The measurements are listed in `PhoenixKitWebAnalytics.Signals` |
+
+They are written to one row per visitor ID
+(`phoenix_kit_web_analytics_visitor_profiles`) when a visit starts, never to
+the event rows, and shown on the visit's page. A row goes when its visitor
+hasn't been seen for `web_analytics_retention_days`. Switching a setting off
+stops it being recorded; `PhoenixKitWebAnalytics.Profiles.forget/1` removes
+what is already stored (`:ip`, `:user_agent`, `:headers`, `:network`,
+`:signals` or `:all`), along with the bot reasons that were read from it.
+
+Never kept, whatever the settings: the value of a header that carries a
+credential (`Cookie`, `Authorization`, anything named like a token, key or
+secret — its name still shows that it was sent), and the query string of
+`Referer`. Headers that carry the visitor's address (`X-Forwarded-For` and
+the like) keep their value only when the address itself is kept whole.
+
+A longer-lived ID changes what a count over several days sees: totals read
+from the daily rollups stay per-day counts, while anything counted from raw
+events finds one ID where it found one per day before.
+
 Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
 No IP database ships with this package.
+
+### When it is collected: consent
+
+Whether a visitor has to be asked before any of this is collected depends on
+the law a site answers to, so the module takes no position. Each kind of
+collection has its own rule (**Settings → When it is collected**):
+
+| Kind | Setting | What it covers |
+|---|---|---|
+| Counting visits | `web_analytics_consent_measurement` | Page views, visits and events under the visitor ID |
+| Details about a visitor | `web_analytics_consent_profile` | What `store_ip`, `store_user_agent`, `store_headers` and `store_network` keep |
+| Device measurements | `web_analytics_consent_device` | What `store_signals` keeps |
+| Session recordings | `web_analytics_consent_recording` | Recordings |
+
+and each rule is one of:
+
+| Rule | Collected when |
+|---|---|
+| `always` (default) | Every time. The visitor is told, not asked — how the module worked before the rules existed |
+| `consent` | The visitor said yes |
+| `unless_objected` | The visitor has not said no, and the browser sends neither `Sec-GPC: 1` nor `DNT: 1` |
+
+The settings page offers four starting points — *Tell, don't ask*, *Count
+visits, ask for the rest*, *Ask first*, *Collect until refused* — which only
+fill the four rules in; any combination can be saved.
+
+The last three kinds describe a visitor, so they are only ever kept for one
+whose visits are counted. A page view that may not be counted is dropped, or
+— with `web_analytics_without_consent` set to `anonymous` — counted with no
+visitor: its own visitor and visit, no user, no profile, so page totals stay
+whole while visitor and visit counts rise with every such view. Such a view
+keeps its campaign (`utm_*`), its country, and the browser and system with
+the browser's major version, and nothing finer: no ad-click identifier, no
+region, no city, no exact build. It is still marked as the site's own traffic
+when it is (a staff member, an internal network). Its row is marked
+`metadata["anon"]`, it never raises a new-visitor alert, and it is never
+judged a no-JavaScript bot.
+
+**Where the answer comes from.** PhoenixKit's Legal module, when it is
+installed and its cookie banner is on: the banner reports each decision to the
+server, which sets a signed cookie this module reads. A site with its own
+consent tool points the module at it instead:
+
+```elixir
+config :phoenix_kit_web_analytics, consent_source: {MyApp.Consent, :status}
+
+# MyApp.Consent.status(conn, "analytics") :: :granted | :denied | :unknown
+```
+
+With neither, every visitor is unanswered: `consent` collects nothing (the
+settings page warns) and `unless_objected` collects for everyone whose browser
+does not object.
+
+**A consent source that fails answers `:denied`.** One that raises, throws,
+exits or returns anything but those three atoms — or a `consent_source` that
+is not a `{module, function}` pair — could not say whether the visitor
+refused, so it is read as a refusal rather than as "no answer", which
+`unless_objected` would collect from. It is logged once per node, naming the
+source. A source that cleanly returns `:unknown` is taken at its word.
+
+**When the answer applies.** It is read from the request, so it is as fresh as
+the last page load. A LiveView cannot see cookies: the plug notes the answer
+in the session, and it holds for live navigation until the next full page
+load (the Legal banner reloads the page when a consent is taken back, so a
+withdrawal is not left waiting). The note is all a LiveView knows, so **the
+plug must run after `:fetch_session`**: a session with no note is read as a
+visitor who objected and has not answered, and nothing that waits for an
+answer is collected on LiveViews until the plug has written one. The client script re-asks the server the
+moment the banner reports a decision, so device measurements and a recording
+can start on the page where the visitor said yes. Nothing collected before a
+yes is held back for later — there is no queue to flush.
+
+`web_analytics_respect_dnt` is separate and blunter: while it is on, a browser
+sending `DNT` or `Sec-GPC` is not tracked under any rule, a yes in the banner
+included. The plug notes that in the session for LiveViews too, and takes the
+note back on the first request that no longer carries the signal.
+
+**What visitors are told.** The module declares what it is collecting right
+now (`PhoenixKitWebAnalytics.data_collection/0`), following the settings: each
+kind with its rule, what exactly is kept, and for how long. The Legal module
+lists that under the matching toggle of its banner and in the Cookie Policy it
+generates. The module sets no cookie of its own and writes no storage. While
+a rule waits for an answer, the visitor's answer is noted in the site's own
+session cookie (the note above); that is declared too, under the measurement
+entry's `storage`.
 
 ## Data growth and retention
 
@@ -422,6 +590,18 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_exclude_admin_network` | `true` | Leave visits from staff networks out of the statistics |
 | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-`, an emptied field, is no one) |
 | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network (`0` = never) |
+| `web_analytics_visitor_rotation` | `daily` | How long a visitor ID lasts: `daily`, `weekly`, `monthly`, `never` |
+| `web_analytics_store_ip` | `off` | Keep the visitor's address: `off`, `truncated`, `full` |
+| `web_analytics_store_user_agent` | `false` | Keep the raw User-Agent |
+| `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
+| `web_analytics_store_network` | `false` | Keep the network's ASN, owner and hosting flag (needs a resolver that returns them) |
+| `web_analytics_store_signals` | `false` | Keep the client script's device measurements and a device hash (needs the client script) |
+| `web_analytics_consent_measurement` | `always` | When visits are counted: `always`, `consent`, `unless_objected` |
+| `web_analytics_consent_profile` | `always` | The same, for what the `store_ip` / `_user_agent` / `_headers` / `_network` settings keep |
+| `web_analytics_consent_device` | `always` | The same, for device measurements |
+| `web_analytics_consent_recording` | `always` | The same, for session recordings |
+| `web_analytics_consent_category` | `analytics` | The consent category the four rules follow: `analytics`, `marketing`, `preferences` |
+| `web_analytics_without_consent` | `drop` | A page view that may not be counted: `drop` it, or count it `anonymous` (no visitor) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -467,7 +647,8 @@ as JSON is parsed by your endpoint's `Plug.Parsers` first, under its own
 
 ## Behind a reverse proxy
 
-The address is visitor-hash input only — it is never stored. The plug, the
+The address is visitor-hash input, and stored only if you switch that on
+([What is kept about a visitor](#what-is-kept-about-a-visitor)). The plug, the
 beacon and the LiveView hook read it the way PhoenixKit reads it for a login
 (`PhoenixKit.Utils.IpAddress`):
 
@@ -565,14 +746,16 @@ options, so a LiveView page to leave out entirely goes in the
 
 ## Database
 
-Four tables, created by `mix phoenix_kit.update` through the module's own
-versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V08),
+Five tables, created by `mix phoenix_kit.update` through the module's own
+versioned migration chain (`PhoenixKitWebAnalytics.Migrations`, V01–V10),
 UUIDv7 primary keys, prefix-safe for named-schema installs:
 
 - `phoenix_kit_web_analytics_events` — one row per hit, append-only
 - `phoenix_kit_web_analytics_daily_stats` — per-day, per-site totals
 - `phoenix_kit_web_analytics_daily_dims` — per-day breakdowns (V04)
 - `phoenix_kit_web_analytics_recordings` — session-recording chunks (V06)
+- `phoenix_kit_web_analytics_visitor_profiles` — what is kept about a visitor,
+  one row per visitor ID; empty unless a setting asks for it (V09, V10)
 
 On a busy install with a large events table, build V03's, V05's and V07's
 indexes `CONCURRENTLY` before upgrading — the migration then skips them; the

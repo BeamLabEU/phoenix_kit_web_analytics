@@ -58,6 +58,10 @@ defmodule PhoenixKitWebAnalytics.Routes do
         as: :phoenix_kit_web_analytics_events_localized
       )
 
+      live("/admin/web-analytics/bots", PhoenixKitWebAnalytics.Web.BotsLive, :index,
+        as: :phoenix_kit_web_analytics_bots_localized
+      )
+
       live("/admin/web-analytics/settings", PhoenixKitWebAnalytics.Web.SettingsLive, :index,
         as: :phoenix_kit_web_analytics_settings_localized
       )
@@ -101,6 +105,10 @@ defmodule PhoenixKitWebAnalytics.Routes do
 
       live("/admin/web-analytics/events", PhoenixKitWebAnalytics.Web.EventsLive, :index,
         as: :phoenix_kit_web_analytics_events
+      )
+
+      live("/admin/web-analytics/bots", PhoenixKitWebAnalytics.Web.BotsLive, :index,
+        as: :phoenix_kit_web_analytics_bots
       )
 
       live("/admin/web-analytics/settings", PhoenixKitWebAnalytics.Web.SettingsLive, :index,

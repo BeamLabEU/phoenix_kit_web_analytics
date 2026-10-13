@@ -50,6 +50,7 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   alias PhoenixKit.PubSub.Manager
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Visitor
 
@@ -233,13 +234,23 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
   def flag_client(client, reason) do
     Collector.run_async(fn ->
       with salt when is_binary(salt) <- Config.hash_salt() do
-        visitor_id = Visitor.visitor_id(client[:ip], client[:user_agent], salt)
+        visitor_id =
+          Visitor.visitor_id(
+            client[:ip],
+            client[:user_agent],
+            salt,
+            nil,
+            Config.visitor_rotation()
+          )
+
         today = DateTime.new!(Date.utc_today(), ~T[00:00:00], "Etc/UTC")
 
         flag(
           from(e in Event, where: e.visitor_id == ^visitor_id and e.inserted_at >= ^today),
           reason
         )
+
+        Profiles.add_reason([visitor_id], reason)
       end
     end)
   end
@@ -359,6 +370,11 @@ defmodule PhoenixKitWebAnalytics.BotSignals do
 
     if ids != [] do
       flag(from(e in Event, where: e.session_id in ^ids), "no_js")
+
+      Profiles.add_reason(
+        from(e in Event, where: e.session_id in ^ids, select: e.visitor_id),
+        "no_js"
+      )
     end
 
     flagged = flagged + length(ids)

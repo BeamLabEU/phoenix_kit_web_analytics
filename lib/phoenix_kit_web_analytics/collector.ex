@@ -70,12 +70,17 @@ defmodule PhoenixKitWebAnalytics.Collector do
         target: "https://example.com/x",    # what was clicked ("interaction")
         session_anchor: ~U[…],              # when the hit's page was opened
         location: %{country_code: "EE"},     # pre-resolved (edge headers)
+        headers: %{"names" => [...], ...},   # Profiles.request_headers/2
+        network: %{asn: 13335, ...},         # pre-resolved network owner
         metadata: %{"plan" => "pro"},
         bot: "prefetch"                      # forces is_bot + a metadata reason, see below
       }
 
-  `:ip` and `:user_agent` are used for the daily visitor hash and the client
-  classification, then discarded — see `PhoenixKitWebAnalytics.Visitor`.
+  `:ip` and `:user_agent` are used for the visitor hash and the client
+  classification — see `PhoenixKitWebAnalytics.Visitor`. They are kept only
+  when the operator switched that on, and then once per visitor rather than
+  on the event: see `PhoenixKitWebAnalytics.Profiles`, which also takes
+  `:headers` and `:network`.
 
   `:roles` is only read for the hit's traffic flags (below), never stored.
 
@@ -107,6 +112,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Referrer
   alias PhoenixKitWebAnalytics.Schemas.Event
   alias PhoenixKitWebAnalytics.Tracking
@@ -191,11 +197,24 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
     cond do
       not Application.get_env(:phoenix_kit_web_analytics, :async_tracking, true) -> job.()
-      Process.whereis(@task_supervisor) -> Task.Supervisor.start_child(@task_supervisor, job)
+      Process.whereis(@task_supervisor) -> start_job(job)
       true -> warn_no_supervisor()
     end
 
     :ok
+  end
+
+  # The supervisor is capped so a burst can't pile work up; a job it has no
+  # room for is dropped, and said so — silently, a burst of profile writes
+  # going missing would look like a bug somewhere else.
+  defp start_job(job) do
+    case Task.Supervisor.start_child(@task_supervisor, job) do
+      {:error, :max_children} ->
+        Logger.debug("[WebAnalytics] background job dropped: the task supervisor is full")
+
+      _started ->
+        :ok
+    end
   end
 
   @doc """
@@ -272,6 +291,13 @@ defmodule PhoenixKitWebAnalytics.Collector do
   end
 
   defp do_track(hit, config) do
+    case consented(hit, config) do
+      nil -> {:error, :no_consent}
+      hit -> track_consented(hit, config)
+    end
+  end
+
+  defp track_consented(hit, config) do
     ua = UserAgent.parse(hit[:user_agent])
 
     if ua.bot? and not config.track_bots? do
@@ -281,11 +307,58 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  # What `hit[:consent]` (see `PhoenixKitWebAnalytics.Consent`) leaves of a
+  # hit: itself, when visits may be counted; nothing, when they may not —
+  # unless page views are then counted without a visitor
+  # (`web_analytics_without_consent`), in which case only the view survives,
+  # as a visitor of its own with no user, no session to join and no profile.
+  # A hit that carries no `:consent` came from the host's own code and is
+  # taken as allowed.
+  defp consented(
+         %{consent: %{measurement: false}} = hit,
+         %{without_consent: :anonymous} = config
+       ) do
+    if hit[:event_type] == "pageview" and not is_binary(hit[:bot]), do: anonymous(hit, config)
+  end
+
+  defp consented(%{consent: %{measurement: false}}, _config), do: nil
+  defp consented(hit, _config), do: hit
+
+  # A view counted without a visitor carries nothing that could single one
+  # out: no user, no headers, no session to join — and no ad-click
+  # identifier, which is one click's own ID (the `utm_*` names say only
+  # which campaign). The row is marked, so it can be told from a visitor's.
+  #
+  # Whose traffic it is — the site's own people, an internal network — is
+  # worked out first, while the hit still says who made it: an anonymous
+  # view by a staff member is still the site's own traffic.
+  defp anonymous(hit, config) do
+    hit
+    |> Map.put(:traffic_flags, InternalTraffic.flags(hit, config))
+    |> Map.drop([:user_uuid, :roles, :headers, :network, :session_anchor])
+    |> Map.put(:query_params, campaign_only(hit[:query_params]))
+    |> Map.put(:metadata, anonymous_metadata(hit[:metadata]))
+    |> Map.put(:anonymous, true)
+  end
+
+  defp campaign_only(params) when is_map(params),
+    do: Map.drop(params, Tracking.click_param_names())
+
+  defp campaign_only(_params), do: %{}
+
+  # Without `"lv"`: the view is its own visitor, so the live connection that
+  # follows the page can never be matched to it, and the no-JavaScript
+  # judgement (`BotSignals`) would call every such view a bot's.
+  defp anonymous_metadata(metadata) when is_map(metadata),
+    do: metadata |> Map.delete("lv") |> Map.put("anon", true)
+
+  defp anonymous_metadata(_metadata), do: %{"anon" => true}
+
   defp insert_event(hit, config, ua) do
     now = hit[:inserted_at] || DateTime.utc_now()
     anchor = session_anchor(hit[:session_anchor], now)
 
-    case visitor_id(hit, anchor) do
+    case visitor_id(hit, anchor, config) do
       nil ->
         {:error, :no_salt}
 
@@ -300,7 +373,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
         case result do
           {:ok, {%Event{} = event, new_session?}} ->
-            PhoenixKitWebAnalytics.Alerts.event_recorded(event, new_session?)
+            record_profile(new_session?, visitor_id, hit, config, now)
+
+            # Every view counted without a visitor starts a visit of its own;
+            # none of them is a new visitor to tell anyone about.
+            PhoenixKitWebAnalytics.Alerts.event_recorded(
+              event,
+              new_session? and hit[:anonymous] != true
+            )
+
             {:ok, event}
 
           # Flagged as a bot by its behaviour, with bot traffic not kept.
@@ -313,8 +394,22 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  # What the settings keep about who the visitor is, once per visit — and
+  # after the hit's transaction: a profile is never worth the event.
+  defp record_profile(true, visitor_id, hit, config, now) do
+    if profile_allowed?(hit), do: Profiles.record(visitor_id, hit, config, now), else: :ok
+  end
+
+  defp record_profile(false, _visitor_id, _hit, _config, _now), do: :ok
+
+  defp profile_allowed?(%{anonymous: true}), do: false
+  defp profile_allowed?(%{consent: %{profile: false}}), do: false
+  defp profile_allowed?(_hit), do: true
+
   # A staff member's hit also marks their network (the plug does the same for
   # requests to excluded paths, before this point).
+  defp hit_flags(%{traffic_flags: flags}, _config) when is_integer(flags), do: flags
+
   defp hit_flags(hit, config) do
     flags = InternalTraffic.flags(hit, config)
 
@@ -339,6 +434,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
         hit
         |> base_attrs(now)
         |> Map.merge(identity_attrs(visitor_id, stitch.session_id, ua))
+        |> coarsen(hit)
         |> Map.merge(source_attrs(hit))
         |> Map.merge(location_attrs(hit))
         |> carry_language(stitch)
@@ -356,7 +452,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
     case bot_verdict(attrs, stitch, speed, config) do
       {:flag, reason} ->
         # Going over the speed limit also flags the visit's earlier hits.
-        if speed == :crossed, do: BotSignals.flag_session(stitch.session_id, "rate")
+        if speed == :crossed do
+          BotSignals.flag_session(stitch.session_id, "rate")
+          note_reason(:add, attrs.visitor_id, "rate")
+        end
 
         if config.track_bots?,
           do: store(flag_attrs(attrs, reason), stitch),
@@ -371,6 +470,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       :clear ->
         result = store(attrs, stitch)
         BotSignals.clear_no_js(stitch.session_id)
+        note_reason(:remove, attrs.visitor_id, "no_js")
         result
 
       :ok ->
@@ -439,6 +539,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  # The verdict on the visitor's profile, when one is kept (see BotScore).
+  # Off this process: it runs inside the hit's transaction, which a failed
+  # profile write must never abort.
+  defp note_reason(:add, visitor_id, reason),
+    do: run_async(fn -> Profiles.add_reason([visitor_id], reason) end)
+
+  defp note_reason(:remove, visitor_id, reason),
+    do: run_async(fn -> Profiles.remove_reason([visitor_id], reason) end)
+
   defp flag_attrs(attrs, reason) do
     attrs
     |> Map.put(:is_bot, true)
@@ -472,12 +581,25 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # to one "unknown" visitor and stitch them into one endless session. Such an
   # event is its own visitor, unless it names a user (and isn't a forced-bot
   # hit, which must not join that user's visit).
-  defp visitor_id(hit, anchor) do
+  defp visitor_id(hit, anchor, config) do
     cond do
+      # Counted without a visitor: every such view is its own.
+      hit[:anonymous] == true ->
+        "anon:" <> String.replace(UUIDv7.generate(), "-", "")
+
       hit[:ip] || hit[:user_agent] ->
         case Config.hash_salt() do
-          nil -> nil
-          salt -> Visitor.visitor_id(hit[:ip], hashed_agent(hit), salt, DateTime.to_date(anchor))
+          nil ->
+            nil
+
+          salt ->
+            Visitor.visitor_id(
+              hit[:ip],
+              hashed_agent(hit),
+              salt,
+              DateTime.to_date(anchor),
+              config.visitor_rotation
+            )
         end
 
       is_binary(hit[:user_uuid]) and not is_binary(hit[:bot]) ->
@@ -575,6 +697,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
       inserted_at: now
     }
   end
+
+  # A view counted without a visitor keeps which browser and system it was,
+  # not their exact builds: a full version string beside a language and a
+  # country can pick one visitor out of a small site's traffic.
+  defp coarsen(attrs, %{anonymous: true}) do
+    %{attrs | browser_version: major(attrs.browser_version), os_version: nil}
+  end
+
+  defp coarsen(attrs, _hit), do: attrs
+
+  defp major(version) when is_binary(version), do: version |> String.split(".") |> hd()
+  defp major(_version), do: nil
 
   defp identity_attrs(visitor_id, session_id, ua) do
     %{
@@ -682,14 +816,18 @@ defmodule PhoenixKitWebAnalytics.Collector do
   # An edge-provided location (Cloudflare et al.) is already there and free;
   # only fall back to the configured resolver when it isn't.
   defp location_attrs(hit) do
-    case hit[:location] do
-      %{country_code: code} = location when is_binary(code) and code != "" ->
-        Map.take(location, [:country_code, :region, :city])
+    location =
+      case hit[:location] do
+        %{country_code: code} = location when is_binary(code) and code != "" -> location
+        _ -> Geo.resolve(hit[:ip])
+      end
 
-      _ ->
-        Map.take(Geo.resolve(hit[:ip]), [:country_code, :region, :city])
-    end
+    Map.take(location, location_fields(hit))
   end
+
+  # A view counted without a visitor keeps its country and nothing finer.
+  defp location_fields(%{anonymous: true}), do: [:country_code]
+  defp location_fields(_hit), do: [:country_code, :region, :city]
 
   # A referrer is stored without its query string or fragment, for the same
   # reason paths are: an internal referrer is often the previous page's full

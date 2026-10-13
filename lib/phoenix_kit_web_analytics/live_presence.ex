@@ -611,7 +611,9 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       # page was open longer than the inactivity window.
       session_anchor: visit.since,
       inserted_at: now,
-      metadata: %{"source" => "live_presence"}
+      metadata: %{"source" => "live_presence"},
+      # What the visitor's answer allowed when the page was opened.
+      consent: client[:consent] || PhoenixKitWebAnalytics.Consent.all()
     })
   end
 

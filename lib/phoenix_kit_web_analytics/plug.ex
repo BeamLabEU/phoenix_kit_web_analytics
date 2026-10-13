@@ -34,6 +34,9 @@ defmodule PhoenixKitWebAnalytics.Plug do
     * paths matching the exclusion patterns in settings (`/admin*` by default)
     * requests sending `DNT: 1` or `Sec-GPC: 1`, when
       `web_analytics_respect_dnt` is on (it is by default)
+    * visitors whose answer doesn't allow it, when a
+      `web_analytics_consent_*` mode waits for one — see
+      `PhoenixKitWebAnalytics.Consent`
     * automated User-Agents, unless `web_analytics_track_bots` is on
     * anything explicitly marked with `skip/1`
     * requests from Tidewave's development tooling (an `x-tidewave-diagnostic`
@@ -91,8 +94,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   ## Client IP
 
-  The client address is visitor-hash input (and only that — no IP is ever
-  stored). It is read the way PhoenixKit reads it for a login
+  The client address is visitor-hash input, and stored only when the operator
+  asks for it (`web_analytics_store_ip`, off by default). It is read the way PhoenixKit reads it for a login
   (`PhoenixKit.Utils.IpAddress.client_address/1`): a public
   `conn.remote_ip` is the visitor; a private or loopback one is a reverse
   proxy on the same box or network, and the visitor is the **last**
@@ -125,7 +128,9 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Tracking
 
   @country_headers ~w(cf-ipcountry x-vercel-ip-country fastly-geo-country x-country-code)
@@ -193,13 +198,28 @@ defmodule PhoenixKitWebAnalytics.Plug do
       opted_out?(conn, config) ->
         remember_opt_out(conn)
 
-      not trackable_path?(conn.request_path, config, opts) ->
+      # Before the path check, like the opt-out: the hook reads the note on
+      # whichever page the visitor live-navigates to next.
+      Consent.needed?(config) ->
+        answer = Consent.answer(conn, config)
+
         conn
+        |> forget_opt_out()
+        |> Consent.remember(answer)
+        |> register_pageview(config, opts, Consent.permissions(config, answer))
 
       true ->
-        started_at = System.monotonic_time(:microsecond)
-        bot_reason = prefetch_reason(conn)
-        register_before_send(conn, &track(&1, started_at, bot_reason))
+        conn |> forget_opt_out() |> register_pageview(config, opts, Consent.all())
+    end
+  end
+
+  defp register_pageview(conn, config, opts, consent) do
+    if trackable_path?(conn.request_path, config, opts) do
+      started_at = System.monotonic_time(:microsecond)
+      bot_reason = prefetch_reason(conn)
+      register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
+    else
+      conn
     end
   end
 
@@ -253,6 +273,18 @@ defmodule PhoenixKitWebAnalytics.Plug do
     end
   end
 
+  # The note holds only as long as the signal does: a visitor whose browser
+  # stopped sending it (or a site that stopped honouring it) is no longer
+  # opted out, and without this the hook would leave them alone until the
+  # session expired. Only a session the host already fetched is touched.
+  defp forget_opt_out(conn) do
+    key = Tracking.dnt_session_key()
+
+    if session_fetched?(conn) and get_session(conn, key) != nil,
+      do: delete_session(conn, key),
+      else: conn
+  end
+
   defp session_fetched?(conn), do: conn.private[:plug_session_fetch] == :done
 
   defp trackable_path?(path, config, opts) do
@@ -286,10 +318,15 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
-  defp track(conn, started_at, bot_reason) do
+  defp track(conn, started_at, {bot_reason, consent}, config) do
     if html_pageview?(conn) and not skipped?(conn) do
       duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
-      Collector.track_async(build_hit(conn, duration_ms, bot_reason))
+
+      conn
+      |> build_hit(duration_ms, bot_reason)
+      |> Map.put(:consent, consent)
+      |> put_headers(conn, config)
+      |> Collector.track_async()
     end
 
     conn
@@ -331,6 +368,16 @@ defmodule PhoenixKitWebAnalytics.Plug do
       bot: bot_reason
     }
   end
+
+  # Only when the operator keeps request headers (see Profiles); otherwise
+  # they are never copied out of the conn.
+  defp put_headers(%{consent: %{profile: true}} = hit, conn, %{
+         store_headers?: true,
+         store_ip: store_ip
+       }),
+       do: Map.put(hit, :headers, Profiles.request_headers(conn, store_ip == :full))
+
+  defp put_headers(hit, _conn, _config), do: hit
 
   # A page whose LiveView runs `PhoenixKitWebAnalytics.LiveHook` will report
   # its live connection; one that never does ran no JavaScript (see

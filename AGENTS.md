@@ -57,6 +57,23 @@ can't, stays optional, and never writes a cookie or storage.
 - `alerts.ex` — the "Website activity" notification type; turns stored hits
   and core's `{:user_created, user}` broadcast into activity entries per
   recipient (core routes them to inbox / email / Telegram / digests).
+- `profiles.ex` + `schemas/visitor_profile.ex` — what the `store_*` settings
+  keep about a visitor, one row per visitor ID: written when a visit starts
+  (after the hit's transaction), device measurements when the client script
+  reports them, bot reasons as they are found. `forget/1`, `prune/0`.
+- `signals.ex` — the trust boundary for device measurements (`clean/1`: an
+  allow-list of keys, types and bounds) and the salted `device_hash/2`. The
+  client script measures only when `GET …/recording` answers `signals: true`.
+- `bot_score.ex` — pure: reasons, weights, levels, and which source owns
+  which reason (`merge/3`).
+- `consent.ex` — whether each kind of collection (`:measurement`,
+  `:profile`, `:device`, `:recording`) may happen for a visitor: the
+  `web_analytics_consent_*` modes, the answer's source (Legal's signed
+  cookie, or the host's `consent_source`), and the session note the hook
+  reads. Every entry point puts `consent:` on its hit; the collector is the
+  one place that acts on it (`consented/2`, `profile_allowed?/1`).
+- `data_collection.ex` — what the module declares to Legal's banner and
+  policy (`data_collection/0`, found by name), built from the settings.
 
 **Read path**
 
@@ -70,7 +87,10 @@ can't, stays optional, and never writes a cookie or storage.
   remainder can't count differently.
 - `session_stats.ex` — the per-session query shared by reports and rollup.
 - `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
-  Acquisition, Technology, Events, Settings.
+  Acquisition, Technology, Events, Bots, Settings.
+- `bots.ex` — the Bots page's queries over `visitor_profiles`: ranked
+  visitors, groups by network / subnet / address / device / User-Agent.
+  The page is links only (the whole filter is in the URL).
 - `web/{components,filters,user_names}.ex` — shared UI.
 - `admin.ex` — every operator mutation (settings, tracking switch, retention
   run, salt rotation), each logged to `PhoenixKit.Activity`.
@@ -82,14 +102,69 @@ can't, stays optional, and never writes a cookie or storage.
 
 ## Rules that are load-bearing
 
-- **Never store an IP address, a raw User-Agent, or a query string** — in a
-  path *or* a referrer. The schema has no column for the first two; the
-  collector strips the third from both. Campaign parameters get their own
-  columns before that point. An operator's own addresses in the host's app
-  config (`internal_networks`) aren't storage, and staff networks
-  (`InternalTraffic`) live in ETS only; what reaches a row is the
-  `traffic_flags` bits, never the address that set them. Don't put either in
-  a setting — every settings write is a permanent activity entry.
+- **Nothing that says who a visitor is gets stored unless a setting asks
+  for it, and every such setting defaults to off.** An address, a raw
+  User-Agent, request headers, the network's owner and device measurements
+  each have their own `web_analytics_store_*` key; all of them go to
+  `visitor_profiles` (one row per visitor ID, `Profiles`), never to an event
+  row — the events schema has no column for any of them. A new kind of
+  identifying data means a new setting, off by default, with a `forget/1`
+  kind. What may be kept is the operator's decision (the module is meant to
+  fit any law), so don't hard-code a privacy position in either direction.
+- **Whether a visitor must be asked is the operator's rule, per kind of
+  collection** (`web_analytics_consent_*`: `always` / `consent` /
+  `unless_objected`; all default to `always`). A new entry point must put
+  `consent: Consent.for_conn(conn, config)` (or `for_session/2`) on what it
+  hands the collector — a hit without the key is taken as the host's own
+  call and allowed. A new kind of data about a visitor belongs to one of the
+  four purposes or gets a fifth, with its own key. A consent source that
+  fails answers `:denied` — raise, throw, exit, a return that is not one of
+  the three atoms, a malformed `consent_source` — and only a clean
+  `:unknown` is unknown: `unless_objected` collects on unknown, so a failure
+  must not read as one. `Consent.status/2` runs in `Plug.call/2` itself, so
+  it catches everything. Nothing is queued for a later yes.
+- **A LiveView session without the plug's note is objected-and-unanswered**
+  (`Consent.noted/1` → `{:unknown, true}`), and notes decode by exact match.
+  The note is therefore load-bearing: written for every visitor while a rule
+  waits for an answer, and declared in `DataCollection` (`storage`). The DNT
+  note beside it is deleted by the plug when the signal stops.
+- **A view counted without a visitor carries nothing that singles one out**
+  (`Collector.anonymous/1`): no user, roles, headers, session anchor or
+  click identifier, country only, `metadata["anon"]`, no `"lv"` (so it is
+  never judged no-JS), no profile, no new-visitor alert. A new identifying
+  hit key must be dropped there.
+- **`track_event/2` / `track_pageview/1` take `conn:`** and then follow the
+  visitor's answer; without it (and without `:consent`) the hit is the
+  host's own call.
+- **A per-visitor rate limit is not a limit**: the visitor ID includes the
+  User-Agent. Anything a public endpoint counts per visitor is also counted
+  per address (`:signals_address`, `:recording_address`).
+- **What is declared follows what is collected.** A new `store_*` setting or
+  kind of data gets a line in `DataCollection.entries/0`, active only while
+  it is on.
+- **Never kept whatever the settings:** a query string (in a path, a
+  referrer or a stored `Referer` header — campaign parameters get their own
+  columns first), and the value of a credential header (`Profiles`'
+  `@secret_headers` / `@secret_words`).
+- **An operator's own addresses aren't a setting.** `internal_networks` is
+  app config and staff networks (`InternalTraffic`) live in ETS only; what
+  reaches a row is the `traffic_flags` bits. Every settings write is a
+  permanent activity entry.
+- **A bot score is evidence, never a verdict.** `BotScore` reasons and
+  their sum live on the profile and are only shown (the Bots page, a visit's
+  page). Nothing drops, flags `is_bot` or blocks because of a score. A new
+  reason is one observable fact with a weight, owned by exactly one source
+  (`:request`, `:signals`, `:behaviour`) — a test enforces that.
+- **A profile write must never cost the event.** `Profiles` calls run after
+  the hit's transaction or off its process (`Collector.note_reason/3`), and
+  rescue everything.
+- **Reasons are rescored under a row lock, from what the row holds.**
+  `Profiles.rescore/3` is `SELECT … FOR UPDATE` + write in one transaction
+  (two sources report within a second of each other), and `:request`
+  reasons come from the stored headers / hosting, not the incoming hit — a
+  visit can start on a hit with no headers. `forget/1` takes back the
+  reasons read from what it blanks (`BotScore.derived_from/1`); a new
+  reason read from stored data goes in that list.
 - **Own traffic is marked, not dropped.** `traffic_flags` (bits in
   `TrafficFlags`) is worked out before the collector's transaction from
   memory only; a bit new to a visit is written back to the visit's rows in
@@ -134,7 +209,8 @@ Versions: V01 tables; V02 `engaged_ms`, `scroll_depth`, `target` +
 the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
 `recordings`; V07 `click_id`, `click_param` + their partial indexes; V08
-`traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill). Adding a
+`traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill); V09
+`visitor_profiles`; V10 `bot_score` + `bot_reasons` on it. Adding a
 version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`, add the
 `apply_step/3` clauses, and keep every statement prefix-safe (pass `prefix:`
 through, bare index names, schema-anchored existence checks).
@@ -164,7 +240,8 @@ Every string goes through `PhoenixKitWebAnalytics.Gettext` (LiveViews do
 `use Gettext, backend: PhoenixKitWebAnalytics.Gettext` after
 `use PhoenixKitWeb, :live_view`, which repoints `gettext/1` at this module's
 catalogue; tabs set `gettext_backend:`). After changing strings run
-`mix gettext.extract --merge` and fill en/et/ru — none may stay empty.
+`mix gettext.extract --merge --no-fuzzy` and fill en/et/ru — none may stay
+empty.
 
 ## Common Commands
 
