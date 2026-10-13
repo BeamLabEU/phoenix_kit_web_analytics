@@ -6,7 +6,7 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.DataCollection
 
-  @settings "/en/admin/web-analytics/settings"
+  @settings "/admin/web-analytics/settings"
 
   defp selected(html, name) do
     html

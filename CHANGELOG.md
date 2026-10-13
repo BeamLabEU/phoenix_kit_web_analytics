@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.7.0 - 2026-10-13
+
+Requires `mix phoenix_kit.update` (migrations V09 and V10).
+
+### Added
+
+- **What is kept about who a visitor is, one setting at a time.** New
+  `web_analytics_store_ip` (`off` / `truncated` / `full`), `_store_user_agent`,
+  `_store_headers`, `_store_network` and `_store_signals`, all off by default,
+  write to one `visitor_profiles` row per visitor ID (never to an event row).
+  Credential headers are never kept; rows go with the raw events' retention.
+  `Profiles.forget/1` takes stored data back, and `Admin.forget_profiles/2`
+  does the same with an activity-log entry.
+- **Visitor ID rotation** (`web_analytics_visitor_rotation`): `daily` (default),
+  `weekly`, `monthly` or `never`. Longer periods make `visitors` a count of
+  visitor-days in rolled-up ranges; see AGENTS.md.
+- **A bot score with reasons**, and a **Bots** page that ranks profiles and
+  groups them by network, subnet, address, device or User-Agent. The score is
+  evidence only: nothing is dropped or blocked because of it.
+- **Device measurements** from the client script (screen, time zone, graphics,
+  canvas, audio, fonts …) and a salted device hash, when `store_signals` is on.
+- **Consent rules per kind of collection** (`web_analytics_consent_*`: `always`,
+  `consent`, `unless_objected` for visits, visitor details, device measurements
+  and recordings). Answers come from the Legal module's banner or a host
+  `consent_source`; a failing source reads as a refusal. Live pages follow a
+  note the plug leaves in the session. `web_analytics_without_consent:
+  anonymous` counts a view with no visitor. `track_event/2` and
+  `track_pageview/1` take `conn:`.
+- `PhoenixKitWebAnalytics.data_collection/0` declares what is collected to the
+  Legal module's banner and policy.
+
+### Fixed
+
+- The test suite's LiveView page tests used a `/en/admin/...` base that
+  `phoenix_kit` 2.62 no longer emits (primary locale is prefixless).
+- A misleading comment claimed distinct visitors always add across days; it
+  holds only for the `daily` rotation.
+
 ## 0.6.1 - 2026-10-10
 
 ### Fixed

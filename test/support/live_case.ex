@@ -11,7 +11,7 @@ defmodule PhoenixKitWebAnalytics.LiveCase do
         use PhoenixKitWebAnalytics.LiveCase
 
         test "renders the overview", %{conn: conn} do
-          {:ok, _view, html} = live(conn, "/en/admin/web-analytics")
+          {:ok, _view, html} = live(conn, "/admin/web-analytics")
           assert html =~ "Web Analytics"
         end
       end

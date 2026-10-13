@@ -1,7 +1,7 @@
 defmodule PhoenixKitWebAnalytics.Admin do
   @moduledoc """
   Every change an operator can make to the module — settings, the tracking
-  switch, a manual retention pass, a salt rotation — in one place, each logged
+  switch, a manual retention pass, a salt rotation, forgetting stored profile data — in one place, each logged
   to `PhoenixKit.Activity` with the acting user.
 
   All functions take `opts` with `:actor_uuid` (LiveViews pass
@@ -14,6 +14,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Alerts
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Retention
 
   @module_key "web_analytics"
@@ -150,6 +151,25 @@ defmodule PhoenixKitWebAnalytics.Admin do
     error ->
       # The settings page reports it; the audit trail records who asked.
       log_failure("retention.failed", opts)
+      reraise error, __STACKTRACE__
+  end
+
+  @doc """
+  Removes one kind of stored visitor data from every profile (`:ip`,
+  `:user_agent`, `:headers`, `:network`, `:signals`), or every profile
+  (`:all`) — see `PhoenixKitWebAnalytics.Profiles.forget/1` — and logs which
+  kind and how many rows, never a value. Returns the number of rows changed
+  or deleted.
+  """
+  @spec forget_profiles(Profiles.forget_kind(), opts()) :: non_neg_integer()
+  def forget_profiles(kind, opts \\ []) do
+    count = Profiles.forget(kind)
+    log("profiles.forgotten", opts, %{"kind" => Atom.to_string(kind), "count" => count})
+    PhoenixKitWebAnalytics.ReportCache.clear()
+    count
+  rescue
+    error ->
+      log_failure("profiles.forget_failed", opts)
       reraise error, __STACKTRACE__
   end
 

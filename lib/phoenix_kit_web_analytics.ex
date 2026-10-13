@@ -63,7 +63,7 @@ defmodule PhoenixKitWebAnalytics do
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Tracking
 
-  @version "0.6.1"
+  @version "0.7.0"
 
   # ── Required callbacks ─────────────────────────────────────────────────────
 

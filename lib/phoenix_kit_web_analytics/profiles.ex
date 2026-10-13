@@ -97,6 +97,8 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     cf-connecting-ip cf-connecting-ipv6 fly-client-ip fastly-client-ip x-cluster-client-ip
     x-original-forwarded-for x-envoy-external-address)
 
+  @type forget_kind :: :ip | :user_agent | :headers | :network | :signals | :all
+
   @delete_batch 5_000
   @max_delete_batches 200
 
@@ -282,7 +284,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   `:all` deletes every profile. Returns the number of rows changed or
   deleted.
   """
-  @spec forget(:ip | :user_agent | :headers | :network | :signals | :all) :: non_neg_integer()
+  @spec forget(forget_kind()) :: non_neg_integer()
   def forget(:all) do
     {count, _} = repo().delete_all(VisitorProfile)
     count

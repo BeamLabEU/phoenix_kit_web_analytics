@@ -5,8 +5,8 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
   exactly the URLs the LiveViews patch themselves to.
 
   `PhoenixKit.Utils.Routes.path/1` defaults to no URL prefix when the settings
-  table is unavailable, and admin paths always get the default locale prefix —
-  so the base is `/en/admin/web-analytics`.
+  table is unavailable, and the primary locale is prefixless (core 2.62 on;
+  before that admin paths carried `/en`) — so the base is `/admin/web-analytics`.
   """
 
   use Phoenix.Router
@@ -25,7 +25,7 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
     plug(:accepts, ["json", "html"])
   end
 
-  scope "/en/admin/web-analytics", PhoenixKitWebAnalytics.Web do
+  scope "/admin/web-analytics", PhoenixKitWebAnalytics.Web do
     pipe_through(:browser)
 
     live_session :web_analytics_test,

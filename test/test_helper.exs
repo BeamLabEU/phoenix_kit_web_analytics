@@ -124,9 +124,8 @@ Application.put_env(:phoenix_kit_web_analytics, :test_repo_available, repo_avail
 exclude = if repo_available, do: [], else: [:integration]
 
 # Force PhoenixKit's URL prefix cache to an empty string so `Paths.dashboard()`
-# and friends produce paths the test router can match. Admin paths always get
-# the default locale ("en") prefix, so the router scope is
-# `/en/admin/web-analytics`.
+# and friends produce paths the test router can match. The primary locale is
+# prefixless, so the router scope is `/admin/web-analytics`.
 :persistent_term.put({PhoenixKit.Config, :url_prefix}, "/")
 
 if repo_available do

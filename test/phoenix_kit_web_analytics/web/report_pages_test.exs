@@ -8,7 +8,7 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
 
   alias PhoenixKitWebAnalytics.Paths
 
-  @base "/en/admin/web-analytics"
+  @base "/admin/web-analytics"
 
   @pages [
     {"overview", @base, "Web Analytics"},

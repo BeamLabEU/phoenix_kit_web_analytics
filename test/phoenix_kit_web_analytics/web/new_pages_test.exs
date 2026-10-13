@@ -11,7 +11,7 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
   alias PhoenixKitWebAnalytics.Schemas.Recording
   alias PhoenixKitWebAnalytics.Test.Repo
 
-  @base "/en/admin/web-analytics"
+  @base "/admin/web-analytics"
   @ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"
 
   # ── a visit's stored profile ──────────────────────────────────────────────

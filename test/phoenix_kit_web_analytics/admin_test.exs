@@ -4,7 +4,9 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Admin
   alias PhoenixKitWebAnalytics.Alerts
+  alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
+  alias PhoenixKitWebAnalytics.Schemas.VisitorProfile
 
   @exclude_key "web_analytics_exclude_paths"
   @retention_key "web_analytics_retention_days"
@@ -387,6 +389,63 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       assert_activity_logged("retention.run",
         actor_uuid: actor,
         metadata_has: %{"rolled_up" => 0, "pruned" => 0}
+      )
+    end
+  end
+
+  describe "forget_profiles/2" do
+    defp insert_profile(attrs) do
+      now = DateTime.utc_now()
+
+      Repo.insert!(
+        struct!(
+          VisitorProfile,
+          Map.merge(
+            %{visitor_id: Ecto.UUID.generate(), last_seen_at: now, inserted_at: now},
+            attrs
+          )
+        )
+      )
+    end
+
+    test "blanks the kind, returns the rows changed and logs the kind and count, never a value",
+         %{actor: actor} do
+      insert_profile(%{ip: "203.0.113.5", user_agent: "curl/8.4.0"})
+      insert_profile(%{ip: "198.51.100.9"})
+
+      assert 2 = Admin.forget_profiles(:ip, actor_uuid: actor)
+
+      # The first row still holds its User-Agent; the second is left with nothing.
+      assert [%VisitorProfile{ip: nil, user_agent: "curl/8.4.0"}] = Repo.all(VisitorProfile)
+
+      row =
+        assert_activity_logged("profiles.forgotten",
+          actor_uuid: actor,
+          metadata_has: %{"kind" => "ip", "count" => 2}
+        )
+
+      refute inspect(row) =~ "203.0.113.5"
+    end
+
+    test ":all deletes every profile and logs the count", %{actor: actor} do
+      insert_profile(%{ip: "203.0.113.5"})
+      insert_profile(%{user_agent: "curl/8.4.0"})
+
+      assert 2 = Admin.forget_profiles(:all, actor_uuid: actor)
+      assert Profiles.count() == 0
+
+      assert_activity_logged("profiles.forgotten",
+        actor_uuid: actor,
+        metadata_has: %{"kind" => "all", "count" => 2}
+      )
+    end
+
+    test "logs a no-op run too, with a zero count", %{actor: actor} do
+      assert 0 = Admin.forget_profiles(:headers, actor_uuid: actor)
+
+      assert_activity_logged("profiles.forgotten",
+        actor_uuid: actor,
+        metadata_has: %{"kind" => "headers", "count" => 0}
       )
     end
   end

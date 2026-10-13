@@ -178,6 +178,14 @@ can't, stays optional, and never writes a cookie or storage.
   connect (`prefetch_connect`, which also counts as JavaScript evidence in
   `BotSignals`'s `@js_sources`). A new source reported only by JavaScript goes
   in that list.
+- **`visitors` is a per-day figure only while the rotation is `daily`.**
+  Rollups hold one distinct count per day and ranges sum them, which is exact
+  only because the ID changes daily; raw reads count `distinct visitor_id`
+  over the whole range. With `weekly` / `monthly` / `never` the two read
+  paths disagree for a returning visitor (see `RollupReader`). Known and
+  open — a fix is `count(distinct (visitor_id, day))` on every raw read, or
+  declaring `visitors` per-day in the UI. Don't add a new `visitors` read
+  without deciding which.
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.

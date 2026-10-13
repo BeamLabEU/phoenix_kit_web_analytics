@@ -10,7 +10,12 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   # the combined numbers.
   #
   # Distinct visitors add up across days exactly, because the visitor ID
-  # itself changes every day; that is what makes the split lossless.
+  # itself changes every day; that is what makes the split lossless. Only
+  # while `web_analytics_visitor_rotation` is `daily` (the default): with a
+  # longer period one ID spans days, so a rolled-up range sums per-day
+  # uniques while a range read raw (bots, a path filter, flagged traffic,
+  # today alone) counts each ID once — the same headline can differ by how
+  # it was read. See AGENTS.md.
   #
   # Rollups don't apply — and the whole window is read raw — for hourly
   # periods (today / yesterday, which need hours), a single-page filter, bot
