@@ -171,6 +171,35 @@ defmodule PhoenixKitWebAnalytics.RollupReaderTest do
     assert RollupReader.plan(Reports.filter(period: "7d")).dates != nil
   end
 
+  for rotation <- ~w(weekly monthly never) do
+    test "#{rotation} rotation counts daily uniques in raw, mixed and pruned reports" do
+      enable_tracking(%{"web_analytics_visitor_rotation" => unquote(rotation)})
+
+      # Returning IDs on five days, with repeat views on each day. The
+      # existing seed also exercises events, interactions and exit visitors.
+      from(e in Event,
+        where: not e.is_bot,
+        update: [set: [visitor_id: fragment("regexp_replace(?, '^d[0-9]+-', '')", e.visitor_id)]]
+      )
+      |> Repo.update_all([])
+
+      filter = Reports.filter(period: "7d", site: "example.com")
+      raw = everything(filter)
+      assert raw.overview.visitors == 10
+      assert Enum.sum(Enum.map(Reports.timeseries(filter, :month), & &1.visitors)) == 10
+
+      assert Retention.rollup_pending_days() > 0
+      assert_same(raw, everything(filter), "returning IDs, mixed reads")
+      assert Reports.overview(%{filter | bots: true}).visitors == 11
+      assert Reports.overview(%{filter | path: "/pricing"}).visitors == 10
+      assert Enum.sum(Enum.map(Reports.timeseries(filter, :month), & &1.visitors)) == 10
+
+      today = DateTime.new!(Date.utc_today(), ~T[00:00:00], "Etc/UTC")
+      Repo.delete_all(from(e in Event, where: e.inserted_at < ^today))
+      assert_same(raw, everything(filter), "returning IDs, pruned reads")
+    end
+  end
+
   test "bot traffic stays out of the rollups" do
     Retention.rollup_pending_days()
     filter = Reports.filter(period: "7d")
@@ -186,6 +215,36 @@ defmodule PhoenixKitWebAnalytics.RollupReaderTest do
     setup do
       Repo.delete_all(Event)
       :ok
+    end
+
+    test "a visit spanning UTC midnight has identical daily portions before and after rollup" do
+      enable_tracking(%{"web_analytics_visitor_rotation" => "never"})
+      midnight = DateTime.new!(Date.add(Date.utc_today(), -1), ~T[00:00:00], "Etc/UTC")
+      session = UUIDv7.generate()
+      base = %{visitor_id: "returning", session_id: session, site: "example.com", path: "/"}
+
+      for offset <- [-20, 0] do
+        insert_event(Map.put(base, :inserted_at, DateTime.add(midnight, offset, :second)))
+
+        insert_event(
+          Map.merge(base, %{
+            event_type: "leave",
+            inserted_at: DateTime.add(midnight, offset + 10, :second)
+          })
+        )
+      end
+
+      filter = Reports.filter(period: "7d", site: "example.com")
+      raw = everything(filter)
+      assert raw.overview.sessions == 2
+      assert raw.overview.bounce_rate == 100.0
+      assert raw.overview.avg_session_seconds == 10.0
+
+      Retention.rollup_pending_days()
+      assert_same(raw, everything(filter), "midnight visit, rolled reads")
+      assert_same(raw, everything(%{filter | bots: true}), "midnight visit, raw reads")
+      Repo.delete_all(Event)
+      assert_same(raw, everything(filter), "midnight visit, pruned reads")
     end
 
     test "a rolled-up month still shows when the database session time zone is east of UTC" do

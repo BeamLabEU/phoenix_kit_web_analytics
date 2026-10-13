@@ -54,7 +54,11 @@ defmodule PhoenixKitWebAnalytics.Consent do
   The answer is read from the request, so it is as fresh as the last page
   load. A LiveView cannot see cookies; the plug notes the answer in the
   session for `PhoenixKitWebAnalytics.LiveHook`, where it holds until the
-  next full page load. Nothing collected before a yes is kept back for later:
+  next full page load. Keep Legal's reload-on-withdrawal option on; a host
+  consent tool must also reload after changing an answer. A live navigation
+  or reconnect alone does not refresh the note. The rules themselves are
+  re-applied to that answer on each hit, so changing a setting takes effect
+  on open pages too. Nothing collected before a yes is kept back for later:
   a hit that may not be stored is dropped (or counted without a visitor, see
   `web_analytics_without_consent`), never queued.
 
@@ -281,6 +285,18 @@ defmodule PhoenixKitWebAnalytics.Consent do
   def for_session(session, config) do
     if needed?(config), do: permissions(config, noted(session)), else: @all
   end
+
+  @doc false
+  # Only the consent note and its category travel with a live hit, never
+  # the host's whole session. A yes to an old category is no answer to a new
+  # one. With no note, a rule introduced while the page is open fails closed.
+  @spec refresh(map(), Config.collection_config()) :: map()
+  def refresh(%{consent_context: %{session: session, category: category}} = hit, config) do
+    answer = if category == config.consent_category, do: noted(session), else: {:unknown, true}
+    Map.put(hit, :consent, permissions(config, answer))
+  end
+
+  def refresh(hit, _config), do: hit
 
   @doc """
   The answer noted in a LiveView session.

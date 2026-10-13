@@ -523,7 +523,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     ~H"""
     <p>
       {gettext(
-        "Visitors: how many different people. Views: how many times, counting every person's every view — one person opening a page three times is 1 visitor and 3 views."
+        "Visitors: daily unique visitors added across the period. One visitor on two days counts as 2. Views: every page opening, including repeats."
       )}
     </p>
     """

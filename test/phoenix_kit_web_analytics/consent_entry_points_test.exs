@@ -123,6 +123,54 @@ defmodule PhoenixKitWebAnalytics.ConsentEntryPointsTest do
     end
   end
 
+  describe "consent rules changed while a LiveView is open" do
+    setup do
+      enable_tracking()
+      start_supervised!(LivePresence)
+      :ok
+    end
+
+    test "a new consent requirement stops interactions and leaves on an unanswered page", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live_visit(conn, %{})
+      :sys.get_state(LivePresence)
+      assert [%{path: "/shop"}] = LivePresence.list()
+
+      enable_tracking(%{"web_analytics_consent_measurement" => "consent"})
+      view |> element("#add") |> render_click()
+      :sys.get_state(LivePresence)
+      assert LivePresence.list() == []
+      assert [%Event{event_type: "pageview"}] = events()
+    end
+
+    test "a stored yes is re-evaluated against a newly selected category", %{conn: conn} do
+      enable_tracking(%{"web_analytics_consent_measurement" => "consent"})
+      {:ok, view, _html} = live_visit(conn, note("granted"))
+
+      enable_tracking(%{"web_analytics_consent_category" => "marketing"})
+      view |> element("#add") |> render_click()
+      :sys.get_state(LivePresence)
+      assert LivePresence.list() == []
+      assert [%Event{event_type: "pageview"}] = events()
+    end
+
+    test "the collector re-applies a new rule to a leave from an idle page", %{conn: conn} do
+      {:ok, view, _html} = live_visit(conn, %{})
+      :sys.get_state(LivePresence)
+
+      enable_tracking(%{"web_analytics_consent_measurement" => "consent"})
+      GenServer.stop(view.pid)
+
+      wait_until(fn ->
+        state = :sys.get_state(LivePresence)
+        LivePresence.list() == [] and state.pending == %{}
+      end)
+
+      assert events("leave") == []
+    end
+  end
+
   describe "the LiveView hook, counting until a no" do
     setup do
       enable_tracking(%{

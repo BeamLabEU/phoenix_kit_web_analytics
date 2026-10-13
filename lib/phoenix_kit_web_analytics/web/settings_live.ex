@@ -37,6 +37,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
      socket
      |> assign(:page_title, gettext("Settings"))
      |> assign(:retention_running?, false)
+     |> assign(:forget_running?, false)
      |> assign(:consent_draft, nil)
      |> assign(:consent_rev, 0)
      |> load()}
@@ -123,6 +124,30 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     end
   end
 
+  def handle_event("forget_profiles", %{"kind" => kind}, socket) do
+    kinds = %{
+      "ip" => :ip,
+      "user_agent" => :user_agent,
+      "headers" => :headers,
+      "network" => :network,
+      "signals" => :signals,
+      "all" => :all
+    }
+
+    case {socket.assigns.forget_running?, Map.get(kinds, kind)} do
+      {false, kind} when not is_nil(kind) ->
+        opts = Actor.opts(socket)
+
+        {:noreply,
+         socket
+         |> assign(:forget_running?, true)
+         |> start_async(:forget_profiles, fn -> Admin.forget_profiles(kind, opts) end)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_async(:retention, {:ok, result}, socket) do
     {:noreply,
@@ -145,6 +170,21 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
      socket
      |> assign(:retention_running?, false)
      |> put_flash(:error, gettext("The retention pass failed. Details are in the server log."))}
+  end
+
+  def handle_async(:forget_profiles, {:ok, count}, socket) do
+    {:noreply,
+     socket
+     |> assign(:forget_running?, false)
+     |> put_flash(:info, gettext("Removed stored data from %{count} profile(s).", count: count))
+     |> load()}
+  end
+
+  def handle_async(:forget_profiles, {:exit, _reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(:forget_running?, false)
+     |> put_flash(:error, gettext("Could not remove stored profile data. Try again."))}
   end
 
   @impl true
@@ -997,6 +1037,31 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             </div>
           </div>
         </div>
+
+        <form phx-submit="forget_profiles" class="mt-4 flex flex-wrap items-center gap-2">
+          <label for="forget-profile-kind" class="text-sm">{gettext("Remove stored profile data")}</label>
+          <select id="forget-profile-kind" name="kind" class="select select-sm select-bordered">
+            <option value="ip">{gettext("IP address")}</option>
+            <option value="user_agent">{gettext("User-Agent")}</option>
+            <option value="headers">{gettext("Request headers")}</option>
+            <option value="network">{gettext("Network")}</option>
+            <option value="signals">{gettext("Device measurements")}</option>
+            <option value="all">{gettext("All visitor profiles")}</option>
+          </select>
+          <button
+            type="submit"
+            disabled={@forget_running?}
+            phx-disable-with={gettext("Working…")}
+            data-confirm={
+              gettext(
+                "Remove the selected data from every profile? This cannot be undone. Switch its collection setting off first to prevent new data being stored."
+              )
+            }
+            class="btn btn-sm btn-outline btn-error"
+          >
+            {gettext("Remove stored data")}
+          </button>
+        </form>
 
         <div class="mt-4 flex flex-wrap gap-2">
           <button

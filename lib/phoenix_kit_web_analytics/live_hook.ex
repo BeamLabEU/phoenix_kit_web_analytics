@@ -216,8 +216,15 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
       client ->
         # The socket can't see the consent cookie; what the plug noted in the
         # session at the page load stands until the next one.
+        config = Config.collection_config()
+
         client =
-          Map.put(client, :consent, Consent.for_session(session, Config.collection_config()))
+          client
+          |> Map.put(:consent_context, %{
+            session: Map.take(session, [Consent.session_key()]),
+            category: config.consent_category
+          })
+          |> Consent.refresh(config)
 
         socket =
           socket
@@ -237,6 +244,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   end
 
   defp handle_params(_params, uri, socket) do
+    socket = refresh_client(socket)
     state = socket.assigns[@state_key]
     parsed = URI.parse(uri)
     path = parsed.path || "/"
@@ -283,6 +291,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   end
 
   defp handle_event(event, params, socket) do
+    socket = refresh_client(socket)
     state = socket.assigns[@state_key]
     now = System.monotonic_time(:millisecond)
 
@@ -292,6 +301,12 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     else
       {:cont, socket}
     end
+  end
+
+  defp refresh_client(socket) do
+    client = Consent.refresh(socket.assigns[@client_key], Config.collection_config())
+    unless measured?(client), do: LivePresence.unwatch(self())
+    assign(socket, @client_key, client)
   end
 
   # ── what gets recorded ────────────────────────────────────────────────────
@@ -341,7 +356,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         roles: Tracking.current_roles(socket.assigns),
         status: 200,
         metadata: %{"source" => source},
-        consent: client[:consent] || Consent.all()
+        consent: client[:consent] || Consent.all(),
+        consent_context: client[:consent_context]
       })
     end
   end
@@ -364,7 +380,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         user_uuid: Tracking.current_user_uuid(socket.assigns),
         roles: Tracking.current_roles(socket.assigns),
         metadata: interaction_metadata(params),
-        consent: client[:consent] || Consent.all()
+        consent: client[:consent] || Consent.all(),
+        consent_context: client[:consent_context]
       })
     end
   end

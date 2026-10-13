@@ -5,8 +5,36 @@ defmodule PhoenixKitWebAnalytics.Web.ConsentSettingsTest do
 
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.DataCollection
+  alias PhoenixKitWebAnalytics.Profiles
+  alias PhoenixKitWebAnalytics.Schemas.VisitorProfile
+  alias PhoenixKitWebAnalytics.Test.Repo
 
   @settings "/admin/web-analytics/settings"
+
+  describe "removing stored profiles" do
+    test "the confirmed form removes one kind and records its audit entry", %{conn: conn} do
+      Repo.insert!(%VisitorProfile{
+        visitor_id: "visitor-to-forget",
+        ip: "203.0.113.5",
+        user_agent: "kept-agent",
+        last_seen_at: DateTime.utc_now()
+      })
+
+      {:ok, view, html} = live(conn, @settings)
+      assert html =~ "Remove the selected data from every profile?"
+
+      view |> element("form[phx-submit='forget_profiles']") |> render_submit(%{"kind" => "ip"})
+      assert render_async(view) =~ "Removed stored data from 1 profile(s)."
+      assert %{ip: nil, user_agent: "kept-agent"} = Profiles.get("visitor-to-forget")
+      assert_activity_logged("profiles.forgotten", metadata_has: %{"kind" => "ip", "count" => 1})
+    end
+
+    test "unknown kinds are ignored without deleting or creating atoms", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @settings)
+      assert render_hook(view, "forget_profiles", %{"kind" => "unrecognised-kind"})
+      refute_activity_logged("profiles.forgotten")
+    end
+  end
 
   defp selected(html, name) do
     html

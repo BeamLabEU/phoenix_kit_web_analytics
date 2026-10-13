@@ -15,10 +15,10 @@ Requires `mix phoenix_kit.update` (migrations V09 and V10).
   write to one `visitor_profiles` row per visitor ID (never to an event row).
   Credential headers are never kept; rows go with the raw events' retention.
   `Profiles.forget/1` takes stored data back, and `Admin.forget_profiles/2`
-  does the same with an activity-log entry.
+  does the same with an activity-log entry, also available from Settings.
 - **Visitor ID rotation** (`web_analytics_visitor_rotation`): `daily` (default),
-  `weekly`, `monthly` or `never`. Longer periods make `visitors` a count of
-  visitor-days in rolled-up ranges; see AGENTS.md.
+  `weekly`, `monthly` or `never`. Report visitors count daily uniques under
+  every rotation; longer IDs let the visit list identify returning visits.
 - **A bot score with reasons**, and a **Bots** page that ranks profiles and
   groups them by network, subnet, address, device or User-Agent. The score is
   evidence only: nothing is dropped or blocked because of it.
@@ -38,8 +38,19 @@ Requires `mix phoenix_kit.update` (migrations V09 and V10).
 
 - The test suite's LiveView page tests used a `/en/admin/...` base that
   `phoenix_kit` 2.62 no longer emits (primary locale is prefixless).
-- A misleading comment claimed distinct visitors always add across days; it
-  holds only for the `daily` rotation.
+- Raw and rolled-up reports now agree under every visitor-ID rotation,
+  including visitor counts, exit visitors and monthly trends. Visit totals,
+  bounce rate and average length consistently use daily portions of visits
+  spanning midnight; visit timelines still show the full visit.
+- Profile erasure removes address and User-Agent copies from request headers,
+  changes data and derived scores atomically, and preserves unrelated bot
+  evidence. Host-supplied header maps also enforce credential redaction,
+  address-storage rules and query stripping.
+- Incomplete device reports retain earlier measurements and compute the
+  device hash and score from the merged data in the same transaction.
+- Consent-rule and category changes apply to open LiveViews and delayed
+  leaves. Visitor answer changes still require a full HTTP page load; Legal
+  reloads on withdrawal by default, and host consent tools must do so too.
 
 ## 0.6.1 - 2026-10-10
 

@@ -1,6 +1,6 @@
 defmodule PhoenixKitWebAnalytics.SessionStats do
   @moduledoc false
-  # The per-session facts behind bounce rate and session length, shared by the
+  # The per-day session facts behind bounce rate and session length, shared by the
   # live reports and the daily rollup so the two can never define a session
   # differently.
   #
@@ -17,13 +17,19 @@ defmodule PhoenixKitWebAnalytics.SessionStats do
 
   @doc """
   Groups `query` (already restricted to a time window) into one row per
-  session: `%{session_id, hits, seconds}`, plus `site` with `by_site: true`.
+  session and UTC day: `%{session_id, hits, seconds}`, plus `site` with
+  `by_site: true`. A visit spanning midnight contributes a portion to each
+  day, matching the daily rollups even under a longer visitor ID rotation.
   """
   @spec per_session(Ecto.Queryable.t(), keyword()) :: Ecto.Query.t()
   def per_session(query, opts \\ []) do
     if Keyword.get(opts, :by_site, false) do
       from(e in query,
-        group_by: [fragment("COALESCE(?, '')", e.site), e.session_id],
+        group_by: [
+          fragment("COALESCE(?, '')", e.site),
+          e.session_id,
+          fragment("?::date", e.inserted_at)
+        ],
         having: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type) > 0,
         select: %{
           site: fragment("COALESCE(?, '')", e.site),
@@ -34,7 +40,7 @@ defmodule PhoenixKitWebAnalytics.SessionStats do
       )
     else
       from(e in query,
-        group_by: e.session_id,
+        group_by: [e.session_id, fragment("?::date", e.inserted_at)],
         having: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type) > 0,
         select: %{
           session_id: e.session_id,

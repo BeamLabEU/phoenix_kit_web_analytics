@@ -18,9 +18,8 @@ defmodule PhoenixKitWebAnalytics.Visitor do
       hash can't be recomputed from a guessed IP.
     * **Not durable, by default.** The date is part of the input, so the same
       person on the same network gets a *different* ID tomorrow, and cross-day
-      tracking of an individual is impossible by construction — which is also
-      why `PhoenixKitWebAnalytics.Schemas.DailyStat` documents `visitors` as a
-      per-day figure that must not be summed.
+      tracking of an individual through this ID is impossible by construction.
+      Report visitors remain daily unique counts even with longer rotation.
 
   How long an ID lasts is the operator's choice
   (`web_analytics_visitor_rotation`): `:daily` (the default), `:weekly`,

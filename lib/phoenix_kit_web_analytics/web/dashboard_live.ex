@@ -104,10 +104,10 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
           delta={delta(@overview.visitors, @previous && @previous.visitors)}
         >
           <:info>
-            <p>{gettext("Different people who opened at least one page.")}</p>
+            <p>{gettext("Daily unique visitors added across the period.")}</p>
             <p>
               {gettext(
-                "A person is recognised by their device and browser, for one day at a time and without cookies — so someone who comes back on another day is counted again."
+                "A visitor is counted once each day they open a page. Returning on another day counts again, whatever the visitor ID rotation."
               )}
             </p>
           </:info>
@@ -142,7 +142,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
             </p>
             <p>
               {gettext(
-                "If they are away for more than %{minutes} minutes and come back, that starts a new visit, so one person can make several visits a day. Signing in has nothing to do with it.",
+                "If they are away for more than %{minutes} minutes and come back, that starts a new visit. Totals count each UTC day of a visit separately; bounce rate and average length use those daily portions. The visit list shows the full visit.",
                 minutes: @session_timeout
               )}
             </p>
@@ -308,7 +308,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
             </p>
             <p>
               {gettext(
-                "Visitors: how many different people did it. Times: how often it was done in total."
+                "Visitors: daily unique visitors who did it, added across the period. Times: how often it was done in total."
               )}
             </p>
           </:info>
@@ -329,7 +329,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
             <p>{gettext("The pages visits ended on — where people left the site.")}</p>
             <p>
               {gettext(
-                "Visitors: how many different people left from it. Exits: how many visits ended there."
+                "Visitors: daily unique visitors who left from it, added across the period. Exits: how many visits ended there."
               )}
             </p>
           </:info>

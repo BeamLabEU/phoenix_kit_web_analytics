@@ -613,7 +613,8 @@ defmodule PhoenixKitWebAnalytics.LivePresence do
       inserted_at: now,
       metadata: %{"source" => "live_presence"},
       # What the visitor's answer allowed when the page was opened.
-      consent: client[:consent] || PhoenixKitWebAnalytics.Consent.all()
+      consent: client[:consent] || PhoenixKitWebAnalytics.Consent.all(),
+      consent_context: client[:consent_context]
     })
   end
 

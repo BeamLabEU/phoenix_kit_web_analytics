@@ -119,7 +119,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     %{
       ip: stored_ip(hit[:ip], config.store_ip),
       user_agent: if(config.store_user_agent?, do: text(hit[:user_agent], @max_user_agent)),
-      headers: if(config.store_headers?, do: headers(hit[:headers]))
+      headers: if(config.store_headers?, do: headers(hit[:headers], config.store_ip == :full))
     }
     |> Map.merge(network(hit, config))
     |> Map.reject(fn {_field, value} -> is_nil(value) end)
@@ -174,11 +174,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
          salt when is_binary(salt) <- Keyword.get_lazy(opts, :salt, &Config.hash_salt/0) do
       now = Keyword.get(opts, :now, DateTime.utc_now())
 
-      upsert_signals(visitor_id, signals, Signals.device_hash(signals, salt), now)
-
-      rescore(visitor_id, :signals, fn _stored ->
-        BotScore.signal_reasons(signals, user_agent)
-      end)
+      store_device(visitor_id, signals, user_agent, salt, now)
 
       if signals["wd"] == true, do: add_reason([visitor_id], "webdriver")
 
@@ -280,7 +276,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   Blanks one kind of stored data on every profile — what switching its
   setting off doesn't do by itself — takes back the bot reasons that were
   read from it (`BotScore.derived_from/1`), and drops the rows left with
-  nothing.
+  nothing, including no independent bot evidence.
   `:all` deletes every profile. Returns the number of rows changed or
   deleted.
   """
@@ -291,18 +287,24 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   end
 
   def forget(kind) when kind in [:ip, :user_agent, :headers, :network, :signals] do
-    columns = forget_columns(kind)
+    {:ok, count} =
+      repo().transaction(fn ->
+        columns = forget_columns(kind)
+        header_names = forgotten_headers(kind)
 
-    {count, _} =
-      VisitorProfile
-      |> where(^not_null_any(columns))
-      |> repo().update_all(set: Enum.map(columns, &{&1, nil}))
+        {count, _} =
+          VisitorProfile
+          |> where(^affected_by_forget(columns, header_names, BotScore.derived_from(kind)))
+          |> repo().update_all(set: Enum.map(columns, &{&1, nil}))
 
-    # What was worked out from the forgotten data goes with it: a reason
-    # left behind would still say what the data said.
-    Enum.each(BotScore.derived_from(kind), &strip_reason/1)
+        # The value may also have been kept inside request headers. Keep the
+        # header names as evidence of presence, as collection itself does.
+        redact_headers(header_names)
+        Enum.each(BotScore.derived_from(kind), &strip_reason/1)
+        drop_empty()
+        count
+      end)
 
-    drop_empty()
     count
   end
 
@@ -418,12 +420,24 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   # A device reporting in is the visitor being seen: without the time moving
   # forward, a profile that only ever receives measurements would drop off
   # the Bots page and be pruned as if it had gone away.
-  defp upsert_signals(visitor_id, signals, device_hash, now) do
+  defp store_device(visitor_id, signals, user_agent, salt, now) do
+    repo().transaction(fn ->
+      upsert_signals(visitor_id, signals, now)
+
+      rescore(visitor_id, :signals, fn stored ->
+        from(p in VisitorProfile, where: p.visitor_id == ^visitor_id)
+        |> repo().update_all(set: [device_hash: Signals.device_hash(stored.signals, salt)])
+
+        BotScore.signal_reasons(stored.signals, user_agent)
+      end)
+    end)
+  end
+
+  defp upsert_signals(visitor_id, signals, now) do
     row = %{
       uuid: UUIDv7.generate(),
       visitor_id: visitor_id,
       signals: signals,
-      device_hash: device_hash,
       inserted_at: now,
       last_seen_at: now
     }
@@ -432,8 +446,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
       from(p in VisitorProfile,
         update: [
           set: [
-            signals: fragment("EXCLUDED.signals"),
-            device_hash: fragment("EXCLUDED.device_hash"),
+            signals: fragment("COALESCE(?, '{}'::jsonb) || EXCLUDED.signals", p.signals),
             last_seen_at: fragment("GREATEST(EXCLUDED.last_seen_at, ?)", p.last_seen_at)
           ]
         ]
@@ -459,7 +472,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
           from(p in VisitorProfile,
             where: p.visitor_id == ^visitor_id,
             lock: "FOR UPDATE",
-            select: map(p, [:bot_reasons, :headers, :hosting])
+            select: map(p, [:bot_reasons, :headers, :hosting, :signals])
           )
         )
 
@@ -531,12 +544,30 @@ defmodule PhoenixKitWebAnalytics.Profiles do
 
   defp asn(_value), do: nil
 
-  # Already shaped by `request_headers/2`; anything else isn't headers.
-  defp headers(%{"names" => names, "values" => values} = headers)
-       when is_list(names) and is_map(values),
-       do: Map.take(headers, ["http", "scheme", "names", "values"])
+  # Hosts can also hand the collector a shaped header map. Enforce the
+  # storage rules here too, rather than assuming it came through the plug.
+  defp headers(%{"names" => names, "values" => values} = headers, address?)
+       when is_list(names) and is_map(values) do
+    pairs =
+      for {name, value} <- Enum.take(values, @max_headers),
+          is_binary(name),
+          do: {String.downcase(name), value}
 
-  defp headers(_headers), do: nil
+    %{
+      "http" => text(headers["http"], 32),
+      "scheme" => text(headers["scheme"], 16),
+      "names" =>
+        for(
+          name <- Enum.take(names, @max_headers),
+          is_binary(name),
+          do: clip(String.downcase(name), @max_header_name)
+        ),
+      "values" => header_values(pairs, address?)
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp headers(_headers, _address?), do: nil
 
   # As the browser saw it: a proxy that ends TLS says so in a header.
   defp scheme(conn) do
@@ -595,13 +626,48 @@ defmodule PhoenixKitWebAnalytics.Profiles do
     end)
   end
 
-  # A row with nothing kept is only a visitor ID and two times.
+  defp forgotten_headers(:ip), do: @address_headers
+  defp forgotten_headers(:user_agent), do: ["user-agent"]
+  defp forgotten_headers(_kind), do: []
+
+  defp affected_by_forget(columns, header_names, reasons) do
+    present = not_null_any(columns)
+
+    dynamic(
+      [p],
+      ^present or fragment("jsonb_exists_any(?->'values', ?::text[])", p.headers, ^header_names) or
+        fragment("?::text[] && ?::text[]", p.bot_reasons, ^reasons)
+    )
+  end
+
+  defp redact_headers([]), do: :ok
+
+  defp redact_headers(names) do
+    from(p in VisitorProfile,
+      where: fragment("jsonb_exists_any(?->'values', ?::text[])", p.headers, ^names),
+      update: [
+        set: [
+          headers:
+            fragment(
+              "jsonb_set(?, '{values}', (?->'values') - ?::text[])",
+              p.headers,
+              p.headers,
+              ^names
+            )
+        ]
+      ]
+    )
+    |> repo().update_all([])
+  end
+
+  # Independent evidence (rate, no-JS, automation, …) survives forgetting
+  # a different kind. :all is the explicit way to remove those rows too.
   defp drop_empty do
     from(p in VisitorProfile,
       where:
         is_nil(p.ip) and is_nil(p.user_agent) and is_nil(p.headers) and is_nil(p.asn) and
           is_nil(p.network) and is_nil(p.hosting) and is_nil(p.signals) and
-          is_nil(p.device_hash)
+          is_nil(p.device_hash) and p.bot_reasons == []
     )
     |> repo().delete_all()
   end

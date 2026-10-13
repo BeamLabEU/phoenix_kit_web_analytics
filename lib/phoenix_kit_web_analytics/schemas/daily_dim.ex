@@ -6,7 +6,8 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyDim do
   Written by `PhoenixKitWebAnalytics.Retention` for finished days, read by
   `PhoenixKitWebAnalytics.Reports`, so a breakdown over a month reads a few
   thousand rows instead of every raw event. Like `DailyStat`, the `visitors`
-  of different days add up exactly, because the visitor ID changes daily.
+  of different days add up exactly: raw reports count daily unique visitors
+  too, regardless of the visitor ID rotation.
 
   `dimension` is one of the names defined by the shared dimensions module. `detail`
   is a second key where the value alone isn't enough (an interaction's

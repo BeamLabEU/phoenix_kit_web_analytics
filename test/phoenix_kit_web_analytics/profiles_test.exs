@@ -220,6 +220,34 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
   end
 
   describe "request headers" do
+    test "host-provided header maps cannot bypass storage rules" do
+      enable_tracking(%{"web_analytics_store_headers" => "true"})
+
+      assert {:ok, event} =
+               Collector.track(
+                 hit(%{
+                   headers: %{
+                     "names" => ~w(Authorization X-Api-Key X-Forwarded-For Referer Accept),
+                     "values" => %{
+                       "Authorization" => "Bearer secret",
+                       "X-Api-Key" => "credential",
+                       "X-Forwarded-For" => "203.0.113.5",
+                       "Referer" => "https://example.com/reset?token=secret",
+                       "Accept" => "text/html"
+                     }
+                   }
+                 })
+               )
+
+      headers = Profiles.get(event.visitor_id).headers
+      assert headers["names"] == ~w(authorization x-api-key x-forwarded-for referer accept)
+
+      assert headers["values"] == %{
+               "referer" => "https://example.com/reset",
+               "accept" => "text/html"
+             }
+    end
+
     defp request do
       conn(:get, "/pricing?utm_source=hn")
       |> Map.put(:remote_ip, {203, 0, 113, 5})
@@ -330,6 +358,73 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
       assert Profiles.forget(:ip) == 1
 
       assert %VisitorProfile{ip: nil, user_agent: @chrome} = Profiles.get(visitor_id)
+    end
+
+    test "forget removes copies in headers, including profiles with no address column",
+         %{visitor_id: visitor_id} do
+      headers = %{
+        "names" => ~w(user-agent x-forwarded-for cf-connecting-ip accept),
+        "values" => %{
+          "user-agent" => @chrome,
+          "x-forwarded-for" => "203.0.113.5",
+          "cf-connecting-ip" => "203.0.113.5",
+          "accept" => "text/html"
+        }
+      }
+
+      Repo.update_all(VisitorProfile, set: [headers: headers])
+
+      Repo.insert!(%VisitorProfile{
+        visitor_id: "headers-only",
+        headers: headers,
+        last_seen_at: DateTime.utc_now()
+      })
+
+      assert Profiles.forget(:ip) == 2
+      assert Profiles.forget(:ip) == 0
+
+      for id <- [visitor_id, "headers-only"] do
+        profile = Profiles.get(id)
+        assert profile.ip == nil
+        assert profile.headers["names"] == headers["names"]
+        assert profile.headers["values"] == %{"user-agent" => @chrome, "accept" => "text/html"}
+      end
+
+      assert Profiles.forget(:user_agent) == 2
+
+      for id <- [visitor_id, "headers-only"] do
+        assert Profiles.get(id).headers["values"] == %{"accept" => "text/html"}
+      end
+    end
+
+    test "forget keeps independent bot evidence", %{visitor_id: visitor_id} do
+      Profiles.add_reason([visitor_id], "rate")
+      Profiles.forget(:ip)
+      Profiles.forget(:user_agent)
+
+      assert %{ip: nil, user_agent: nil, bot_reasons: ["rate"], bot_score: 70} =
+               Profiles.get(visitor_id)
+
+      assert Profiles.forget(:all) == 1
+      assert Profiles.get(visitor_id) == nil
+    end
+
+    test "a failed erasure rolls back the data and reasons", %{visitor_id: visitor_id} do
+      # A failure in the final delete previously left the first UPDATE
+      # committed. A trigger raises only after the profile is empty.
+      Repo.query!("""
+      CREATE FUNCTION fail_profile_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'test deletion failed'; END $$
+      """)
+
+      Repo.query!("""
+      CREATE TRIGGER fail_profile_delete BEFORE DELETE ON phoenix_kit_web_analytics_visitor_profiles
+      FOR EACH ROW EXECUTE FUNCTION fail_profile_delete()
+      """)
+
+      Profiles.forget(:ip)
+      assert_raise Postgrex.Error, fn -> Profiles.forget(:user_agent) end
+      assert Profiles.get(visitor_id).user_agent == @chrome
     end
 
     test "forget drops a row left with nothing", %{visitor_id: visitor_id} do

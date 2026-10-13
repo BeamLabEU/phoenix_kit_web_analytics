@@ -228,16 +228,19 @@ Stated explicitly, because it's what makes two analytics tools disagree:
 - **Page views** — HTML responses and LiveView navigations. A LiveView
   reconnect is not a page view, and neither is a patch that only changes the
   query string.
-- **Visitors** — distinct visitor hashes among page views. By default the
-  hash includes the date, so one person browsing on three days counts as three
-  visitors over a week — the honest consequence of not tracking people across
-  days. `web_analytics_visitor_rotation` makes an ID last longer.
+- **Visitors** — daily unique visitor hashes among page views, added across
+  the period. One visitor on three days counts as three under every
+  `web_analytics_visitor_rotation`. The "right now" figure counts unique IDs
+  within its short window.
 - **Sessions** — stitched server-side: a hit joins the visitor's previous
   session on the same site if it's within the inactivity window (30 minutes by
   default), otherwise it starts a new one. A session needs a page view.
-- **Bounce rate** — sessions with exactly one page view.
-- **Session length** — first hit to last, exits included, so a single page
-  read for three minutes is a three-minute session.
+  Report totals count each UTC day's portion of a visit separately; the visit
+  list and timeline show the full visit.
+- **Bounce rate** — daily visit portions with exactly one page view.
+- **Session length** — first hit to last within each daily visit portion,
+  exits included, so a single page read for three minutes on the same day is
+  a three-minute session.
 - **Time on page** — from exits: how long the page was open (LiveView) or
   visible (client script).
 
@@ -429,7 +432,7 @@ They are written to one row per visitor ID
 (`phoenix_kit_web_analytics_visitor_profiles`) when a visit starts, never to
 the event rows, and shown on the visit's page. A row goes when its visitor
 hasn't been seen for `web_analytics_retention_days`. Switching a setting off
-stops it being recorded; `PhoenixKitWebAnalytics.Profiles.forget/1` removes
+stops it being recorded; `PhoenixKitWebAnalytics.Admin.forget_profiles/2` removes
 what is already stored (`:ip`, `:user_agent`, `:headers`, `:network`,
 `:signals` or `:all`), along with the bot reasons that were read from it.
 
@@ -439,9 +442,21 @@ secret — its name still shows that it was sent), and the query string of
 `Referer`. Headers that carry the visitor's address (`X-Forwarded-For` and
 the like) keep their value only when the address itself is kept whole.
 
-A longer-lived ID changes what a count over several days sees: totals read
-from the daily rollups stay per-day counts, while anything counted from raw
-events finds one ID where it found one per day before.
+**Visitors means daily unique visitors added across the period**, under every
+rotation: one visitor on three days counts as three. Raw reads and daily
+rollups use the same definition, including monthly charts and exit visitors.
+A longer-lived ID lets you follow returning visits; it does not change that
+aggregate. The "right now" figure counts unique IDs in its short window.
+Visit totals, bounce rate and average visit length also use daily portions:
+a visit spanning UTC midnight contributes separately to each day. The visit
+list and timeline continue to show the full visit.
+
+Stored profile data can also be removed from Settings → **Data & retention**.
+The removal records the acting user, kind and affected row count in the activity
+log, never a stored value. Forgetting an address or User-Agent also removes its
+values from stored request headers. Independent bot evidence remains until
+retention or an explicit `:all` removal. Switch the corresponding collection
+setting off first to prevent new values being collected.
 
 Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
@@ -509,14 +524,18 @@ source. A source that cleanly returns `:unknown` is taken at its word.
 **When the answer applies.** It is read from the request, so it is as fresh as
 the last page load. A LiveView cannot see cookies: the plug notes the answer
 in the session, and it holds for live navigation until the next full page
-load (the Legal banner reloads the page when a consent is taken back, so a
-withdrawal is not left waiting). The note is all a LiveView knows, so **the
+load. The Legal banner reloads on withdrawal by default; keep that option
+on when using these rules. A host consent tool must also force a full page
+reload after changing an answer, including withdrawal; a LiveView navigation
+or reconnect alone does not refresh the session note. The note is all a LiveView knows, so **the
 plug must run after `:fetch_session`**: a session with no note is read as a
 visitor who objected and has not answered, and nothing that waits for an
 answer is collected on LiveViews until the plug has written one. The client script re-asks the server the
 moment the banner reports a decision, so device measurements and a recording
-can start on the page where the visitor said yes. Nothing collected before a
-yes is held back for later — there is no queue to flush.
+can start on the page where the visitor said yes. Changes to consent rules
+and the selected category are applied to open LiveViews and their delayed
+leaves; a yes to the previous category does not allow the new one. Nothing
+collected before a yes is held back for later — there is no queue to flush.
 
 `web_analytics_respect_dnt` is separate and blunter: while it is on, a browser
 sending `DNT` or `Sec-GPC` is not tracked under any rule, a yes in the banner

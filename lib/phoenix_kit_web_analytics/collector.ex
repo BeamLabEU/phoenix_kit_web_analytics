@@ -110,6 +110,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
+  alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.Geo
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Profiles
@@ -291,6 +292,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
   end
 
   defp do_track(hit, config) do
+    hit = Consent.refresh(hit, config)
+
     case consented(hit, config) do
       nil -> {:error, :no_consent}
       hit -> track_consented(hit, config)
@@ -335,7 +338,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   defp anonymous(hit, config) do
     hit
     |> Map.put(:traffic_flags, InternalTraffic.flags(hit, config))
-    |> Map.drop([:user_uuid, :roles, :headers, :network, :session_anchor])
+    |> Map.drop([:user_uuid, :roles, :headers, :network, :session_anchor, :consent_context])
     |> Map.put(:query_params, campaign_only(hit[:query_params]))
     |> Map.put(:metadata, anonymous_metadata(hit[:metadata]))
     |> Map.put(:anonymous, true)

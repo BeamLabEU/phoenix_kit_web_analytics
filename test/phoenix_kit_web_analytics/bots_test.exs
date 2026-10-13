@@ -278,6 +278,41 @@ defmodule PhoenixKitWebAnalytics.BotsTest do
       refute a == c
     end
 
+    test "an incomplete report retains measurements, hash material and their reasons" do
+      config = Config.collection_config()
+      first = Map.merge(@device, %{"gr" => "SwiftShader", "wd" => true})
+      Profiles.record_signals("visitor-a", first, @chrome, config)
+      before = Profiles.get("visitor-a")
+
+      Profiles.record_signals("visitor-a", %{"iw" => 800, "wd" => false}, @chrome, config)
+      after_report = Profiles.get("visitor-a")
+
+      assert after_report.device_hash == before.device_hash
+      assert after_report.signals == Map.merge(before.signals, %{"iw" => 800, "wd" => false})
+      assert Enum.sort(after_report.bot_reasons) == ~w(software_renderer webdriver)
+
+      # Explicit replacements still take back the device's reason.
+      Profiles.record_signals("visitor-a", %{"gr" => "Apple M2"}, @chrome, config)
+      assert Profiles.get("visitor-a").bot_reasons == ["webdriver"]
+      refute Profiles.get("visitor-a").device_hash == before.device_hash
+    end
+
+    test "forgetting the only measurements keeps unrelated behaviour evidence" do
+      enable_tracking(%{"web_analytics_store_signals" => "true"})
+
+      Profiles.record_signals(
+        "visitor-a",
+        %{"gr" => "SwiftShader", "wd" => true},
+        @chrome,
+        Config.collection_config()
+      )
+
+      assert Profiles.forget(:signals) == 1
+
+      assert %{signals: nil, device_hash: nil, bot_reasons: ["webdriver"], bot_score: 90} =
+               Profiles.get("visitor-a")
+    end
+
     test "scores what the device says, and replaces it when it reports again" do
       config = Config.collection_config()
 

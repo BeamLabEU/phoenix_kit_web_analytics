@@ -10,11 +10,11 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyStat do
 
   ## Adding days up
 
-  `visitors` is a distinct count for that day — and it **does** add up across
-  days, because the visitor ID itself changes every day (see
-  `PhoenixKitWebAnalytics.Visitor`): nobody can be the same visitor on two
-  days, so the sum over a range is exactly what a distinct count over the raw
-  events would give. That is what lets reports read finished days from here.
+  `visitors` is a distinct count for that UTC day. Reports add these daily
+  uniques across the period; raw reads count `(visitor_id, UTC day)` pairs,
+  so both paths agree even when the visitor ID lasts longer than a day.
+  Sessions, bounces and session seconds likewise describe daily portions of
+  visits, including a visit spanning midnight.
 
   The per-day breakdowns (pages, referrers, …) are
   `PhoenixKitWebAnalytics.Schemas.DailyDim` rows.

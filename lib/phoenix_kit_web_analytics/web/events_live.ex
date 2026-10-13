@@ -126,7 +126,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
             </p>
             <p>
               {gettext(
-                "Visitors: how many different people did it. Times: how often it was done in total."
+                "Visitors: daily unique visitors who did it, added across the period. Times: how often it was done in total."
               )}
             </p>
           </:info>
@@ -149,7 +149,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
             </p>
             <p>
               {gettext(
-                "Visitors: how many different people did it. Times: how often it was done in total."
+                "Visitors: daily unique visitors who did it, added across the period. Times: how often it was done in total."
               )}
             </p>
           </:info>

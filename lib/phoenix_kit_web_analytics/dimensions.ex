@@ -44,7 +44,12 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
       exit_visitors:
         dynamic(
           [e],
-          fragment("COUNT(DISTINCT ?) FILTER (WHERE ? = 'leave')", e.visitor_id, e.event_type)
+          fragment(
+            "COUNT(DISTINCT (?, ?::date)) FILTER (WHERE ? = 'leave')",
+            e.visitor_id,
+            e.inserted_at,
+            e.event_type
+          )
         ),
       engaged_ms_sum:
         dynamic(
@@ -108,7 +113,12 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
         site: fragment("COALESCE(?, '')", e.site),
         pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
         visitors:
-          fragment("COUNT(DISTINCT ?) FILTER (WHERE ? = 'pageview')", e.visitor_id, e.event_type),
+          fragment(
+            "COUNT(DISTINCT (?, ?::date)) FILTER (WHERE ? = 'pageview')",
+            e.visitor_id,
+            e.inserted_at,
+            e.event_type
+          ),
         events: fragment("COUNT(*) FILTER (WHERE ? = 'event')", e.event_type),
         exits: fragment("COUNT(*) FILTER (WHERE ? = 'leave')", e.event_type),
         engaged_ms_sum:
@@ -200,8 +210,14 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
     do:
       dynamic(
         [e],
-        fragment("COUNT(DISTINCT ?) FILTER (WHERE ? = 'pageview')", e.visitor_id, e.event_type)
+        fragment(
+          "COUNT(DISTINCT (?, ?::date)) FILTER (WHERE ? = 'pageview')",
+          e.visitor_id,
+          e.inserted_at,
+          e.event_type
+        )
       )
 
-  defp visitors(_dimension), do: dynamic([e], count(e.visitor_id, :distinct))
+  defp visitors(_dimension),
+    do: dynamic([e], fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at))
 end

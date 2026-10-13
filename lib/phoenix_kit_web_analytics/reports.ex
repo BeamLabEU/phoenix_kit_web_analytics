@@ -24,12 +24,15 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
     * **Page views** count rows with `event_type = "pageview"`. Custom events
       are never page views.
-    * **Visitors** is `COUNT(DISTINCT visitor_id)`. Since `visitor_id` is a
-      daily hash (see `PhoenixKitWebAnalytics.Visitor`), one person browsing on
-      three days counts as three visitors over a week-long window. That is the
-      honest consequence of not tracking people across days.
-    * **Sessions** is `COUNT(DISTINCT session_id)`, where a session ends after
-      the configured inactivity gap (30 minutes by default).
+    * **Visitors** counts distinct `(visitor_id, UTC day)` pairs: daily unique
+      visitors, added across the window. One visitor browsing on three days
+      counts as three, including with weekly, monthly or never ID rotation.
+      The "right now" number instead counts distinct IDs in its short window.
+    * **Sessions** counts daily portions of visits, which end after the
+      configured inactivity gap (30 minutes by default). A visit spanning
+      midnight contributes once to each UTC day, matching the daily rollups.
+      Bounce rate and session length are computed from those daily portions;
+      the session list and timeline still show the full visit.
     * **Bounce rate** is sessions with exactly one page view, over all sessions.
     * **Average session length** measures last hit minus first hit in a
       session, so single-page sessions contribute zero — the standard
@@ -43,8 +46,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
   (through the rollup reader). A 30-day or 12-month window costs
   about what a single day does, whatever the traffic, and breakdowns keep
   working for days whose raw events retention has deleted. The numbers are
-  the same either way: distinct visitors add up across days exactly, because
-  the visitor ID changes daily.
+  the same either way: visitors count daily uniques in both read paths,
+  regardless of the configured visitor ID rotation.
 
   Today (hourly), a single-page filter and bot traffic are read raw — the
   rollups don't break down by hour, page or bot. Results are cached for
@@ -972,7 +975,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> select([e], %{
       bucket: fragment("date_trunc('hour', ?)", e.inserted_at),
       pageviews: count(e.uuid),
-      visitors: count(e.visitor_id, :distinct)
+      visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
     })
   end
 
@@ -982,7 +985,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> select([e], %{
       bucket: fragment("date_trunc('day', ?)", e.inserted_at),
       pageviews: count(e.uuid),
-      visitors: count(e.visitor_id, :distinct)
+      visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
     })
   end
 
@@ -992,7 +995,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
     |> select([e], %{
       bucket: fragment("date_trunc('month', ?)", e.inserted_at),
       pageviews: count(e.uuid),
-      visitors: count(e.visitor_id, :distinct)
+      visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
     })
   end
 
