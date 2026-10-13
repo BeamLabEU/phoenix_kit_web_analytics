@@ -66,6 +66,14 @@ can't, stays optional, and never writes a cookie or storage.
   client script measures only when `GET …/recording` answers `signals: true`.
 - `bot_score.ex` — pure: reasons, weights, levels, and which source owns
   which reason (`merge/3`).
+- `consent.ex` — whether each kind of collection (`:measurement`,
+  `:profile`, `:device`, `:recording`) may happen for a visitor: the
+  `web_analytics_consent_*` modes, the answer's source (Legal's signed
+  cookie, or the host's `consent_source`), and the session note the hook
+  reads. Every entry point puts `consent:` on its hit; the collector is the
+  one place that acts on it (`consented/2`, `profile_allowed?/1`).
+- `data_collection.ex` — what the module declares to Legal's banner and
+  policy (`data_collection/0`, found by name), built from the settings.
 
 **Read path**
 
@@ -103,6 +111,18 @@ can't, stays optional, and never writes a cookie or storage.
   identifying data means a new setting, off by default, with a `forget/1`
   kind. What may be kept is the operator's decision (the module is meant to
   fit any law), so don't hard-code a privacy position in either direction.
+- **Whether a visitor must be asked is the operator's rule, per kind of
+  collection** (`web_analytics_consent_*`: `always` / `consent` /
+  `unless_objected`; all default to `always`). A new entry point must put
+  `consent: Consent.for_conn(conn, config)` (or `for_session/2`) on what it
+  hands the collector — a hit without the key is taken as the host's own
+  call and allowed. A new kind of data about a visitor belongs to one of the
+  four purposes or gets a fifth, with its own key. A consent source that
+  fails answers `:unknown`, never `:granted`. Nothing is queued for a later
+  yes.
+- **What is declared follows what is collected.** A new `store_*` setting or
+  kind of data gets a line in `DataCollection.entries/0`, active only while
+  it is on.
 - **Never kept whatever the settings:** a query string (in a path, a
   referrer or a stored `Referer` header — campaign parameters get their own
   columns first), and the value of a credential header (`Profiles`'

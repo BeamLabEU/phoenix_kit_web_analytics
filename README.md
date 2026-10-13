@@ -432,6 +432,71 @@ Countries are only recorded if you configure a resolver
 (`PhoenixKitWebAnalytics.Geo`) or run behind a CDN that sets a country header.
 No IP database ships with this package.
 
+### When it is collected: consent
+
+Whether a visitor has to be asked before any of this is collected depends on
+the law a site answers to, so the module takes no position. Each kind of
+collection has its own rule (**Settings → When it is collected**):
+
+| Kind | Setting | What it covers |
+|---|---|---|
+| Counting visits | `web_analytics_consent_measurement` | Page views, visits and events under the visitor ID |
+| Details about a visitor | `web_analytics_consent_profile` | What `store_ip`, `store_user_agent`, `store_headers` and `store_network` keep |
+| Device measurements | `web_analytics_consent_device` | What `store_signals` keeps |
+| Session recordings | `web_analytics_consent_recording` | Recordings |
+
+and each rule is one of:
+
+| Rule | Collected when |
+|---|---|
+| `always` (default) | Every time. The visitor is told, not asked — how the module worked before the rules existed |
+| `consent` | The visitor said yes |
+| `unless_objected` | The visitor has not said no, and the browser sends neither `Sec-GPC: 1` nor `DNT: 1` |
+
+The settings page offers four starting points — *Tell, don't ask*, *Count
+visits, ask for the rest*, *Ask first*, *Collect until refused* — which only
+fill the four rules in; any combination can be saved.
+
+The last three kinds describe a visitor, so they are only ever kept for one
+whose visits are counted. A page view that may not be counted is dropped, or
+— with `web_analytics_without_consent` set to `anonymous` — counted with no
+visitor: its own visitor and visit, no user, no profile, so page totals stay
+whole while visitor and visit counts rise with every such view.
+
+**Where the answer comes from.** PhoenixKit's Legal module, when it is
+installed and its cookie banner is on: the banner reports each decision to the
+server, which sets a signed cookie this module reads. A site with its own
+consent tool points the module at it instead:
+
+```elixir
+config :phoenix_kit_web_analytics, consent_source: {MyApp.Consent, :status}
+
+# MyApp.Consent.status(conn, "analytics") :: :granted | :denied | :unknown
+```
+
+With neither, every visitor is unanswered: `consent` collects nothing (the
+settings page warns) and `unless_objected` collects for everyone whose browser
+does not object.
+
+**When the answer applies.** It is read from the request, so it is as fresh as
+the last page load. A LiveView cannot see cookies: the plug notes the answer
+in the session, and it holds for live navigation until the next full page
+load (the Legal banner reloads the page when a consent is taken back, so a
+withdrawal is not left waiting). The client script re-asks the server the
+moment the banner reports a decision, so device measurements and a recording
+can start on the page where the visitor said yes. Nothing collected before a
+yes is held back for later — there is no queue to flush.
+
+`web_analytics_respect_dnt` is separate and blunter: while it is on, a browser
+sending `DNT` or `Sec-GPC` is not tracked under any rule.
+
+**What visitors are told.** The module declares what it is collecting right
+now (`PhoenixKitWebAnalytics.data_collection/0`), following the settings: each
+kind with its rule, what exactly is kept, and for how long. The Legal module
+lists that under the matching toggle of its banner and in the Cookie Policy it
+generates. The module itself puts nothing on a visitor's device — no cookie,
+no storage.
+
 ## Data growth and retention
 
 This is the one PhoenixKit table that grows with traffic rather than content.
@@ -496,6 +561,12 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_store_headers` | `false` | Keep the request headers of a visit's first page view |
 | `web_analytics_store_network` | `false` | Keep the network's ASN, owner and hosting flag (needs a resolver that returns them) |
 | `web_analytics_store_signals` | `false` | Keep the client script's device measurements and a device hash (needs the client script) |
+| `web_analytics_consent_measurement` | `always` | When visits are counted: `always`, `consent`, `unless_objected` |
+| `web_analytics_consent_profile` | `always` | The same, for what the `store_ip` / `_user_agent` / `_headers` / `_network` settings keep |
+| `web_analytics_consent_device` | `always` | The same, for device measurements |
+| `web_analytics_consent_recording` | `always` | The same, for session recordings |
+| `web_analytics_consent_category` | `analytics` | The consent category the four rules follow: `analytics`, `marketing`, `preferences` |
+| `web_analytics_without_consent` | `drop` | A page view that may not be counted: `drop` it, or count it `anonymous` (no visitor) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
