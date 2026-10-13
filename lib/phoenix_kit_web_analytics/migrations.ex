@@ -739,7 +739,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
 
     opts
     |> Map.put(:quoted_prefix, inspect(opts.prefix))
-    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "\\'"))
+    |> Map.put(:escaped_prefix, String.replace(opts.prefix, "'", "''"))
   end
 
   defp read_version(repo, escaped_prefix) do
