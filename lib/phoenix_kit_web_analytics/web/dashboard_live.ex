@@ -26,8 +26,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
      |> Filters.track_online()
      |> assign(:page_title, gettext("Web Analytics"))
      |> assign(:session_timeout, PhoenixKitWebAnalytics.Config.session_timeout_minutes())
-     |> assign(:tracking_enabled?, PhoenixKitWebAnalytics.enabled?())
-     |> assign(:live_hook, PhoenixKitWebAnalytics.LiveHook.coverage(socket.router))}
+     |> assign(:tracking_enabled?, PhoenixKitWebAnalytics.enabled?())}
   end
 
   @impl true
@@ -96,7 +95,6 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
       />
 
       <.disabled_notice :if={not @tracking_enabled?} settings_path={Paths.settings()} />
-      <.live_hook_notice :if={@tracking_enabled?} coverage={@live_hook} />
 
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <.stat_tile
