@@ -316,6 +316,57 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       assert read("web_analytics_internal_networks_secret") == nil
     end
 
+    test "a network too wide to be the site's own is refused by name, and saves nothing" do
+      for wide <- ["0.0.0.0/0", "::/0", "203.0.113.0/2", "10.0.0.0/7", "2001:db8::/15"] do
+        assert {:error, [:internal_networks_wide]} =
+                 Admin.save_settings(%{"internal_networks" => "198.51.100.7\n" <> wide}),
+               wide
+      end
+
+      assert read("web_analytics_internal_networks_secret") == nil
+
+      # A line that isn't a network at all is named first.
+      assert {:error, [:internal_networks]} =
+               Admin.save_settings(%{"internal_networks" => "0.0.0.0/0\nnot-an-address"})
+    end
+
+    test "the narrowest prefixes allowed, and every narrower one, are saved" do
+      networks = ~w(10.0.0.0/8 203.0.113.0/24 198.51.100.7/32 2001:db8::/16 2001:db8::/48)
+      value = Enum.join(networks ++ ["2001:db8::1/128", "192.0.2.1"], "\n")
+
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => value})
+
+      assert read("web_analytics_internal_networks_secret") == value
+    end
+
+    test "a list is refused as its own field when it is over the stored length" do
+      # 91 networks of 10 characters and 90 line breaks: exactly 1000.
+      fits = List.duplicate("10.0.0.0/8", 91) |> Enum.join("\n")
+      assert String.length(fits) == 1000
+      assert {:ok, [_]} = Admin.save_settings(%{"internal_networks" => fits})
+
+      assert {:error, [:internal_networks_long]} =
+               Admin.save_settings(%{"internal_networks" => fits <> "\n10.0.0.0/8"})
+
+      assert read("web_analytics_internal_networks_secret") == fits
+    end
+
+    test "emptying the field clears the networks" do
+      enable_tracking()
+      {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == "198.51.100.7"
+
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "  "})
+
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == ""
+      assert Config.collection_config().internal_networks == []
+      refute PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
+    end
+
     test "the addresses stay out of the activity log" do
       enable_tracking()
       {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})

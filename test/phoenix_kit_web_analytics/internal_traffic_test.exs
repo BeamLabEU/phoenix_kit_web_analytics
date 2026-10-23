@@ -42,6 +42,30 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       assert [{32, _, 32}] = InternalTraffic.parse_cidr("198.51.100.7")
     end
 
+    test "refuses a network too wide to be the site's own" do
+      for wide <- ["0.0.0.0/0", "::/0", "203.0.113.0/2", "10.0.0.0/7", "2001:db8::/15", "0/0"] do
+        assert InternalTraffic.parse_cidr(wide) == [], wide
+      end
+
+      assert {:error, :too_wide} = InternalTraffic.check_cidr("0.0.0.0/0")
+      assert {:error, :too_wide} = InternalTraffic.check_cidr("::/0")
+      assert {:error, :invalid} = InternalTraffic.check_cidr("203.0.113.0/33")
+      assert {:error, :invalid} = InternalTraffic.check_cidr(42)
+    end
+
+    test "accepts the narrowest prefixes and every narrower one" do
+      for {entry, bits, len} <- [
+            {"10.0.0.0/8", 32, 8},
+            {"203.0.113.0/24", 32, 24},
+            {"198.51.100.7/32", 32, 32},
+            {"2001:db8::/16", 128, 16},
+            {"2001:db8::/48", 128, 48},
+            {"2001:db8::1/128", 128, 128}
+          ] do
+        assert [{^bits, _, ^len}] = InternalTraffic.parse_cidr(entry), entry
+      end
+    end
+
     test "skips what isn't a network" do
       for bad <- ["", "nope", "203.0.113.0/33", "2001:db8::/129", "203.0.113.0/x", "1.2.3/8"] do
         assert InternalTraffic.parse_cidr(bad) == [], bad

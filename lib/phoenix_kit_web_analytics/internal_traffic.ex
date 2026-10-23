@@ -61,6 +61,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @table :phoenix_kit_web_analytics_internal_traffic
   @topic "phoenix_kit_web_analytics:admin_networks"
   @networks_key {__MODULE__, :internal_networks}
+  # The shortest prefix a network may have, by address size.
+  @min_prefix %{32 => 8, 128 => 16}
   @roles_ttl_ms :timer.minutes(5)
   # A lookup in flight blocks another for the same user this long.
   @pending_ttl_ms :timer.seconds(30)
@@ -221,30 +223,53 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   @doc """
   `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` for anything that isn't a
-  network.
+  network, or is one too wide to be an office's (see `check_cidr/1`).
   """
   @spec parse_cidr(term()) :: [{32 | 128, non_neg_integer(), non_neg_integer()}]
-  def parse_cidr(cidr) when is_binary(cidr) do
+  def parse_cidr(cidr) do
+    case check_cidr(cidr) do
+      {:ok, network} -> [network]
+      {:error, _reason} -> []
+    end
+  end
+
+  @doc """
+  Reads one network. A bare address is one host. A prefix shorter than
+  `/8` (IPv4) or `/16` (IPv6) is refused as `:too_wide`: `0.0.0.0/0`, or a
+  `/2` that was meant as `/24`, would mark nearly every hit as the site's
+  own, and fixing the setting later does not unmark the rows.
+  """
+  @spec check_cidr(term()) ::
+          {:ok, {32 | 128, non_neg_integer(), non_neg_integer()}}
+          | {:error, :invalid | :too_wide}
+  def check_cidr(cidr) when is_binary(cidr) do
     {address, prefix} =
       case String.split(String.trim(cidr), "/", parts: 2) do
-        [address, prefix] -> {address, Integer.parse(prefix)}
+        [address, prefix] -> {address, prefix}
         [address] -> {address, :host}
       end
 
     with {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
          {bits, value} <- to_integer(unmap(ip)),
          len when is_integer(len) and len >= 0 and len <= bits <- prefix_length(prefix, bits) do
-      [{bits, value, len}]
+      if len < Map.fetch!(@min_prefix, bits),
+        do: {:error, :too_wide},
+        else: {:ok, {bits, value, len}}
     else
-      _ -> []
+      _ -> {:error, :invalid}
     end
   end
 
-  def parse_cidr(_entry), do: []
+  def check_cidr(_entry), do: {:error, :invalid}
 
   defp prefix_length(:host, bits), do: bits
-  defp prefix_length({len, ""}, _bits), do: len
-  defp prefix_length(_prefix, _bits), do: nil
+
+  defp prefix_length(prefix, _bits) do
+    case Integer.parse(prefix) do
+      {len, ""} -> len
+      _ -> nil
+    end
+  end
 
   defp to_integer({a, b, c, d}) do
     <<value::32>> = <<a::8, b::8, c::8, d::8>>

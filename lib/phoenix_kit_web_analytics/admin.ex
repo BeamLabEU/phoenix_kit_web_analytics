@@ -205,6 +205,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
             :skip -> {writes, errors}
             {:ok, value} -> {[{key, value} | writes], errors}
             :error -> {writes, [field | errors]}
+            {:error, detail} -> {writes, [detail | errors]}
           end
         end
       )
@@ -261,15 +262,28 @@ defmodule PhoenixKitWebAnalytics.Admin do
   defp cast(:roles, _value, _params), do: :error
 
   # One network per line (or comma-separated); every one must parse, so a
-  # typo is shown rather than silently skipped. Kept one per line.
+  # typo is shown rather than silently skipped. Kept one per line. A network
+  # too wide to be the site's own, and a list too long to store, are named as
+  # their own fields.
   defp cast(:networks, nil, _params), do: :skip
 
   defp cast(:networks, value, params) when is_binary(value) do
-    entries = String.split(value, [",", "\n", "\r", " "], trim: true)
+    entries = String.split(value, [",", "\n", "\r", "\t", " "], trim: true)
+    checked = Enum.map(entries, &PhoenixKitWebAnalytics.InternalTraffic.check_cidr/1)
 
-    if Enum.all?(entries, &(PhoenixKitWebAnalytics.InternalTraffic.parse_cidr(&1) != [])),
-      do: cast(:text, Enum.join(entries, "\n"), params),
-      else: :error
+    cond do
+      Enum.any?(checked, &(&1 == {:error, :invalid})) ->
+        :error
+
+      Enum.any?(checked, &(&1 == {:error, :too_wide})) ->
+        {:error, :internal_networks_wide}
+
+      true ->
+        case cast(:text, Enum.join(entries, "\n"), params) do
+          :error -> {:error, :internal_networks_long}
+          other -> other
+        end
+    end
   end
 
   defp cast(:networks, _value, _params), do: :error

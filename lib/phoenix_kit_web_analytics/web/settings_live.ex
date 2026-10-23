@@ -349,6 +349,16 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:without_consent), do: gettext("Without an answer that allows it")
   defp field_label(:internal_roles), do: gettext("Staff roles")
   defp field_label(:internal_networks), do: gettext("Internal networks")
+
+  defp field_label(:internal_networks_wide),
+    do:
+      gettext(
+        "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+      )
+
+  defp field_label(:internal_networks_long),
+    do: gettext("Internal networks (at most %{max} characters)", max: 1000)
+
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 

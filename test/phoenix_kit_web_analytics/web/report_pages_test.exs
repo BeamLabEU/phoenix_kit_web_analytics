@@ -261,6 +261,22 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert html =~ "2 networks listed"
     end
 
+    test "a network that is too wide is refused, and the page says which field", %{conn: conn} do
+      enable_tracking()
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      html =
+        view
+        |> element("form[phx-submit='save']")
+        |> render_submit(%{"internal_networks" => "0.0.0.0/0"})
+
+      assert html =~ "Nothing was saved"
+      assert html =~ "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6"
+
+      clear_settings_cache()
+      assert PhoenixKitWebAnalytics.Config.internal_networks_raw() == ""
+    end
+
     test "what is kept about a visitor is off until it is saved on", %{conn: conn} do
       enable_tracking()
 
