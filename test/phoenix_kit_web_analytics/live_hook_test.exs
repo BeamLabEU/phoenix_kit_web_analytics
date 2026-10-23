@@ -551,6 +551,66 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     end
   end
 
+  describe "coverage/1" do
+    test "names the tracked live_sessions that don't run the hook" do
+      # /admin is left out by the default exclusions; /shop runs the hook.
+      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router) == %{
+               hooked: 2,
+               unhooked: [untracked_test: 1]
+             }
+    end
+
+    test "a page left out of tracking isn't expected to run it" do
+      enable_tracking(%{"web_analytics_exclude_paths" => "/admin*\n/plain*"})
+
+      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router).unhooked == []
+    end
+
+    test "reads past /:locale: a page and its localized twin are one, an excluded one is left out" do
+      # /shop and /:locale/shop are one page, /:locale is the root;
+      # /:locale/admin/... is left out by the default exclusions.
+      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.CoverageRouter) == %{
+               hooked: 2,
+               unhooked: [default: 1, unhooked: 1]
+             }
+    end
+
+    test "is empty without a router" do
+      assert LiveHook.coverage(nil) == %{hooked: 0, unhooked: []}
+      assert LiveHook.coverage(String) == %{hooked: 0, unhooked: []}
+    end
+  end
+
+  describe "the warning about pages without the hook" do
+    test "Settings and the dashboard name the live_session", %{conn: conn} do
+      enable_tracking(%{})
+
+      {:ok, view, _html} = live(conn, "/admin/web-analytics/settings")
+      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
+
+      {:ok, view, _html} = live(conn, "/admin/web-analytics")
+      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
+    end
+  end
+
+  describe "runs_in?/1" do
+    @hook %{id: {PhoenixKitWebAnalytics.LiveHook, :track_navigation}}
+    @other %{id: {PhoenixKitWebAnalytics.Test.Hooks, :assign_scope}}
+
+    test "is true for a live_session whose on_mount lists the hook" do
+      assert LiveHook.runs_in?(%{name: :public, extra: %{on_mount: [@other, @hook]}})
+    end
+
+    test "is false without the hook, or when the session isn't shaped like one" do
+      refute LiveHook.runs_in?(%{name: :public, extra: %{on_mount: [@other]}})
+      refute LiveHook.runs_in?(%{name: :public, extra: %{on_mount: []}})
+      refute LiveHook.runs_in?(%{name: :public, extra: %{on_mount: @hook}})
+      refute LiveHook.runs_in?(%{name: :public, extra: %{}})
+      refute LiveHook.runs_in?(%{})
+      refute LiveHook.runs_in?(nil)
+    end
+  end
+
   # ── a hand-built connected socket, for the reconnect case ─────────────────
 
   defp connected_socket(connect_params) do
@@ -571,38 +631,5 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     [%{function: fun}] = socket.private.lifecycle.handle_params
     {:cont, socket} = fun.(%{}, uri, socket)
     socket
-  end
-
-  describe "coverage/1" do
-    test "names the tracked live_sessions that don't run the hook" do
-      # /admin is left out by the default exclusions; /shop runs the hook.
-      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router) == %{
-               hooked: 2,
-               unhooked: [untracked_test: 1]
-             }
-    end
-
-    test "a page left out of tracking isn't expected to run it" do
-      enable_tracking(%{"web_analytics_exclude_paths" => "/admin*\n/plain*"})
-
-      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router).unhooked == []
-    end
-
-    test "is empty without a router" do
-      assert LiveHook.coverage(nil) == %{hooked: 0, unhooked: []}
-      assert LiveHook.coverage(String) == %{hooked: 0, unhooked: []}
-    end
-  end
-
-  describe "the warning about pages without the hook" do
-    test "Settings and the dashboard name the live_session", %{conn: conn} do
-      enable_tracking(%{})
-
-      {:ok, view, _html} = live(conn, "/admin/web-analytics/settings")
-      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
-
-      {:ok, view, _html} = live(conn, "/admin/web-analytics")
-      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
-    end
   end
 end
