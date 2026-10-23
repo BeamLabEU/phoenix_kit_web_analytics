@@ -77,6 +77,8 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
     facebookexternalhit whatsapp telegrambot twitterbot linkedinbot slackbot
     discordbot embedly quora preview feedly rss-parser semrush ahrefs mj12
     dotbot dataprovider zgrab masscan censys expanse
+    googleother google-inspectiontool google-extended mediapartners-google
+    apis-google heritrix rootevidence k6/ playwright puppeteer selenium
   )
 
   @unknown %{
@@ -130,13 +132,20 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   def bot?(nil), do: false
 
   def bot?(user_agent) when is_binary(user_agent) do
-    downcased = String.downcase(user_agent)
-    Enum.any?(@bot_markers, &String.contains?(downcased, &1))
+    downcased = user_agent |> String.trim() |> String.downcase()
+
+    Enum.any?(@bot_markers, &String.contains?(downcased, &1)) or
+      bare?(downcased)
   end
 
   def bot?(_user_agent), do: false
 
   # ── internals ─────────────────────────────────────────────────────────────
+
+  # A User-Agent that is only the product token — "Mozilla/5.0", no platform
+  # in brackets — is a script's default, never a browser's. A regex literal
+  # in the function, not an attribute (OTP 28 can't store compiled regexes).
+  defp bare?(downcased), do: Regex.match?(~r{^mozilla/\d+(\.\d+)?$}, downcased)
 
   defp match_first(patterns, user_agent) do
     Enum.find_value(patterns, {"Other", nil}, fn {name, regex} ->

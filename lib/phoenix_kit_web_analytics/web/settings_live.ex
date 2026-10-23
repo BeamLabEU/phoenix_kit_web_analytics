@@ -210,6 +210,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
       roles_field(raw(keys.internal_roles, Config.default_internal_roles()))
     )
     |> assign(:internal_networks, InternalTraffic.network_counts())
+    |> assign(:internal_networks_raw, Config.internal_networks_raw())
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
@@ -345,6 +346,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:consent_category), do: gettext("Asked under")
   defp field_label(:without_consent), do: gettext("Without an answer that allows it")
   defp field_label(:internal_roles), do: gettext("Staff roles")
+  defp field_label(:internal_networks), do: gettext("Internal networks")
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
@@ -729,16 +731,28 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               {if @internal_networks.valid > 0,
                 do:
                   ngettext(
-                    "Addresses in the network listed in the app's config (internal_networks).",
-                    "Addresses in the %{count} networks listed in the app's config (internal_networks).",
+                    "Addresses in the network listed below or in the app's config (internal_networks).",
+                    "Addresses in the %{count} networks listed below or in the app's config (internal_networks).",
                     @internal_networks.valid
                   ),
-                else:
-                  gettext(
-                    "No networks are configured. List the office or VPN ranges in the app's config — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — not here: every settings change is kept in the activity log."
-                  )}
+                else: gettext("No networks are listed yet.")}
             </:description>
           </.checkbox>
+
+          <.textarea
+            id="internal_networks"
+            name="internal_networks"
+            label={gettext("Internal networks")}
+            value={@internal_networks_raw}
+            rows="3"
+            placeholder="192.0.2.0/24"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "The office, VPN or server addresses, one per line: an address, or a network as 192.0.2.0/24 or 2001:db8::/48. Networks the app's config lists count as well. The addresses aren't written into the activity log."
+            )}
+          </p>
           <p
             :if={@internal_networks.invalid > 0}
             id="web-analytics-invalid-networks"

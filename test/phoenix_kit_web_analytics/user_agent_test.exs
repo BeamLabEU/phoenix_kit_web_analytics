@@ -81,7 +81,13 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
         "python-requests/2.31.0",
         "Mozilla/5.0 (compatible; AhrefsBot/7.0)",
         "facebookexternalhit/1.1",
-        "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0"
+        "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0",
+        "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.52 Mobile Safari/537.36 (compatible; GoogleOther)",
+        "Mozilla/5.0 (compatible; heritrix/3.4.0 +https://example.com)",
+        "RootEvidence/1.0",
+        "k6/0.54.0 (https://k6.io/)",
+        "Mozilla/5.0",
+        " mozilla/4.0 "
       ]
 
       for ua <- bots do

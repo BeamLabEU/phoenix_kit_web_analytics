@@ -213,6 +213,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
       )
 
     totals = day |> Dimensions.totals() |> repo().all() |> Map.new(&{&1.site, &1})
+
+    emptied = emptied_sites(from, to, totals)
+
     sessions = day_sessions(day)
     now = DateTime.utc_now()
 
@@ -247,6 +250,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
     result =
       repo().transaction(fn ->
         Enum.each(stats, &upsert_or_rollback/1)
+
+        drop_stats(date, emptied)
+
         from(d in DailyDim, where: d.date == ^date) |> repo().delete_all()
 
         dims
@@ -266,6 +272,27 @@ defmodule PhoenixKitWebAnalytics.Retention do
     error ->
       Logger.warning("[WebAnalytics] rollup failed for #{date}: #{Exception.message(error)}")
       :error
+  end
+
+  # A site whose every hit that day is now marked (a bot found later, own
+  # traffic) has no totals: its stored row is dropped, not left as it was.
+  # Only a site with raw events that day — a day whose events were pruned
+  # keeps its rollup.
+  defp emptied_sites(from, to, totals) do
+    from(e in Event,
+      where: e.inserted_at >= ^from and e.inserted_at < ^to,
+      distinct: true,
+      select: e.site
+    )
+    |> repo().all()
+    |> Enum.reject(&Map.has_key?(totals, &1))
+  end
+
+  defp drop_stats(_date, []), do: :ok
+
+  defp drop_stats(date, sites) do
+    from(s in DailyStat, where: s.date == ^date and s.site in ^sites) |> repo().delete_all()
+    :ok
   end
 
   defp dim_row(row, date, dimension, now) do

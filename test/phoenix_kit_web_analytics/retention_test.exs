@@ -48,6 +48,30 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       assert Repo.aggregate(DailyStat, :count) == 1
     end
+
+    test "drops a site's row once every hit of the day is marked" do
+      date = Date.add(Date.utc_today(), -2)
+      insert_event(%{inserted_at: DateTime.new!(date, ~T[10:00:00], "Etc/UTC")})
+
+      assert :ok = Retention.rollup_day(date)
+      assert Repo.aggregate(DailyStat, :count) == 1
+
+      Repo.update_all(Event, set: [is_bot: true])
+
+      assert :ok = Retention.rollup_day(date)
+      assert Repo.aggregate(DailyStat, :count) == 0
+    end
+
+    test "keeps the rollup of a day whose raw events were pruned" do
+      date = Date.add(Date.utc_today(), -2)
+      insert_event(%{inserted_at: DateTime.new!(date, ~T[10:00:00], "Etc/UTC")})
+
+      assert :ok = Retention.rollup_day(date)
+      Repo.delete_all(Event)
+
+      assert :ok = Retention.rollup_day(date)
+      assert Repo.aggregate(DailyStat, :count) == 1
+    end
   end
 
   describe "rollup_pending_days/0" do

@@ -22,12 +22,18 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
 
   describe "request_reasons/1" do
     test "a browser sending what a browser sends has none" do
-      assert BotScore.request_reasons(%{user_agent: @chrome, headers: headers(@browser_headers)}) ==
+      assert BotScore.request_reasons(%{
+               user_agent: @chrome,
+               headers: headers(@browser_headers)
+             }) ==
                []
     end
 
     test "a declared bot and a missing User-Agent" do
-      assert BotScore.request_reasons(%{user_agent: "curl/8.4.0"}) == ["declared_bot"]
+      assert BotScore.request_reasons(%{user_agent: "curl/8.4.0"}) == [
+               "declared_bot"
+             ]
+
       assert BotScore.request_reasons(%{user_agent: nil}) == ["no_user_agent"]
     end
 
@@ -36,7 +42,10 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
     end
 
     test "a browser's User-Agent on a script's headers" do
-      assert BotScore.request_reasons(%{user_agent: @chrome, headers: headers(["host"])}) ==
+      assert BotScore.request_reasons(%{
+               user_agent: @chrome,
+               headers: headers(["host"])
+             }) ==
                ~w(no_accept_language no_accept no_fetch_metadata no_client_hints)
     end
 
@@ -65,6 +74,36 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
              ]
 
       assert BotScore.request_reasons(%{user_agent: @iphone, hosting: false}) == []
+    end
+  end
+
+  describe "stale_browser" do
+    defp stale?(ua, today),
+      do: "stale_browser" in BotScore.request_reasons(%{user_agent: ua, today: today})
+
+    test "a Chrome about two years behind the estimated current release" do
+      chrome =
+        &"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/#{&1}.0.0.0 Safari/537.36"
+
+      # 120 shipped on 2023-12-05; 37 releases later is 157.
+      refute stale?(chrome.(155), ~D[2026-10-23])
+      refute stale?(chrome.(134), ~D[2026-10-23])
+      assert stale?(chrome.(133), ~D[2026-10-23])
+      assert stale?(chrome.(114), ~D[2026-10-23])
+      refute stale?(chrome.(114), ~D[2023-12-05])
+    end
+
+    test "Safari before 16, on a phone or a Mac" do
+      ios13 =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1"
+
+      assert stale?(ios13, ~D[2026-10-23])
+      refute stale?(@iphone, ~D[2026-10-23])
+    end
+
+    test "says nothing about a browser it has no release dates for" do
+      refute stale?("Mozilla/5.0 (Windows NT 10.0) Opera/9.80", ~D[2026-10-23])
+      refute stale?(nil, ~D[2026-10-23])
     end
   end
 

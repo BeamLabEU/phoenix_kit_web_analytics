@@ -225,6 +225,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
         {:internal_roles, keys.internal_roles, :roles},
+        {:internal_networks, keys.internal_networks, :networks},
         {:alert_max_per_hour, alert_keys.max_per_hour, {:integer, {0, 10_000}}},
         {:alert_channels, alert_keys.channels, :channels}
       ]
@@ -258,6 +259,20 @@ defmodule PhoenixKitWebAnalytics.Admin do
   end
 
   defp cast(:roles, _value, _params), do: :error
+
+  # One network per line (or comma-separated); every one must parse, so a
+  # typo is shown rather than silently skipped. Kept one per line.
+  defp cast(:networks, nil, _params), do: :skip
+
+  defp cast(:networks, value, params) when is_binary(value) do
+    entries = String.split(value, [",", "\n", "\r", " "], trim: true)
+
+    if Enum.all?(entries, &(PhoenixKitWebAnalytics.InternalTraffic.parse_cidr(&1) != [])),
+      do: cast(:text, Enum.join(entries, "\n"), params),
+      else: :error
+  end
+
+  defp cast(:networks, _value, _params), do: :error
 
   defp cast({:choice, _allowed}, nil, _params), do: :skip
 

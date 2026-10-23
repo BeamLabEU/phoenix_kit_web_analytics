@@ -46,3 +46,7 @@ config :phoenix_kit_web_analytics, report_cache_ms: 0
 config :phoenix, :json_library, Jason
 
 config :logger, level: :warning
+
+# The fixtures carry fixed User-Agents (Chrome 120 …): judge their age as of
+# a fixed day, or BotScore's stale_browser reason would creep into every one.
+config :phoenix_kit_web_analytics, browser_versions_as_of: ~D[2024-06-01]

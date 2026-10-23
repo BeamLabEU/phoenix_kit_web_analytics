@@ -245,6 +245,22 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert PhoenixKitWebAnalytics.Config.collection_config().admin_network_hours == 12
     end
 
+    test "networks entered in the own-traffic section are saved and shown again",
+         %{conn: conn} do
+      enable_tracking()
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      view
+      |> element("form[phx-submit='save']")
+      |> render_submit(%{"internal_networks" => "198.51.100.0/24\n198.51.100.200"})
+
+      clear_settings_cache()
+      {:ok, _view, html} = live(conn, "#{@base}/settings")
+      assert html =~ "198.51.100.0/24\n198.51.100.200"
+      assert html =~ "2 networks listed"
+    end
+
     test "what is kept about a visitor is off until it is saved on", %{conn: conn} do
       enable_tracking()
 

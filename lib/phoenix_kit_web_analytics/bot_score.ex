@@ -24,6 +24,7 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   | `no_languages` | 40 | a browser with no language set |
   | `mobile_from_hosting` | 30 | a phone's User-Agent from a hosting provider |
   | `old_http` | 30 | HTTP/1.0 |
+  | `stale_browser` | 30 | a browser version about two years out of date, or Safari before 16 |
   | `touch_mismatch` | 30 | a phone's User-Agent on a device without touch |
   | `no_accept_language` | 25 | no `Accept-Language` header |
   | `no_fetch_metadata` | 25 | a current browser's User-Agent without `Sec-Fetch-*` (HTTPS only) |
@@ -62,6 +63,7 @@ defmodule PhoenixKitWebAnalytics.BotScore do
     "no_languages" => 40,
     "mobile_from_hosting" => 30,
     "old_http" => 30,
+    "stale_browser" => 30,
     "touch_mismatch" => 30,
     "no_accept_language" => 25,
     "no_fetch_metadata" => 25,
@@ -71,7 +73,7 @@ defmodule PhoenixKitWebAnalytics.BotScore do
 
   @owned %{
     request: ~w(declared_bot no_user_agent hosting_network mobile_from_hosting old_http
-         no_accept_language no_fetch_metadata no_client_hints no_accept),
+         stale_browser no_accept_language no_fetch_metadata no_client_hints no_accept),
     signals: ~w(platform_mismatch software_renderer no_screen no_languages touch_mismatch),
     behaviour: ~w(webdriver rate no_js)
   }
@@ -80,6 +82,21 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   @suspicious 30
 
   @software_renderers ~w(swiftshader llvmpipe softpipe)
+
+  # Chrome (and Edge, which follows its numbers) and Firefox ship a major
+  # version every four weeks: the current one is estimated from a known
+  # release instead of a list that would need updating. Browsers update
+  # themselves, so one this far behind is a script's frozen User-Agent far
+  # more often than a person's.
+  @release_anchors %{
+    "Chrome" => {120, ~D[2023-12-05]},
+    "Edge" => {120, ~D[2023-12-07]},
+    "Firefox" => {120, ~D[2023-11-21]}
+  }
+  @release_days 28
+  @stale_releases 24
+  # Safari moves once a year; before 16 (2022) is out of date.
+  @oldest_safari 16
 
   @type reason :: String.t()
   @type source :: :request | :signals | :behaviour
@@ -163,6 +180,7 @@ defmodule PhoenixKitWebAnalytics.BotScore do
     * `:headers` — the header profile `Profiles.request_headers/2` builds, or
       `nil` when headers aren't kept (then nothing is read from them)
     * `:hosting` — `true` when the network is a hosting provider's
+    * `:today` — the date browser versions are judged at (today by default)
   """
   @spec request_reasons(map()) :: [reason()]
   def request_reasons(evidence) do
@@ -175,7 +193,8 @@ defmodule PhoenixKitWebAnalytics.BotScore do
       {"declared_bot", UserAgent.bot?(ua)},
       {"no_user_agent", ua in [nil, ""]},
       {"hosting_network", hosting?},
-      {"mobile_from_hosting", hosting? and mobile?}
+      {"mobile_from_hosting", hosting? and mobile?},
+      {"stale_browser", stale_browser?(parsed, evidence[:today] || judged_on())}
       | header_reasons(evidence[:headers], parsed)
     ]
     |> found()
@@ -223,6 +242,31 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   end
 
   defp header_reasons(_headers, _parsed), do: []
+
+  # The day browser versions are judged at. A suite whose fixtures carry
+  # fixed User-Agents pins it (`config :phoenix_kit_web_analytics,
+  # :browser_versions_as_of, ~D[...]`), or every fixture would go stale.
+  defp judged_on,
+    do:
+      Application.get_env(:phoenix_kit_web_analytics, :browser_versions_as_of) || Date.utc_today()
+
+  defp stale_browser?(%{browser: "Safari", browser_version: version}, _today)
+       when is_binary(version),
+       do: major(version) in 1..(@oldest_safari - 1)
+
+  defp stale_browser?(%{browser: browser, browser_version: version}, today)
+       when is_binary(version) do
+    case @release_anchors do
+      %{^browser => {anchor_version, anchor_date}} ->
+        current = anchor_version + div(Date.diff(today, anchor_date), @release_days)
+        major(version) in 1..(current - @stale_releases)//1
+
+      _ ->
+        false
+    end
+  end
+
+  defp stale_browser?(_parsed, _today), do: false
 
   defp chromium?(browser),
     do: browser in ["Chrome", "Edge", "Opera", "Vivaldi", "Brave", "Samsung Internet"]

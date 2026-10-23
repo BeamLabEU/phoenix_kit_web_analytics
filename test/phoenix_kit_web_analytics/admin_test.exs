@@ -289,15 +289,39 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
                Admin.save_settings(%{"admin_network_hours" => "-1"})
     end
 
-    test "internal networks come from the app config, never the settings" do
+    test "internal networks come from Settings and the app config together" do
       Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["203.0.113.0/24", 42])
       on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+      enable_tracking()
 
-      assert Config.internal_networks() == ["203.0.113.0/24"]
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "198.51.100.7, 2001:db8::/48"})
 
-      refute Enum.any?(Config.setting_keys(), fn {_name, key} ->
-               key =~ "network" and key =~ "internal_networks"
-             end)
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == "198.51.100.7\n2001:db8::/48"
+
+      assert Config.internal_networks() == [
+               "198.51.100.7",
+               "2001:db8::/48",
+               "203.0.113.0/24"
+             ]
+
+      assert PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
+    end
+
+    test "a line that isn't a network refuses the field, and saves nothing" do
+      assert {:error, [:internal_networks]} =
+               Admin.save_settings(%{"internal_networks" => "203.0.113.0/24\nnot-an-address"})
+
+      assert read("web_analytics_internal_networks_secret") == nil
+    end
+
+    test "the addresses stay out of the activity log" do
+      enable_tracking()
+      {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})
+
+      refute inspect(list_activities(), limit: :infinity, printable_limit: :infinity) =~
+               "198.51.100.7"
     end
   end
 

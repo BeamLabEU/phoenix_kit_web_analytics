@@ -39,6 +39,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_exclude_admin` | `true` | Leave the site staff's own visits out of the statistics |
   | `web_analytics_exclude_admin_network` | `true` | Leave visits from the staff's networks out of the statistics |
   | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-` is no one) |
+  | `web_analytics_internal_networks_secret` | empty | The site's own networks (CIDR, one per line or comma-separated), added to the config's `internal_networks` |
   | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network; `0` turns that off |
   | `web_analytics_visitor_rotation` | `daily` | How long a visitor ID lasts: `daily`, `weekly`, `monthly` or `never` |
   | `web_analytics_store_ip` | `off` | Keep the visitor's address: `off`, `truncated` (its network only) or `full` |
@@ -63,13 +64,17 @@ defmodule PhoenixKitWebAnalytics.Config do
   module did before they existed.
 
   The flags behind the three `exclude_*` keys are described in
-  `PhoenixKitWebAnalytics.TrafficFlags`. The internal networks themselves are
-  not a setting: every settings change is a permanent activity-log entry, and
-  this one would be the operator's own addresses. They come from the host's
-  runtime config instead:
+  `PhoenixKitWebAnalytics.TrafficFlags`. The internal networks come from two
+  places, both counted: the `web_analytics_internal_networks_secret` setting
+  (one network per line, edited in Settings) and the host's runtime config:
 
       config :phoenix_kit_web_analytics,
         internal_networks: ["203.0.113.0/24", "2001:db8::/48"]
+
+  The setting's name keeps the word "secret" for the same reason the salt's
+  does: core withholds the value of such a key from its permanent
+  `setting.changed` activity entries and its change broadcast, and these are
+  the operator's own addresses.
   """
 
   require Logger
@@ -103,6 +108,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   @exclude_admin_network_key "web_analytics_exclude_admin_network"
   @internal_roles_key "web_analytics_internal_roles"
   @admin_network_hours_key "web_analytics_admin_network_hours"
+  # "secret" in the name keeps the addresses out of core's activity log (see
+  # the moduledoc).
+  @internal_networks_key "web_analytics_internal_networks_secret"
   @visitor_rotation_key "web_analytics_visitor_rotation"
   @store_ip_key "web_analytics_store_ip"
   @store_user_agent_key "web_analytics_store_user_agent"
@@ -276,9 +284,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   def excluded_flags, do: collection_config().excluded_flags
 
   @doc """
-  The networks whose traffic is the site's own, from the host's runtime
-  config (`config :phoenix_kit_web_analytics, internal_networks: [...]`) —
-  CIDR strings, IPv4 or IPv6. Read as configured; see
+  The networks whose traffic is the site's own — the ones in Settings, then
+  the host's runtime config (`config :phoenix_kit_web_analytics,
+  internal_networks: [...]`) — CIDR strings, IPv4 or IPv6. Read as given; see
   `PhoenixKitWebAnalytics.InternalTraffic` for how they are matched.
   """
   @spec internal_networks() :: [String.t()]
@@ -290,10 +298,26 @@ defmodule PhoenixKitWebAnalytics.Config do
   """
   @spec internal_network_entries() :: list()
   def internal_network_entries do
-    case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
-      entries when is_list(entries) -> entries
-      _ -> []
+    configured =
+      case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
+        entries when is_list(entries) -> entries
+        _ -> []
+      end
+
+    parse_list(internal_networks_raw()) ++ configured
+  end
+
+  @doc "The networks entered in Settings, as entered."
+  @spec internal_networks_raw() :: String.t()
+  def internal_networks_raw do
+    case Settings.get_settings_cached([@internal_networks_key], %{}) do
+      %{@internal_networks_key => value} when is_binary(value) -> value
+      _ -> ""
     end
+  rescue
+    _ -> ""
+  catch
+    :exit, _ -> ""
   end
 
   @doc "The default staff roles: core's Owner and Admin."
@@ -532,6 +556,7 @@ defmodule PhoenixKitWebAnalytics.Config do
       exclude_admin: @exclude_admin_key,
       exclude_admin_network: @exclude_admin_network_key,
       internal_roles: @internal_roles_key,
+      internal_networks: @internal_networks_key,
       admin_network_hours: @admin_network_hours_key,
       visitor_rotation: @visitor_rotation_key,
       store_ip: @store_ip_key,
