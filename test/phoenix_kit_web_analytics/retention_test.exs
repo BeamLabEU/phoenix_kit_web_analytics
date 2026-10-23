@@ -1,6 +1,8 @@
 defmodule PhoenixKitWebAnalytics.RetentionTest do
   use PhoenixKitWebAnalytics.DataCase, async: false
 
+  import Ecto.Query, only: [from: 2]
+
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Retention
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
@@ -60,6 +62,32 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       assert :ok = Retention.rollup_day(date)
       assert Repo.aggregate(DailyStat, :count) == 0
+    end
+
+    test "drops only the site whose every hit is marked, and keeps the others" do
+      date = Date.add(Date.utc_today(), -2)
+      at = DateTime.new!(date, ~T[10:00:00], "Etc/UTC")
+
+      for site <- ["empty.test", "mixed.test", "whole.test", "pruned.test"] do
+        insert_event(%{site: site, inserted_at: at})
+      end
+
+      insert_event(%{site: "mixed.test", path: "/other", inserted_at: at})
+
+      assert :ok = Retention.rollup_day(date)
+      assert rolled_sites() == ~w(empty.test mixed.test pruned.test whole.test)
+
+      # One site's hits are all marked now, another's only in part, a third's
+      # raw events are gone.
+      mark_bot(from(e in Event, where: e.site == "empty.test"))
+      mark_bot(from(e in Event, where: e.site == "mixed.test" and e.path == "/other"))
+      Repo.delete_all(from(e in Event, where: e.site == "pruned.test"))
+
+      assert :ok = Retention.rollup_day(date)
+
+      assert rolled_sites() == ~w(mixed.test pruned.test whole.test)
+      assert Repo.get_by!(DailyStat, site: "mixed.test").pageviews == 1
+      assert Repo.get_by!(DailyStat, site: "whole.test").pageviews == 1
     end
 
     test "keeps the rollup of a day whose raw events were pruned" do
@@ -528,4 +556,9 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert Process.alive?(pid)
     end
   end
+
+  defp rolled_sites,
+    do: from(s in DailyStat, select: s.site, order_by: s.site) |> Repo.all()
+
+  defp mark_bot(query), do: Repo.update_all(query, set: [is_bot: true])
 end
