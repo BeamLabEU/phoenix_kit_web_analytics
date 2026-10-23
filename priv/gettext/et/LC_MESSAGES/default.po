@@ -2640,7 +2640,7 @@ msgstr "Teegi live_session (näiteks LiveDashboard) võtab selle vastu oma on_mo
 #: lib/phoenix_kit_web_analytics/web/components.ex:593
 #, elixir-autogen, elixir-format
 msgid "A live_session of your own: add %{hook} to its on_mount."
-msgstr "Sinu enda live_session: lisa selle on_mount'i %{hook}."
+msgstr "Sinu enda live_session: lisa %{hook} selle on_mount'i."
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:587
 #, elixir-autogen, elixir-format
@@ -2650,7 +2650,7 @@ msgstr "Nendel lehtedel ei salvestata LiveView' liikumisi, klikke ega lahkumisi 
 #: lib/phoenix_kit_web_analytics/web/components.ex:608
 #, elixir-autogen, elixir-format
 msgid "Pages that shouldn't be tracked: add their paths to Excluded paths in Settings."
-msgstr "Lehed, mida ei tohi jälgida: lisa nende teed jaotises Seaded välistatud teede hulka."
+msgstr "Lehed, mida ei soovi jälgida: lisa nende teed jaotises Seaded välistatud teede hulka."
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:598
 #, elixir-autogen, elixir-format
