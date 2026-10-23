@@ -128,7 +128,7 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
     end
 
     test "every reason has a label in each language, not its raw key" do
-      for locale <- ~w(en et ru), reason <- Map.keys(BotScore.weights()) do
+      for locale <- ~w(en et ru uk), reason <- Map.keys(BotScore.weights()) do
         label =
           Gettext.with_locale(PhoenixKitWebAnalytics.Gettext, locale, fn ->
             Components.bot_reason_label(reason)

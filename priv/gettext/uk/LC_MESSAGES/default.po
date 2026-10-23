@@ -1,0 +1,2141 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: uk\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100 != 11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10||n%100>=20) ? 1 : 2);\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:159
+msgid "%{count} online"
+msgid_plural "%{count} online"
+msgstr[0] "%{count} онлайн"
+msgstr[1] "%{count} онлайн"
+msgstr[2] "%{count} онлайн"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:338
+msgid "%{event} on %{path}"
+msgstr "%{event} на %{path}"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:357
+msgid "(+%{count} more not shown)"
+msgid_plural "(+%{count} more not shown)"
+msgstr[0] "(ще %{count} не показано)"
+msgstr[1] "(ще %{count} не показано)"
+msgstr[2] "(ще %{count} не показано)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:859
+msgid "Accept the beacon and pixel"
+msgstr "Приймати beacon і піксель"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:847
+msgid "Accept the client script"
+msgstr "Приймати клієнтський скрипт"
+
+#: lib/phoenix_kit_web_analytics.ex:173
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:25
+msgid "Acquisition"
+msgstr "Залучення"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:674
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:186
+msgid "Actions"
+msgstr "Дії"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1097
+msgid "Add the plug to your router's browser pipeline, after the session is fetched:"
+msgstr "Додайте plug до browser pipeline вашого роутера після завантаження сесії:"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:337
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:986
+msgid "Alert on these events"
+msgstr "Сповіщати про ці події"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:911
+msgid "Alerts"
+msgstr "Сповіщення"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:332
+msgid "Alerts per hour"
+msgstr "Сповіщень на годину"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:178
+msgid "All hits"
+msgstr "Усі хіти"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:69
+msgid "All sites"
+msgstr "Усі сайти"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:771
+msgid "All time"
+msgstr "За весь час"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:233
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:104
+msgid "All traffic in this period was direct."
+msgstr "Увесь трафік за цей період — прямі заходи."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:166
+msgid "All visits by this user"
+msgstr "Усі візити цього користувача"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:137
+msgid "An account was created"
+msgstr "Створено обліковий запис"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:144
+msgid "An event listed in Web Analytics settings happened"
+msgstr "Сталася подія зі списку в налаштуваннях вебаналітики"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1105
+msgid "And let the LiveView socket see the visitor's address and browser — on both transports, websocket and longpoll:"
+msgstr "І дайте сокету LiveView бачити адресу та браузер відвідувача — на обох транспортах, websocket і longpoll:"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:736
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:244
+msgid "Anonymous"
+msgstr "Анонімний"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:156
+msgid "Anonymous visitor"
+msgstr "Анонімний відвідувач"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:202
+msgid "Average"
+msgstr "Середнє"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:790
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:223
+msgid "Bot"
+msgstr "Бот"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:153
+msgid "Bounce rate"
+msgstr "Показник відмов"
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:80
+msgid "Browsers"
+msgstr "Браузери"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:231
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:195
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:103
+msgid "Came from"
+msgstr "Звідки прийшов"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:199
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:126
+msgid "Campaign"
+msgstr "Кампанія"
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:145
+msgid "Campaign sources"
+msgstr "Джерела кампаній"
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:123
+msgid "Campaigns"
+msgstr "Кампанії"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:252
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:76
+msgid "Channels"
+msgstr "Канали"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:808
+msgid "Click"
+msgstr "Клік"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:680
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:203
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:224
+msgid "Client"
+msgstr "Клієнт"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:396
+msgid "Collection"
+msgstr "Збирання даних"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:839
+msgid "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
+msgstr "Через кому. Значення перелічених параметрів (лише короткі) зберігаються разом із взаємодією, наприклад яку вкладку було відкрито."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:807
+msgid "Contact link"
+msgstr "Посилання для зв'язку"
+
+#: lib/phoenix_kit_web_analytics.ex:117
+msgid "Cookieless, server-side traffic analytics"
+msgstr "Серверна аналітика трафіку без cookie"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:91
+msgid "Could not change tracking. Try again."
+msgstr "Не вдалося змінити відстеження. Спробуйте ще раз."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:123
+msgid "Could not store a new salt. Try again."
+msgstr "Не вдалося зберегти нову сіль. Спробуйте ще раз."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:147
+msgid "Countries"
+msgstr "Країни"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:218
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:150
+msgid "Country"
+msgstr "Країна"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:991
+msgid "Custom event or interaction names, comma-separated. A trailing * matches a prefix."
+msgstr "Назви користувацьких подій або взаємодій через кому. * наприкінці відповідає префіксу."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:136
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:182
+msgid "Custom events"
+msgstr "Користувацькі події"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:787
+msgid "Desktop"
+msgstr "Комп'ютер"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:142
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:175
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:393
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:280
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:202
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:117
+msgid "Device"
+msgstr "Пристрій"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:169
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:322
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:276
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:113
+msgid "Devices"
+msgstr "Пристрої"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:595
+msgid "Did “%{event}”"
+msgstr "Виконано «%{event}»"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:776
+msgid "Direct"
+msgstr "Прямі заходи"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:806
+msgid "Download"
+msgstr "Завантаження"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:650
+#: lib/phoenix_kit_web_analytics/web/components.ex:677
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:172
+msgid "Duration"
+msgstr "Тривалість"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:781
+msgid "Email"
+msgstr "Email"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:542
+msgid "Enable Web Analytics on the Modules page, and make sure %{plug} is in your router's browser pipeline."
+msgstr "Увімкніть вебаналітику на сторінці «Модулі» та переконайтеся, що %{plug} є в browser pipeline вашого роутера."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:335
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:834
+msgid "Event values to keep"
+msgstr "Значення подій, що зберігаються"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:609
+msgid "Event “%{event}”"
+msgstr "Подія «%{event}»"
+
+#: lib/phoenix_kit_web_analytics.ex:187
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:33
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1009
+msgid "Events"
+msgstr "Події"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:334
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:828
+msgid "Events not to record"
+msgstr "Не записувати події"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:818
+msgid "Every event a LiveView handles, by name. Form typing is never recorded, nor are form contents."
+msgstr "Усі події, які обробляє LiveView, за назвою. Введення у форми та вміст форм ніколи не записуються."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:333
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:435
+msgid "Excluded paths"
+msgstr "Виключені шляхи"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:318
+msgid "Exit pages"
+msgstr "Сторінки виходу"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:322
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:181
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:126
+msgid "Exits"
+msgstr "Виходи"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:222
+msgid "For"
+msgstr "Для"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1101
+msgid "For LiveView pages, add the hook to your live_session:"
+msgstr "Для сторінок LiveView додайте хук до вашого live_session:"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:220
+msgid "Furthest scroll"
+msgstr "Макс. прокручування"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:611
+msgid "Hit"
+msgstr "Хіт"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:185
+msgid "Hit type"
+msgstr "Тип хіта"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1094
+msgid "Installation"
+msgstr "Встановлення"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:180
+msgid "Interactions"
+msgstr "Взаємодії"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:780
+msgid "Internal"
+msgstr "Внутрішні"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:146
+msgid "It may have been pruned by retention, or the link is wrong."
+msgstr "Можливо, його видалено через термін зберігання, або посилання неправильне."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:648
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:200
+msgid "Landed on"
+msgstr "Сторінка входу"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:669
+msgid "Landed on → left from"
+msgstr "Вхід → вихід"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:217
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:133
+msgid "Language"
+msgstr "Мова"
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:130
+msgid "Languages"
+msgstr "Мови"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:770
+msgid "Last 12 months"
+msgstr "Останні 12 місяців"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:768
+msgid "Last 30 days"
+msgstr "Останні 30 днів"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:767
+msgid "Last 7 days"
+msgstr "Останні 7 днів"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:769
+msgid "Last 90 days"
+msgstr "Останні 90 днів"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:606
+msgid "Left after %{time}"
+msgstr "Пішов за %{time}"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:600
+msgid "Left after %{time}, scrolled %{percent}%"
+msgstr "Пішов за %{time}, прокрутив на %{percent}%"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:159
+msgid "Live feed"
+msgstr "Стрічка в реальному часі"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:168
+msgid "Live presence isn't running on this node, so open pages can't be listed. It starts with the module's children."
+msgstr "Відстеження присутності не запущено на цьому вузлі, тому відкриті сторінки не можна показати. Воно запускається разом із дочірніми процесами модуля."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:806
+msgid "LiveView pages report clicks, form submits and exits over their socket — no script needed. The optional client script adds what the server can't see."
+msgstr "Сторінки LiveView повідомляють про кліки, надсилання форм і виходи через свій сокет — скрипт не потрібен. Необов'язковий клієнтський скрипт додає те, чого не бачить сервер."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:788
+msgid "Mobile"
+msgstr "Мобільний"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:242
+msgid "New sign-up: %{name}"
+msgstr "Нова реєстрація: %{name}"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:136
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:922
+msgid "New sign-ups"
+msgstr "Нові реєстрації"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:351
+msgid "New visitor from %{source} on %{path}"
+msgstr "Новий відвідувач із %{source} на %{path}"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:129
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:926
+msgid "New visitors"
+msgstr "Нові відвідувачі"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:301
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:119
+msgid "No clicks or form submits recorded in this period."
+msgstr "За цей період не записано ні кліків, ні надсилань форм."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:325
+msgid "No exits recorded in this period."
+msgstr "За цей період виходи не записано."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:152
+msgid "No location data. Configure a geo resolver, or run behind a CDN that sets a country header."
+msgstr "Немає даних про місцезнаходження. Налаштуйте геолокацію або використовуйте CDN, який передає заголовок країни."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:219
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:105
+msgid "No page views recorded in this period."
+msgstr "За цей період перегляди сторінок не записано."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:333
+msgid "No traffic in this period yet."
+msgstr "За цей період трафіку ще немає."
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:81
+msgid "No traffic recorded in this period."
+msgstr "За цей період трафік не записано."
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:127
+msgid "No utm_campaign parameters seen in this period."
+msgstr "За цей період параметри utm_campaign не зустрічалися."
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:149
+msgid "No utm_source parameters seen in this period."
+msgstr "За цей період параметри utm_source не зустрічалися."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:631
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:124
+msgid "No visits in this period."
+msgstr "За цей період візитів немає."
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:212
+msgid "Nobody has a page open right now."
+msgstr "Зараз ні в кого не відкрито сторінку."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:190
+msgid "Not enough traffic yet to rank response times."
+msgstr "Ще недостатньо трафіку, щоб ранжувати час відповіді."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:363
+msgid "Nothing is being recorded."
+msgstr "Нічого не записується."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:191
+msgid "Nothing recorded in this period yet."
+msgstr "За цей період поки що нічого не записано."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:412
+msgid "Nothing recorded yet."
+msgstr "Поки що нічого не записано."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:65
+msgid "Nothing was saved. Check: %{fields}."
+msgstr "Нічого не збережено. Перевірте: %{fields}."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:414
+msgid "Off by default — crawlers and monitors would otherwise dominate every report."
+msgstr "За замовчуванням вимкнено — інакше краулери та моніторинг заполонять усі звіти."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1025
+msgid "Oldest event"
+msgstr "Найстаріша подія"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:441
+msgid "One pattern per line. A trailing * matches a prefix."
+msgstr "Один шаблон на рядок. * наприкінці відповідає префіксу."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:338
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:934
+msgid "Only from these channels"
+msgstr "Лише з цих каналів"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:275
+msgid "Open"
+msgstr "Відкрити"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:174
+msgid "Open pages"
+msgstr "Відкриті сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:275
+#: lib/phoenix_kit_web_analytics/web/components.ex:548
+msgid "Open settings"
+msgstr "Відкрити налаштування"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:232
+msgid "Open this visit"
+msgstr "Відкрити цей візит"
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:97
+msgid "Operating systems"
+msgstr "Операційні системи"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:805
+msgid "Outbound link"
+msgstr "Зовнішнє посилання"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:850
+msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
+msgstr "Зовнішні посилання, завантаження, звичайні кнопки, глибина прокручування та виходи зі сторінок без LiveView. Скрипт постачається разом із модулем; цей перемикач визначає, чи зберігаються його дані."
+
+#: lib/phoenix_kit_web_analytics.ex:144
+msgid "Overview"
+msgstr "Огляд"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:217
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:321
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:201
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:221
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:274
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:112
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:197
+msgid "Page"
+msgstr "Сторінка"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:117
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:205
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:179
+msgid "Page views"
+msgstr "Перегляди сторінок"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:345
+msgid "Page views over time"
+msgstr "Перегляди сторінок за часом"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:862
+msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
+msgstr "Перегляди сторінок, що передаються з браузера, — для сторінок, які CDN віддає без звернення до застосунку. Ці ендпоїнти публічні — не вмикайте, якщо не користуєтеся ними."
+
+#: lib/phoenix_kit_web_analytics.ex:166
+#: lib/phoenix_kit_web_analytics/web/components.ex:649
+#: lib/phoenix_kit_web_analytics/web/components.ex:671
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:180
+msgid "Pages"
+msgstr "Сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:782
+msgid "Paid"
+msgstr "Реклама"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:63
+msgid "Period"
+msgstr "Період"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:302
+msgid "Recent visits"
+msgstr "Останні візити"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:815
+msgid "Record LiveView interactions"
+msgstr "Записувати взаємодії в LiveView"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:411
+msgid "Record bot traffic"
+msgstr "Записувати трафік ботів"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:779
+msgid "Referral"
+msgstr "Переходи із сайтів"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:198
+msgid "Referrer"
+msgstr "Джерело переходу"
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:100
+msgid "Referring sites"
+msgstr "Сайти-джерела"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:117
+msgid "Remove the page filter"
+msgstr "Зняти фільтр за сторінкою"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:401
+msgid "Respect Do Not Track"
+msgstr "Враховувати Do Not Track"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:329
+msgid "Retention"
+msgstr "Зберігання даних"
+
+#: lib/phoenix_kit_web_analytics.ex:152
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:54
+msgid "Right now"
+msgstr "Зараз на сайті"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1075
+msgid "Roll up & prune now"
+msgstr "Звести й очистити зараз"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:158
+msgid "Rolled up %{days} day(s) and pruned %{events} event(s)."
+msgstr "Зведено днів: %{days}, видалено подій: %{events}."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1017
+msgid "Rollup rows"
+msgstr "Зведені рядки"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1088
+msgid "Rotate visitor salt"
+msgstr "Змінити сіль відвідувачів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1080
+msgid "Rotating…"
+msgstr "Зміна…"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:999
+msgid "Save settings"
+msgstr "Зберегти налаштування"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:369
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:998
+msgid "Saving…"
+msgstr "Збереження…"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:809
+msgid "Scrolled"
+msgstr "Прокручування"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:588
+msgid "Scrolled to %{percent}%"
+msgstr "Прокручено до %{percent}%"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:777
+msgid "Search"
+msgstr "Пошук"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:913
+msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
+msgstr "Надсилається всім, хто має доступ до вебаналітики. Кожен сам обирає, як отримувати сповіщення — у застосунку, електронною поштою чи в Telegram, а також щогодинний або щоденний дайджест замість них, у"
+
+#: lib/phoenix_kit_web_analytics.ex:201
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:38
+msgid "Settings"
+msgstr "Налаштування"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:50
+msgid "Settings saved."
+msgstr "Налаштування збережено."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:120
+msgid "Share"
+msgstr "Частка"
+
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:117
+msgid "Show everyone"
+msgstr "Показати всіх"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:142
+msgid "Show this page's traffic"
+msgstr "Показати трафік цієї сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:734
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:241
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:155
+msgid "Signed-in user"
+msgstr "Авторизований користувач"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:71
+msgid "Site"
+msgstr "Сайт"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:966
+msgid "Skip signed-in users"
+msgstr "Не враховувати авторизованих користувачів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:404
+msgid "Skip visitors whose browser sends DNT or Global Privacy Control."
+msgstr "Не враховувати відвідувачів, чий браузер надсилає DNT або Global Privacy Control."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:205
+msgid "Slowest"
+msgstr "Найповільніші"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:174
+msgid "Slowest pages"
+msgstr "Найповільніші сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:778
+msgid "Social"
+msgstr "Соцмережі"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:130
+msgid "Someone started a visit (filters in Web Analytics settings)"
+msgstr "Хтось розпочав візит (фільтри в налаштуваннях вебаналітики)"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:651
+#: lib/phoenix_kit_web_analytics/web/components.ex:679
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:202
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:148
+msgid "Source"
+msgstr "Джерело"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:647
+#: lib/phoenix_kit_web_analytics/web/components.ex:667
+msgid "Started"
+msgstr "Початок"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:371
+msgid "Stop recording visits? Reports keep what is already stored."
+msgstr "Зупинити запис візитів? Уже збережені дані залишаться у звітах."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1005
+msgid "Stored data"
+msgstr "Збережені дані"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:789
+msgid "Tablet"
+msgstr "Планшет"
+
+#: lib/phoenix_kit_web_analytics.ex:180
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:28
+msgid "Technology"
+msgstr "Технології"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:172
+msgid "The retention pass failed. Details are in the server log."
+msgstr "Очищення за терміном зберігання завершилося помилкою. Подробиці — в журналі сервера."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:145
+msgid "This visit isn't here."
+msgstr "Такого візиту немає."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:199
+msgid "Time"
+msgstr "Час"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:184
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:123
+msgid "Time on page"
+msgstr "Час на сторінці"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:299
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:118
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:140
+msgid "Times"
+msgstr "Разів"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:765
+msgid "Today"
+msgstr "Сьогодні"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:214
+msgid "Top pages"
+msgstr "Популярні сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:228
+msgid "Top referrers"
+msgstr "Основні джерела переходів"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:143
+msgid "Tracked events"
+msgstr "Відстежувані події"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:358
+msgid "Tracking is off"
+msgstr "Відстеження вимкнено"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:540
+msgid "Tracking is off — no new hits are being recorded."
+msgstr "Відстеження вимкнено — нові хіти не записуються."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:358
+msgid "Tracking is on"
+msgstr "Відстеження увімкнено"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:375
+msgid "Turn off"
+msgstr "Вимкнути"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:375
+msgid "Turn on"
+msgstr "Увімкнути"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:791
+#: lib/phoenix_kit_web_analytics/web/components.ex:799
+msgid "Unknown"
+msgstr "Невідомо"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:406
+msgid "View all"
+msgstr "Показати всі"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:585
+msgid "Viewed page"
+msgstr "Перегляд сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:583
+msgid "Viewed “%{title}”"
+msgstr "Переглянув «%{title}»"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:422
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:117
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:199
+msgid "Views"
+msgstr "Перегляди"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:204
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:30
+msgid "Visit"
+msgstr "Візит"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:368
+#: lib/phoenix_kit_web_analytics/web/components.ex:668
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:223
+msgid "Visitor"
+msgstr "Відвідувач"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:118
+msgid "Visitor salt rotated. Visitors seen before now will count again today."
+msgstr "Сіль відвідувачів змінено. Відвідувачі, яких уже бачили, сьогодні будуть пораховані повторно."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:165
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:282
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:448
+#: lib/phoenix_kit_web_analytics/web/components.ex:421
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:102
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:114
+msgid "Visitors"
+msgstr "Відвідувачі"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1082
+msgid "Visitors seen before now will be counted again today, and open visits split. Continue?"
+msgstr "Відвідувачі, яких уже бачили, сьогодні будуть пораховані повторно, а поточні візити розділяться. Продовжити?"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:124
+msgid "Visitors, sign-ups and tracked events on the site"
+msgstr "Відвідувачі, реєстрації та відстежувані події на сайті"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:362
+msgid "Visits are being recorded."
+msgstr "Візити записуються."
+
+#: lib/phoenix_kit_web_analytics.ex:74
+#: lib/phoenix_kit_web_analytics.ex:115
+#: lib/phoenix_kit_web_analytics.ex:130
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:27
+msgid "Web Analytics"
+msgstr "Вебаналітика"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:123
+msgid "Website activity"
+msgstr "Активність на сайті"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:200
+msgid "What"
+msgstr "Що"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:295
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:114
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:804
+msgid "What visitors do"
+msgstr "Дії відвідувачів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:928
+msgid "When someone starts a visit that matches the filters below."
+msgstr "Коли хтось розпочинає візит, що відповідає фільтрам нижче."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:923
+msgid "Whenever an account is created."
+msgstr "Щоразу, коли створюється обліковий запис."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1054
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1070
+msgid "Working…"
+msgstr "Виконується…"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:766
+msgid "Yesterday"
+msgstr "Учора"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:461
+msgid "a direct visit"
+msgstr "прямий захід"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:485
+msgid "a new user"
+msgstr "новий користувач"
+
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:94
+msgid "a signed-in user"
+msgstr "авторизований користувач"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:460
+msgid "an ad"
+msgstr "реклама"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:344
+msgid "daily"
+msgstr "щодня"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:459
+msgid "email"
+msgstr "email"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:342
+msgid "hourly"
+msgstr "щогодини"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:343
+msgid "monthly"
+msgstr "щомісяця"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:917
+msgid "notification settings"
+msgstr "налаштуваннях сповіщень"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:457
+msgid "search"
+msgstr "пошук"
+
+#: lib/phoenix_kit_web_analytics/alerts.ex:458
+msgid "social media"
+msgstr "соцмережі"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:662
+msgid "Open visit"
+msgstr "Відкрити візит"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:465
+msgid "0 keeps raw events forever. Daily totals are always kept."
+msgstr "0 — зберігати вихідні події завжди. Денні підсумки зберігаються завжди."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:973
+msgid "Alerts per hour, at most"
+msgstr "Не більше сповіщень на годину"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:979
+msgid "Beyond this, the next alert says how many were held back. 0 means no limit."
+msgstr "Понад це наступне сповіщення повідомить, скільки було пропущено. 0 — без обмежень."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:458
+msgid "Keep raw events, days"
+msgstr "Зберігати вихідні події, днів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:336
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:955
+msgid "Landing pages"
+msgstr "Сторінки входу"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:960
+msgid "Only visits that start on these pages. Blank means any page."
+msgstr "Лише візити, що почалися на цих сторінках. Порожньо — будь-яка сторінка."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:298
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:117
+msgid "Action"
+msgstr "Дія"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:170
+msgid "Avg. visit"
+msgstr "Сер. візит"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:305
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:123
+msgid "Buttons clicked and forms sent on LiveView pages, by the name the page gives them — plus outbound links and downloads when the optional client script is on."
+msgstr "Натиснуті кнопки та надіслані форми на сторінках LiveView — під іменами, які їм дає сторінка, — а також зовнішні посилання та завантаження, якщо ввімкнено додатковий клієнтський скрипт."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:256
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:80
+msgid "Channel"
+msgstr "Канал"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:286
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:121
+msgid "Desktop, mobile or tablet — read from the browser's description of itself, which it sends with every page."
+msgstr "Комп'ютер, телефон або планшет — за описом, який браузер надсилає про себе з кожною сторінкою."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:269
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:93
+msgid "Direct — no link to tell: typed in, a bookmark, an app"
+msgstr "Прямі заходи — посилання немає: адресу введено вручну, закладка, застосунок"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:264
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:88
+msgid "Email — webmail and newsletter links"
+msgstr "Email — вебпошта та посилання з розсилок"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:162
+msgid "High is normal for a blog post or a contact page people came for; high on a home page or a shop means people aren't going any further. Lower is usually better."
+msgstr "Високий показник — це нормально для статті в блозі чи сторінки контактів, заради якої прийшли; високий на головній чи в магазині означає, що люди не йдуть далі. Зазвичай що нижче, то краще."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:190
+msgid "How long a page stays open on average, before the visitor moves on or leaves."
+msgstr "Скільки в середньому сторінка лишається відкритою, поки відвідувач не перейде далі або не піде."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:174
+msgid "How long a visit lasts on average."
+msgstr "Скільки в середньому триває візит."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:123
+msgid "How many times a page was opened, by all visitors together."
+msgstr "Скільки разів відкривали сторінки — усі відвідувачі разом."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:195
+msgid "It is measured when a page is left, so it covers LiveView pages (and every page once the optional client script is on)."
+msgstr "Вимірюється в момент виходу зі сторінки, тому охоплює сторінки LiveView (і всі сторінки, якщо ввімкнено додатковий клієнтський скрипт)."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:176
+msgid "Measured from the moment the first page opens until the visitor leaves the last one. For a visit to a single page, that's how long the page was open."
+msgstr "Рахується від відкриття першої сторінки до виходу з останньої. Для візиту на одну сторінку — скільки вона була відкрита."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:139
+msgid "One visit is everything a person does on the site in one go — from the first page they open until they leave."
+msgstr "Один візит — це все, що людина робить на сайті за один раз: від першої відкритої сторінки до виходу."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:125
+msgid "Opening a page, moving to another page of the site, and reloading each count once."
+msgstr "Відкриття сторінки, перехід на іншу сторінку сайту та перезавантаження враховуються по одному разу."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:140
+msgid "People on the site now — open Right now"
+msgstr "Люди на сайті зараз — відкрити «Зараз на сайті»"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:268
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:92
+msgid "Referral — any other website"
+msgstr "Переходи із сайтів — будь-який інший сайт"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:262
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:86
+msgid "Search — Google, Bing, DuckDuckGo, ChatGPT…"
+msgstr "Пошук — Google, Bing, DuckDuckGo, ChatGPT…"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:263
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:87
+msgid "Social — Facebook, Instagram, X, LinkedIn, Hacker News…"
+msgstr "Соцмережі — Facebook, Instagram, X, LinkedIn, Hacker News…"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:222
+msgid "The pages opened most often."
+msgstr "Сторінки, які відкривали найчастіше."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:329
+msgid "The pages visits ended on — where people left the site."
+msgstr "Сторінки, на яких закінчувалися візити, — звідки люди йшли з сайту."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:160
+msgid "The share of visits that saw only one page and left."
+msgstr "Частка візитів, у яких переглянули лише одну сторінку й пішли."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:238
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:109
+msgid "The site a visitor came from. When someone clicks a link to your site, their browser tells us the page the link was on; a campaign link's utm_source says it too."
+msgstr "Сайт, з якого прийшов відвідувач. Коли хтось переходить за посиланням на ваш сайт, браузер повідомляє сторінку, де було посилання; utm_source у посиланні кампанії каже те саме."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:328
+msgid "Visit timeout"
+msgstr "Тайм-аут візиту"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:449
+msgid "Visit timeout, minutes"
+msgstr "Тайм-аут візиту, хвилин"
+
+#: lib/phoenix_kit_web_analytics.ex:159
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:133
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:324
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:139
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:28
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:96
+msgid "Visits"
+msgstr "Візити"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:243
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:114
+msgid "Visits with neither — typed in, a bookmark, or an app that hides it — are Direct, and aren't listed here."
+msgstr "Візити без жодного з них — адресу введено вручну, закладка або застосунок, що приховує джерело, — це прямі заходи, і тут їх не показано."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:247
+msgid "What does “%{title}” mean?"
+msgstr "Що означає «%{title}»?"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:260
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:84
+msgid "Where visitors came from, grouped by kind:"
+msgstr "Звідки прийшли відвідувачі, за типами:"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:92
+msgid "All pages"
+msgstr "Усі сторінки"
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:84
+msgid "Browser"
+msgstr "Браузер"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:101
+msgid "Click a page to see the overview for that page alone."
+msgstr "Натисніть на сторінку, щоб побачити огляд лише за нею."
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:182
+msgid "Covers LiveView pages, which keep a live connection. Pages without one show up under Recent visits instead."
+msgstr "Охоплює сторінки LiveView, що мають постійне з'єднання. Сторінки без нього показано в «Останніх візитах»."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:139
+msgid "Event"
+msgstr "Подія"
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:146
+msgid "Events the site reports itself, with a name of its choosing — an order placed, a sign-up finished. They come from PhoenixKitWebAnalytics.track_event/2 in the app, or phoenixKitAnalytics(name, props) in the browser."
+msgstr "Події, про які сайт повідомляє сам, під обраною ним назвою — оформлено замовлення, завершено реєстрацію. Вони надходять із PhoenixKitWebAnalytics.track_event/2 у застосунку або phoenixKitAnalytics(name, props) у браузері."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:162
+msgid "Every hit as it arrives, newest first — updated every %{seconds} seconds."
+msgstr "Кожне звернення в міру надходження, нові зверху — оновлюється кожні %{seconds} секунд."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:94
+msgid "Every page that was opened in this period, most viewed first."
+msgstr "Усі сторінки, відкриті за цей період, найпереглядуваніші зверху."
+
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:102
+msgid "Every visit in this period, newest first. Open one to see everything that visitor did, in order."
+msgstr "Усі візити за цей період, нові зверху. Відкрийте візит, щоб побачити по порядку все, що зробив відвідувач."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:177
+msgid "How long the server took to build each page, on average — the time before the visitor's browser gets anything."
+msgstr "Скільки в середньому сервер збирав кожну сторінку — час до того, як браузер відвідувача щось отримає."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:141
+msgid "No custom events recorded in this period."
+msgstr "За цей період власних подій не записано."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:159
+msgid "Only filled when the site runs behind a CDN that says the visitor's country (Cloudflare does), or when a location lookup is configured. No IP address is ever stored."
+msgstr "Заповнюється, лише якщо сайт працює за CDN, який повідомляє країну відвідувача (Cloudflare повідомляє), або налаштовано визначення місцезнаходження. IP-адреси ніколи не зберігаються."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:182
+msgid "Only pages opened at least %{count} times in this period, so one slow first load doesn't top the list."
+msgstr "Лише сторінки, відкриті за період не менше ніж %{count} разів, щоб одне повільне перше завантаження не очолило список."
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:136
+msgid "Only the utm_ parameters are kept from a link's address; the rest of it is never stored."
+msgstr "З адреси посилання зберігаються лише параметри utm_; решта ніколи не зберігається."
+
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:167
+msgid "Page views, actions, exits (with how long the page was open) and custom events. The last column opens the whole visit."
+msgstr "Перегляди сторінок, дії, виходи (з тим, скільки сторінка була відкрита) та власні події. Остання колонка відкриває весь візит."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:88
+msgid "Read from the browser's description of itself, which it sends with every page. Nothing is measured on the visitor's device."
+msgstr "За описом, який браузер надсилає про себе з кожною сторінкою. На пристрої відвідувача нічого не вимірюється."
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:97
+msgid "Share: this page's part of all page views. Time on page: how long it stayed open on average. Exits: how many visits ended on it."
+msgstr "Частка: частина цієї сторінки в усіх переглядах. Час на сторінці: скільки в середньому вона була відкрита. Виходи: скільки візитів на ній закінчилося."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:101
+msgid "System"
+msgstr "Система"
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:138
+msgid "The language the visitor's browser asks for first (et-EE is Estonian as used in Estonia) — usually the language of their device."
+msgstr "Мова, яку браузер відвідувача запитує першою (et-EE — естонська в Естонії), — зазвичай це мова його пристрою."
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:154
+msgid "The utm_source of tagged links — who sent the visitor, in the words of whoever made the link: newsletter, facebook, partner-site."
+msgstr "utm_source позначених посилань — хто привів відвідувача, словами автора посилання: newsletter, facebook, partner-site."
+
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:107
+msgid "Visitor: a signed-in user's name, otherwise Anonymous. Landed on → left from: the first and last page. Pages: pages opened. Actions: clicks, form submits and events. Duration: from the first page opening to leaving the last. Source: where the visit came from."
+msgstr "Відвідувач: ім'я користувача, що ввійшов, інакше «Анонімний». Вхід → вихід: перша й остання сторінка. Сторінки: відкриті сторінки. Дії: кліки, надсилання форм і події. Тривалість: від відкриття першої сторінки до виходу з останньої. Джерело: звідки прийшов візит."
+
+#: lib/phoenix_kit_web_analytics/web/sessions_live.ex:93
+msgid "Visits by %{name}"
+msgstr "Візити: %{name}"
+
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:131
+msgid "Visits that arrived through a link tagged with utm_campaign — for example ?utm_campaign=autumn-sale in a newsletter or an ad."
+msgstr "Візити, що надійшли за посиланням із міткою utm_campaign — наприклад, ?utm_campaign=autumn-sale у розсилці чи рекламі."
+
+#: lib/phoenix_kit_web_analytics/web/technology_live.ex:106
+msgid "Windows, macOS, iOS, Android… — from the same description the browser sends."
+msgstr "Windows, macOS, iOS, Android… — з того самого опису, який надсилає браузер."
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:268
+msgid "%{count} page open"
+msgid_plural "%{count} pages open"
+msgstr[0] "%{count} сторінка відкрита"
+msgstr[1] "%{count} сторінки відкриті"
+msgstr[2] "%{count} сторінок відкрито"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:205
+msgid "By page"
+msgstr "За сторінками"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:196
+msgid "Each visitor"
+msgstr "Кожен відвідувач"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:177
+msgid "Every page someone has open this moment. Each visitor: one row per open page, with how long it has been open. By page: the same pages counted per page — what the site is being used for right now."
+msgstr "Кожна сторінка, відкрита в когось просто зараз. Кожен відвідувач: один рядок на відкриту сторінку та як давно вона відкрита. За сторінками: ті самі сторінки, пораховані по сторінках, — для чого сайтом користуються просто зараз."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:474
+msgid "Newer"
+msgstr "Новіші"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:482
+msgid "Older"
+msgstr "Старіші"
+
+#: lib/phoenix_kit_web_analytics/web/pages_live.ex:170
+msgid "Page %{page}"
+msgstr "Сторінка %{page}"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:348
+msgid "Show more"
+msgstr "Показати ще"
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:297
+msgid "The %{count} pages with the most people on them."
+msgstr "%{count} сторінок, на яких найбільше людей."
+
+#: lib/phoenix_kit_web_analytics/web/live_now_live.ex:305
+msgid "Visits with any activity in the last %{minutes} minutes, most recently active first — including pages without a live connection. Open one to see what that visitor did."
+msgstr "Візити з будь-якою активністю за останні %{minutes} хвилин, нещодавно активні зверху — включно зі сторінками без постійного з'єднання. Відкрийте візит, щоб побачити, що робив відвідувач."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:340
+msgid "Showing the first %{count} events of this visit."
+msgstr "Показано перші %{count} подій цього візиту."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:304
+msgid "How this visitor moved the pointer, what they clicked and hovered, and how the page scrolled — played over the page as it looks today. Text, typing and form values are never recorded."
+msgstr "Як відвідувач рухав курсор, що натискав і на чому затримувався, як прокручував сторінку — поверх сторінки в її нинішньому вигляді. Текст, введення з клавіатури та значення форм ніколи не записуються."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:331
+msgid "Keep recordings"
+msgstr "Зберігання записів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:901
+msgid "Keep recordings, days"
+msgstr "Зберігати записи, днів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:881
+msgid "Off by default. A recorded page sends a few rows a minute while someone is using it — on a busy site, record a share of visitors."
+msgstr "За замовчуванням вимкнено. Сторінка, що записується, надсилає кілька рядків на хвилину, поки нею користуються, — на навантаженому сайті записуйте частину відвідувачів."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:314
+msgid "Pause"
+msgstr "Пауза"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:313
+msgid "Play"
+msgstr "Відтворити"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:879
+msgid "Record visits"
+msgstr "Записувати візити"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:299
+msgid "Recording"
+msgstr "Запис"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:873
+msgid "Replay a visit: where the pointer went, what was clicked and hovered, how the page scrolled. Recorded by the client script; only coordinates and element positions — never text, typing or form values. Visitors asking not to be tracked, bots and excluded paths are never recorded."
+msgstr "Повтор візиту: куди рухався курсор, що натискали й на чому затримувалися, як прокручувалася сторінка. Записує клієнтський скрипт; лише координати та розташування елементів — ніколи текст, введення чи значення форм. Відвідувачі, які відмовилися від відстеження, боти та виключені шляхи ніколи не записуються."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:88
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:265
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:344
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:871
+msgid "Session recordings"
+msgstr "Записи візитів"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:321
+msgid "The player needs JavaScript."
+msgstr "Для програвача потрібен JavaScript."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:316
+msgid "This page can't be shown behind the replay; only the pointer is drawn."
+msgstr "Цю сторінку не можна показати під записом; малюється лише курсор."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:330
+msgid "Visitors recorded"
+msgstr "Записувані відвідувачі"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:892
+msgid "Visitors recorded, %"
+msgstr "Записувані відвідувачі, %"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:426
+msgid "Bots are recognised by the name their browser sends. This also catches ones posing as a normal browser: browsers under automation (needs the client script), page views faster than a person reads, and LiveView pages that never connected — a scraper fetching HTML runs no JavaScript."
+msgstr "Боти розпізнаються за назвою, яку надсилає їхній браузер. Це також ловить тих, хто видає себе за звичайний браузер: автоматизовані браузери (потрібен клієнтський скрипт), перегляди сторінок швидші, ніж людина читає, і сторінки LiveView, які так і не підключилися, — скрапер, що завантажує HTML, не виконує JavaScript."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:423
+msgid "Spot bots by behaviour"
+msgstr "Розпізнавати ботів за поведінкою"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:127
+msgid "Yes — its LiveView pages never connected (no JavaScript)"
+msgstr "Так — його сторінки LiveView так і не підключилися (немає JavaScript)"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:132
+msgid "Yes — its browser says so"
+msgstr "Так — так повідомляє його браузер"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:124
+msgid "Yes — pages faster than a person reads"
+msgstr "Так — сторінки швидші, ніж людина читає"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:123
+msgid "Yes — the browser was under automation"
+msgstr "Так — браузер був автоматизований"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:800
+msgid "Other"
+msgstr "Інше"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:57
+msgid "Some settings could not be saved. Check them and try again."
+msgstr "Деякі налаштування не вдалося зберегти. Перевірте їх і спробуйте ще раз."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:266
+#: lib/phoenix_kit_web_analytics/web/sources_live.ex:90
+msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
+msgstr "Реклама — кліки по оголошеннях з автоміткою (gclid, msclkid…) або з utm_medium=cpc"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1111
+msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
+msgstr "За зворотним проксі на тому самому хості чи в тій самій мережі адреса відвідувача читається з X-Forwarded-For (порт, доданий проксі, відкидається). За ланцюжком — CDN перед балансувальником — поставте перед plug відстеження plug, що переписує remote_ip (наприклад, remote_ip)."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:386
+msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
+msgstr "Візити LiveView із приватної або loopback-адреси — зворотний проксі, мережа контейнерів, localhost під час розробки — не записуються: у connect_info сокета LiveView немає :x_headers. Додайте його на обох транспортах — див. «Встановлення» нижче."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:798
+msgid "0 stops marking staff networks. Kept in memory only."
+msgstr "0 — не позначати мережі співробітників. Зберігається лише в пам'яті."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:731
+msgid "Addresses in the network listed in the app's config (internal_networks)."
+msgid_plural "Addresses in the %{count} networks listed in the app's config (internal_networks)."
+msgstr[0] "Адреси з %{count} мережі, указаної в конфігурації застосунку (internal_networks)."
+msgstr[1] "Адреси з %{count} мереж, указаних у конфігурації застосунку (internal_networks)."
+msgstr[2] "Адреси з %{count} мереж, указаних у конфігурації застосунку (internal_networks)."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:92
+msgid "Also count bot traffic (stored only when Settings record it)."
+msgstr "Враховувати також трафік ботів (зберігається, лише якщо це ввімкнено в налаштуваннях)."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:76
+msgid "Also count the traffic Settings leave out of the statistics: the site's own people and their networks."
+msgstr "Враховувати також трафік, який налаштування виключають зі статистики: власних співробітників сайту та їхні мережі."
+
+#: lib/phoenix_kit_web_analytics.ex:194
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:36
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:228
+#: lib/phoenix_kit_web_analytics/web/components.ex:95
+msgid "Bots"
+msgstr "Боти"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:782
+msgid "Every visit from an address where a staff member signed in or was active within the hours below. Behind a mobile network, carrier-grade NAT or an office gateway one address is many people: a staff sign-in from a phone leaves out everyone sharing that address for those hours. Visits before the sign-in are not marked afterwards."
+msgstr "Усі візити з адреси, де співробітник входив або був активний протягом указаних нижче годин. За мобільною мережею, NAT оператора (CGNAT) або офісним шлюзом за однією адресою багато людей: вхід співробітника з телефона виключить на ці години всіх, хто ділить цю адресу. Візити до входу заднім числом не позначаються."
+
+#: lib/phoenix_kit_web_analytics/traffic_flags.ex:86
+msgid "Internal network"
+msgstr "Внутрішня мережа"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:726
+msgid "Leave out internal networks"
+msgstr "Виключати внутрішні мережі"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:757
+msgid "Leave out site staff"
+msgstr "Виключати співробітників сайту"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:779
+msgid "Leave out staff networks"
+msgstr "Виключати мережі співробітників"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:737
+msgid "No networks are configured. List the office or VPN ranges in the app's config — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — not here: every settings change is kept in the activity log."
+msgstr "Мережі не налаштовано. Укажіть діапазони офісу або VPN у конфігурації застосунку — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — а не тут: кожна зміна налаштувань залишається в журналі активності."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:88
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:229
+msgid "Own traffic"
+msgstr "Власний трафік"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:102
+msgid "Read from raw events: days older than the raw-event retention have no data here, rather than zero visits."
+msgstr "Читається із вихідних подій: для днів, старших за термін зберігання вихідних подій, тут немає даних — це не нуль візитів."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:760
+msgid "Signed-in users holding one of the staff roles below — whichever role they are acting as. A visit that turns into a staff member's (a sign-in midway) is left out whole."
+msgstr "Користувачі, що ввійшли, з однією з ролей співробітників нижче — у якій би ролі вони зараз не діяли. Візит, який стає візитом співробітника (вхід посеред візиту), виключається цілком."
+
+#: lib/phoenix_kit_web_analytics/traffic_flags.ex:87
+msgid "Site staff"
+msgstr "Співробітники сайту"
+
+#: lib/phoenix_kit_web_analytics/traffic_flags.ex:88
+msgid "Staff network"
+msgstr "Мережа співробітників"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:348
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:792
+msgid "Staff network, hours"
+msgstr "Мережа співробітників, годин"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:347
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:769
+msgid "Staff roles"
+msgstr "Ролі співробітників"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:717
+msgid "Visits by the site's own people are stored with a mark and left out of the statistics, alerts and recordings — nothing is deleted. Untick a kind to count it in again; a report shows it all with Own traffic. Only the mark is stored, never an address."
+msgstr "Візити власних співробітників сайту зберігаються з позначкою та виключаються зі статистики, сповіщень і записів — нічого не видаляється. Зніміть позначку, щоб знову враховувати цей вид трафіку; у звіті все показує перемикач «Власний трафік». Зберігається лише позначка, ніколи не адреса."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:715
+msgid "Your own traffic"
+msgstr "Ваш власний трафік"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:747
+msgid "%{count} entry in internal_networks is not a network and is skipped."
+msgid_plural "%{count} entries in internal_networks are not networks and are skipped."
+msgstr[0] "%{count} запис в internal_networks не є мережею і пропущений."
+msgstr[1] "%{count} записи в internal_networks не є мережами і пропущені."
+msgstr[2] "%{count} записів в internal_networks не є мережами і пропущені."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:773
+msgid "Comma-separated role names, e.g. Owner, Admin. Empty: no one counts as staff."
+msgstr "Назви ролей через кому, наприклад Owner, Admin. Порожньо — ніхто не вважається співробітником."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:130
+msgid "Yes — a browser's speculative prefetch, not a visitor"
+msgstr "Так — спекулятивне попереднє завантаження браузера, а не відвідувач"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:290
+msgid "(not kept)"
+msgstr "(не зберігається)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:339
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:484
+msgid "A visitor ID lasts"
+msgstr "Ідентифікатор відвідувача діє"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:497
+msgid "After that the same person counts as a new visitor. A longer period recognises a returning visitor across days; changing it splits today's open visits."
+msgstr "Після цього та сама людина вважається новим відвідувачем. Довший період дає змогу впізнати відвідувача, що повернувся, в інші дні; зміна розділить сьогоднішні відкриті візити."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:476
+msgid "By default nothing that identifies a visitor is kept: a visitor is a one-way hash of the address and the browser that changes every day. Each switch below keeps more — to see which network a crawler comes from, to tell scrapers apart, to have something to block by. An address is personal data, and what may be kept without asking the visitor depends on the law your site answers to; that decision is yours."
+msgstr "За замовчуванням не зберігається нічого, що ідентифікує відвідувача: відвідувач — це односторонній хеш адреси та браузера, який змінюється щодня. Кожен перемикач нижче зберігає більше — щоб бачити, з якої мережі приходить робот, розрізняти скрапери та мати, за чим блокувати. Адреса — це персональні дані, і те, що можна зберігати, не питаючи відвідувача, залежить від закону, якому підпорядкований ваш сайт; це рішення за вами."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:224
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:340
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:504
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1044
+msgid "IP address"
+msgstr "IP-адреса"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:517
+msgid "Its network is the first three parts of an IPv4 address, or the first 48 bits of an IPv6 one — enough to say whose network, not which machine."
+msgstr "Її мережа — це перші три частини адреси IPv4 або перші 48 біт адреси IPv6: досить, щоб сказати, чия це мережа, але не яка машина."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:323
+msgid "Its network only"
+msgstr "Лише її мережа"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:539
+msgid "Keep request headers"
+msgstr "Зберігати заголовки запиту"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:527
+msgid "Keep the browser's full User-Agent"
+msgstr "Зберігати повний User-Agent браузера"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:551
+msgid "Keep the network's owner"
+msgstr "Зберігати власника мережі"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:573
+msgid "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."
+msgstr "Зберігається один раз на відвідувача, на початку візиту, і видаляється, коли відвідувача не бачили стільки, скільки зберігаються вихідні події. Вимкнення припиняє запис; уже збережене залишається до цього терміну."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:139
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:172
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:225
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1047
+msgid "Network"
+msgstr "Мережа"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:322
+msgid "Not kept"
+msgstr "Не зберігається"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:242
+msgid "One day"
+msgstr "Один день"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:244
+msgid "One month"
+msgstr "Один місяць"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:243
+msgid "One week"
+msgstr "Один тиждень"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:282
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1046
+msgid "Request headers"
+msgstr "Заголовки запиту"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:542
+msgid "The headers of a visit's first page view, in the order they arrived: what a script posing as a browser rarely gets right. Cookies, authorisation and anything named like a token or key are never kept; headers carrying the visitor's address only when the whole address is."
+msgstr "Заголовки першого перегляду сторінки за візит у порядку їх надходження: те, що скрипт, який видає себе за браузер, рідко робить правильно. Cookie, авторизація та все, що названо як токен чи ключ, не зберігаються ніколи; заголовки з адресою відвідувача — лише якщо зберігається вся адреса."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:554
+msgid "The network's number and name, and whether it is a hosting provider — when the site's geo resolver returns them. Nothing in the module knows them by itself."
+msgstr "Номер і назва мережі та чи є вона хостинг-провайдером — якщо геолокатор сайту їх повертає. Сам модуль їх не знає."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:324
+msgid "The whole address"
+msgstr "Уся адреса"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:530
+msgid "The whole string the browser sent, beside the browser, system and device read out of it — which crawler it was, which library, which exact version."
+msgstr "Увесь рядок, надісланий браузером, на додачу до витягнутих із нього браузера, системи та пристрою — який саме робот, яка бібліотека, яка точна версія."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:245
+msgid "Until the address or browser changes"
+msgstr "Доки не зміниться адреса або браузер"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:143
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:176
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:276
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1045
+msgid "User-Agent"
+msgstr "User-Agent"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1033
+msgid "Visitor profiles"
+msgstr "Профілі відвідувачів"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:273
+msgid "What the browser sent"
+msgstr "Що надіслав браузер"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:474
+msgid "Who a visitor is"
+msgstr "Хто такий відвідувач"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:99
+msgid "hosting provider"
+msgstr "хостинг-провайдер"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:156
+msgid "24 hours"
+msgstr "24 години"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:158
+msgid "30 days"
+msgstr "30 днів"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:157
+msgid "7 days"
+msgstr "7 днів"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:265
+msgid "A profile is written when a visit starts. Declared bots are dropped before that unless “Record bot traffic” is on in Settings."
+msgstr "Профіль записується на початку візиту. Боти, що оголосили себе такими, відкидаються раніше, якщо в налаштуваннях не ввімкнено «Записувати трафік ботів»."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:313
+msgid "A score from %{from} to %{to}: something is off, not enough to say."
+msgstr "Оцінка від %{from} до %{to}: щось не так, але для висновку замало."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:300
+msgid "A score of %{score} or more: the reasons found add up to that."
+msgstr "Оцінка %{score} і вище: стільки в сумі дають знайдені причини."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:141
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:174
+msgid "Address"
+msgstr "Адреса"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:168
+msgid "Addresses"
+msgstr "Адреси"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:159
+msgid "All"
+msgstr "Увесь час"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:489
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:500
+msgid "As a list"
+msgstr "Списком"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:245
+msgid "Bot score"
+msgstr "Оцінка бота"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:883
+msgid "Browser under automation"
+msgstr "Автоматизований браузер"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:887
+msgid "Device and User-Agent disagree"
+msgstr "Пристрій і User-Agent суперечать один одному"
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:226
+msgid "Device hash"
+msgstr "Хеш пристрою"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:328
+msgid "Distinct device hashes among them — the same machine keeps its hash when its address changes. Needs device measurements kept."
+msgstr "Різні хеші пристроїв серед них — у тієї самої машини хеш лишається незмінним при зміні адреси. Потребує збереження вимірювань пристрою."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:161
+msgid "Everyone"
+msgstr "Усі"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:889
+msgid "Graphics drawn in software"
+msgstr "Графіку відтворено програмно"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:893
+msgid "HTTP/1.0"
+msgstr "HTTP/1.0"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:450
+msgid "Highest score"
+msgstr "Найвища оцінка"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:888
+msgid "Hosting provider's network"
+msgstr "Мережа хостинг-провайдера"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:563
+msgid "Keep device measurements"
+msgstr "Зберігати вимірювання пристрою"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:370
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:451
+msgid "Last seen"
+msgstr "Востаннє бачили"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:428
+msgid "Latest visit"
+msgstr "Останній візит"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:876
+msgid "Likely a bot"
+msgstr "Імовірно, бот"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:163
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:295
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:449
+msgid "Likely bots"
+msgstr "Імовірні боти"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:184
+msgid "Needs device measurements kept, and the client script on."
+msgstr "Потребує збереження вимірювань пристрою та ввімкненого клієнтського скрипта."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:182
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:183
+msgid "Needs the IP address kept."
+msgstr "Потребує збереження IP-адреси."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:185
+msgid "Needs the full User-Agent kept."
+msgstr "Потребує збереження повного User-Agent."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:180
+msgid "Needs the network's owner kept, and a geo resolver that knows it."
+msgstr "Потребує збереження власника мережі та геолокатора, який його знає."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:166
+msgid "Networks"
+msgstr "Мережі"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:886
+msgid "Never ran JavaScript"
+msgstr "JavaScript жодного разу не виконувався"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:898
+msgid "No Accept header"
+msgstr "Немає заголовка Accept"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:895
+msgid "No Accept-Language header"
+msgstr "Немає заголовка Accept-Language"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:896
+msgid "No Sec-Fetch headers"
+msgstr "Немає заголовків Sec-Fetch"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:884
+msgid "No User-Agent"
+msgstr "Немає User-Agent"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:891
+msgid "No browser language"
+msgstr "Не задано мови браузера"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:897
+msgid "No client-hint headers"
+msgstr "Немає заголовків Client Hints"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:890
+msgid "No screen or window size"
+msgstr "Немає розміру екрана або вікна"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:435
+msgid "No visitors match."
+msgstr "Немає відповідних відвідувачів."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:261
+msgid "Nothing is kept about visitors yet."
+msgstr "Про відвідувачів поки що нічого не зберігається."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:479
+msgid "Nothing to group by."
+msgstr "Нема за чим групувати."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:878
+msgid "Nothing unusual"
+msgstr "Нічого незвичайного"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:885
+msgid "Pages faster than a person reads"
+msgstr "Сторінки швидші, ніж читає людина"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:892
+msgid "Phone User-Agent from a server"
+msgstr "User-Agent телефона із сервера"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:894
+msgid "Phone without a touch screen"
+msgstr "Телефон без сенсорного екрана"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:352
+msgid "Remove this filter"
+msgstr "Прибрати цей фільтр"
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:882
+msgid "Says it is a bot"
+msgstr "Називає себе ботом"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:367
+msgid "Score"
+msgstr "Оцінка"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:140
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:173
+msgid "Subnet"
+msgstr "Підмережа"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:167
+msgid "Subnets"
+msgstr "Підмережі"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:308
+#: lib/phoenix_kit_web_analytics/web/components.ex:877
+msgid "Suspicious"
+msgstr "Підозрілі"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:162
+msgid "Suspicious and up"
+msgstr "Підозрілі й вище"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:492
+msgid "The rows above with at least one likely bot, one per line — to paste into a firewall, a CDN rule or a deny list. Look before you block: a network or subnet holds more than the visitors seen here."
+msgstr "Рядки вище, де є принаймні один імовірний бот, по одному на рядок — щоб вставити у файрвол, правило CDN або список заборон. Перевірте перед блокуванням: у мережі чи підмережі більше адрес, ніж відвідувачів, побачених тут."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:269
+msgid "This page reads what Settings → “Who a visitor is” keeps: the address, the User-Agent, request headers, the network, device measurements. Switch on what you want to tell bots by."
+msgstr "Ця сторінка читає те, що зберігає розділ «Налаштування → Хто такий відвідувач»: адреса, User-Agent, заголовки запиту, мережа, вимірювання пристрою. Увімкніть те, за чим хочете відрізняти ботів."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:170
+msgid "User-Agents"
+msgstr "User-Agent"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:287
+msgid "Visitor IDs seen in this period that something is kept about. One person or bot is several of them when its address changes, or when the ID's period ends."
+msgstr "Ідентифікатори відвідувачів за цей період, про які щось збережено. Одна людина чи бот — це кілька таких ідентифікаторів, коли змінюється його адреса або минає термін ідентифікатора."
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:230
+msgid "Visitors by how much they look automated, and why. Nothing here drops or blocks anyone — it is what you would decide by."
+msgstr "Відвідувачі за тим, наскільки вони схожі на автоматику, і чому. Тут нікого не відкидають і не блокують — це те, за чим можна ухвалити рішення."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:566
+msgid "What the client script can measure about the device — screen, time zone, languages, processor, graphics card, fonts, how it draws a canvas and renders a sound — and a hash of them that stays the same when the visitor's address changes. This is browser fingerprinting: it recognises a scraper across the addresses it rotates through, and a person across theirs. Needs the client script switched on."
+msgstr "Те, що клієнтський скрипт може виміряти про пристрій — екран, часовий пояс, мови, процесор, відеокарту, шрифти, як він малює canvas і відтворює звук — та їхній хеш, який не змінюється при зміні адреси відвідувача. Це зняття відбитка браузера: воно впізнає скрапер на всіх адресах, які він перебирає, а людину — на її адресах. Потребує ввімкненого клієнтського скрипта."
+
+#: lib/phoenix_kit_web_analytics/web/session_live.ex:259
+msgid "What the device measured"
+msgstr "Що виміряв пристрій"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:369
+msgid "Why"
+msgstr "Чому"
+
+#: lib/phoenix_kit_web_analytics/web/bots_live.ex:409
+msgid "hosting"
+msgstr "хостинг"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:172
+msgid "%{count} day"
+msgid_plural "%{count} days"
+msgstr[0] "%{count} день"
+msgstr[1] "%{count} дні"
+msgstr[2] "%{count} днів"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:81
+msgid "A fingerprint worked out from these"
+msgstr "Відбиток, обчислений на їхній основі"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:149
+msgid "A visitor number worked out from your IP address and browser, replaced every %{period}"
+msgstr "Номер відвідувача, обчислений за вашою IP-адресою та браузером; змінюється раз на %{period}"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:144
+msgid "A visitor number worked out from your IP address and browser, which stays the same until one of them changes"
+msgstr "Номер відвідувача, обчислений за вашою IP-адресою та браузером; залишається незмінним, доки одне з них не зміниться"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:251
+msgid "Always — visitors are told, not asked"
+msgstr "Завжди — відвідувача повідомляють, але не питають"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:292
+msgid "Analytics"
+msgstr "Аналітика"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:306
+msgid "Answers come from the Legal module's cookie banner."
+msgstr "Відповіді надходять із банера cookie юридичного модуля."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:310
+msgid "Answers come from the site's own consent tool (%{source})."
+msgstr "Відповіді надходять із власного інструмента згоди сайту (%{source})."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:274
+msgid "Ask first"
+msgstr "Спочатку запитати"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:345
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:665
+msgid "Asked under"
+msgstr "Категорія запиту"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:275
+msgid "Collect until refused"
+msgstr "Збирати до відмови"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:273
+msgid "Count visits, ask for the rest"
+msgstr "Рахувати візити, про решту запитувати"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:259
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:341
+msgid "Counting visits"
+msgstr "Підрахунок візитів"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:42
+msgid "Counts visits to our pages so we can see which are read, where visitors come from and what does not work."
+msgstr "Рахує відвідування наших сторінок, щоб ми бачили, які з них читають, звідки приходять відвідувачі та що не працює."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:261
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:342
+msgid "Details about a visitor"
+msgstr "Відомості про відвідувача"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:54
+msgid "Details about your connection"
+msgstr "Відомості про ваше підключення"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:632
+msgid "Details, device measurements and recordings describe a visitor, so they are only ever kept for one whose visits are counted."
+msgstr "Відомості, вимірювання пристрою та записи описують відвідувача, тому зберігаються лише для того, чиї візити враховуються."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:68
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:263
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:343
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1048
+msgid "Device measurements"
+msgstr "Вимірювання пристрою"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:704
+msgid "Device measurements are taken without the visitor's agreement. They read the device to recognise it again — browser fingerprinting — which EU and UK regulators treat as needing consent whatever it is used for, security included. Elsewhere the rule differs; the choice is yours."
+msgstr "Вимірювання пристрою знімаються без згоди відвідувача. Вони зчитують пристрій, щоб упізнати його знову, — це зняття відбитка браузера, — і регулятори ЄС та Великої Британії вважають, що для цього потрібна згода незалежно від мети, зокрема й безпека. В інших країнах правило інше; вибір за вами."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:658
+msgid "For a visitor whose visits may not be counted. Counting the view keeps page totals honest, but every such view is a visitor and a visit of its own, so those two numbers rise with it."
+msgstr "Для відвідувача, чиї візити не можна враховувати. Підрахунок перегляду зберігає правильні підсумки за сторінками, але кожен такий перегляд — окремий відвідувач і окремий візит, тому ці два числа зростають разом із ним."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:80
+msgid "How your browser draws an image and renders a sound"
+msgstr "Як ваш браузер малює зображення та відтворює звук"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:79
+msgid "Installed fonts"
+msgstr "Установлені шрифти"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:56
+msgid "Kept to tell people from automated traffic and to look into abuse of the site."
+msgstr "Зберігаються, щоб відрізняти людей від автоматичного трафіку та розслідувати зловживання сайтом."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:137
+msgid "Links you follow away from the site, and how far you scroll"
+msgstr "Посилання, за якими ви йдете з сайту, і глибина прокручування"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:293
+msgid "Marketing"
+msgstr "Маркетинг"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:70
+msgid "Measurements of your device that let us recognise it again when its address changes, used to tell people from automated traffic."
+msgstr "Вимірювання вашого пристрою, за якими ми можемо впізнати його знову, коли зміниться його адреса; використовуються, щоб відрізняти людей від автоматичного трафіку."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:605
+msgid "Not saved yet."
+msgstr "Ще не збережено."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:300
+msgid "Nothing is recorded"
+msgstr "Нічого не записується"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:315
+msgid "Nothing on this site asks visitors: no visitor has given an answer."
+msgstr "На цьому сайті відвідувачів ніхто не питає: жоден відвідувач не дав відповіді."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:252
+msgid "Only after the visitor agrees"
+msgstr "Лише після згоди відвідувача"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:260
+msgid "Page views, visits and what visitors do, under the visitor ID."
+msgstr "Перегляди сторінок, візити та дії відвідувачів під ідентифікатором відвідувача."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:97
+msgid "Pointer movement, clicks and scrolling on a page"
+msgstr "Рух вказівника, кліки та прокручування на сторінці"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:266
+msgid "Pointer movement, clicks and scrolling."
+msgstr "Рух вказівника, кліки та прокручування."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:294
+msgid "Preferences"
+msgstr "Уподобання"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:78
+msgid "Processor, memory and graphics card"
+msgstr "Процесор, пам'ять і відеокарта"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:90
+msgid "Replays of how a page was used, so we can see where it confuses people. What you type is never recorded."
+msgstr "Відтворення того, як використовувалася сторінка, щоб ми бачили, де вона збиває людей з пантелику. Те, що ви вводите, ніколи не записується."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:77
+msgid "Screen size, time zone and languages"
+msgstr "Розмір екрана, часовий пояс і мови"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:693
+msgid "Something here waits for a yes, and nothing asks for one — so it is never collected. Switch on the Legal module's cookie banner, or point consent_source at your own consent tool."
+msgstr "Дещо тут чекає на згоду, а ніхто її не запитує — тому це ніколи не збирається. Увімкніть банер cookie юридичного модуля або вкажіть у consent_source власний інструмент згоди."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:593
+msgid "Start from:"
+msgstr "Почати з:"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:272
+msgid "Tell, don't ask"
+msgstr "Повідомляти, не питати"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:678
+msgid "The banner's category whose answer these rules follow."
+msgstr "Категорія банера, за відповіддю на яку діють ці правила."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:135
+msgid "The buttons and links you use on our pages"
+msgstr "Кнопки та посилання, якими ви користуєтеся на наших сторінках"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:264
+msgid "The measurements the client script takes, and their hash."
+msgstr "Вимірювання, які знімає клієнтський скрипт, та їхній хеш."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:162
+msgid "The network part of your IP address"
+msgstr "Мережева частина вашої IP-адреси"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:301
+msgid "The page view is counted, with no visitor"
+msgstr "Перегляд сторінки враховується без відвідувача"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:129
+msgid "The pages you view and when"
+msgstr "Сторінки, які ви переглядаєте, і коли"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:130
+msgid "The site or campaign that brought you here"
+msgstr "Сайт або кампанія, що привели вас сюди"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:98
+msgid "The size of your browser window"
+msgstr "Розмір вікна вашого браузера"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:165
+msgid "The technical headers your browser sent with its first request"
+msgstr "Технічні заголовки, які ваш браузер надіслав із першим запитом"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:253
+msgid "Until the visitor objects"
+msgstr "Доки відвідувач не заперечить"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:174
+msgid "Until we delete it"
+msgstr "Доки ми цього не видалимо"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:40
+msgid "Visit statistics"
+msgstr "Статистика відвідувань"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:262
+msgid "Whatever “Who a visitor is” keeps: address, User-Agent, headers, network."
+msgstr "Усе, що зберігає розділ «Хто такий відвідувач»: адреса, User-Agent, заголовки, мережа."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:584
+msgid "When it is collected"
+msgstr "Коли збираються дані"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:586
+msgid "Whether a visitor has to be asked first depends on the law your site answers to, so each kind of collection has its own rule. “Always” is how the module has always worked. The other two read the visitor's answer from the consent banner, and a browser that sends Global Privacy Control or Do Not Track counts as an objection."
+msgstr "Чи потрібно спочатку питати відвідувача, залежить від закону, якому підпорядкований ваш сайт, тому кожен вид збирання має своє правило. «Завжди» — так модуль працював досі. Два інші читають відповідь відвідувача з банера згоди, а браузер, що надсилає Global Privacy Control або Do Not Track, вважається запереченням."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:166
+msgid "Who runs the network you connect from"
+msgstr "Хто керує мережею, з якої ви підключаєтеся"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:346
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:645
+msgid "Without an answer that allows it"
+msgstr "Без відповіді, що це дозволяє"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:161
+msgid "Your IP address"
+msgstr "Ваша IP-адреса"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:134
+msgid "Your account, when you are signed in"
+msgstr "Ваш обліковий запис, коли ви ввійшли"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:163
+msgid "Your browser's full User-Agent"
+msgstr "Повний User-Agent вашого браузера"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:132
+msgid "Your browser, operating system, device type and language"
+msgstr "Ваш браузер, операційна система, тип пристрою та мова"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:131
+msgid "Your country, and the region and city where they can be told"
+msgstr "Ваша країна, а також регіон і місто, якщо їх можна визначити"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:157
+msgid "day"
+msgstr "день"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:156
+msgid "month"
+msgstr "місяць"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:155
+msgid "week"
+msgstr "тиждень"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:117
+msgid "Keeps your privacy answer in this site's session cookie, so pages that update live follow it too."
+msgstr "Зберігає вашу відповідь щодо конфіденційності в сесійній cookie цього сайту, щоб її дотримувалися й сторінки, що оновлюються в реальному часі."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:638
+msgid "Live pages cannot read the banner's cookie: they follow a note the tracking plug leaves in the site's session. The plug must therefore run after the session is fetched — below :fetch_session in the browser pipeline. Where it runs earlier, or a live page is reached without it, nothing that waits for an answer is collected on live pages."
+msgstr "Сторінки, що оновлюються в реальному часі, не можуть прочитати cookie банера: вони дотримуються позначки, яку plug відстеження залишає в сесії сайту. Тому plug має виконуватися після завантаження сесії — нижче :fetch_session у browser pipeline. Якщо він виконується раніше або на таку сторінку потрапляють без нього, на цих сторінках не збирається нічого, що чекає на відповідь."
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:115
+msgid "Session"
+msgstr "Сесія"
+
+#: lib/phoenix_kit_web_analytics/data_collection.ex:114
+msgid "cookie (site session)"
+msgstr "cookie (сесія сайту)"
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:109
+msgid "A visitor is counted once each day they open a page. Returning on another day counts again, whatever the visitor ID rotation."
+msgstr "Відвідувач враховується один раз за кожен день, коли він відкриває сторінку. Повернення в інший день враховується знову за будь-якої частоти зміни ID відвідувача."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1049
+msgid "All visitor profiles"
+msgstr "Усі профілі відвідувачів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:187
+msgid "Could not remove stored profile data. Try again."
+msgstr "Не вдалося видалити збережені дані профілів. Спробуйте ще раз."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:107
+msgid "Daily unique visitors added across the period."
+msgstr "Сума унікальних відвідувачів за кожен день періоду."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1062
+msgid "Remove stored data"
+msgstr "Видалити збережені дані"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1042
+msgid "Remove stored profile data"
+msgstr "Видалити збережені дані профілів"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1056
+msgid "Remove the selected data from every profile? This cannot be undone. Switch its collection setting off first to prevent new data being stored."
+msgstr "Видалити вибрані дані з усіх профілів? Цю дію не можна скасувати. Спершу вимкніть їхнє збирання, щоб нові дані не зберігалися."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:179
+msgid "Removed stored data from %{count} profile(s)."
+msgstr "Збережені дані видалено з профілів: %{count}."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:525
+msgid "Visitors: daily unique visitors added across the period. One visitor on two days counts as 2. Views: every page opening, including repeats."
+msgstr "Відвідувачі: сума унікальних відвідувачів за кожен день періоду. Один відвідувач у два різні дні враховується як 2. Перегляди: усі відкриття сторінок, включно з повторними."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:310
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:128
+#: lib/phoenix_kit_web_analytics/web/events_live.ex:151
+msgid "Visitors: daily unique visitors who did it, added across the period. Times: how often it was done in total."
+msgstr "Відвідувачі: сума унікальних відвідувачів, які виконали дію, за кожен день періоду. Разів: загальна кількість виконань дії."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:331
+msgid "Visitors: daily unique visitors who left from it, added across the period. Exits: how many visits ended there."
+msgstr "Відвідувачі: сума унікальних відвідувачів, які пішли з цієї сторінки, за кожен день періоду. Виходи: кількість візитів, що завершилися на ній."
+
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:144
+msgid "If they are away for more than %{minutes} minutes and come back, that starts a new visit. Totals count each UTC day of a visit separately; bounce rate and average length use those daily portions. The visit list shows the full visit."
+msgstr "Якщо відвідувач відсутній понад %{minutes} хвилин і повертається, починається новий візит. У підсумках кожен день візиту за UTC враховується окремо; показник відмов і середня тривалість обчислюються за цими денними частинами. Список візитів показує візит повністю."
