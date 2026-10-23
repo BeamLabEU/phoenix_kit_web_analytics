@@ -81,13 +81,75 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
         "python-requests/2.31.0",
         "Mozilla/5.0 (compatible; AhrefsBot/7.0)",
         "facebookexternalhit/1.1",
-        "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0"
+        "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0.0.0",
+        "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.52 Mobile Safari/537.36 (compatible; GoogleOther)",
+        "Mozilla/5.0 (compatible; heritrix/3.4.0 +https://example.com)",
+        "RootEvidence/1.0",
+        "k6/0.54.0 (https://k6.io/)",
+        "Mozilla/5.0 (compatible; Google-InspectionTool/1.0)",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Playwright/1.48 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Puppeteer/23.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Selenium/4.25 Safari/537.36",
+        "Mozilla/5.0",
+        " mozilla/4.0 "
       ]
 
       for ua <- bots do
         assert UserAgent.bot?(ua), "expected #{ua} to be detected as a bot"
         assert UserAgent.parse(ua).device_type == "bot"
       end
+    end
+
+    test "a bare product token is a script's, a platform in brackets is a browser's" do
+      for ua <- ["Mozilla/5.0", "mozilla/5", "MOZILLA/4.01", "Mozilla/50.00", "  Mozilla/5.0\n"] do
+        assert UserAgent.bot?(ua), "expected #{inspect(ua)} to be detected as a bot"
+      end
+
+      for ua <- [
+            "Mozilla/",
+            "Mozilla/5.",
+            "Mozilla/.5",
+            "Mozilla/5.0.1",
+            "Mozilla/5..0",
+            "Mozilla/5.0x",
+            "Mozilla/five",
+            "Mozilla/٥.٠",
+            "Mozilla/5.0 (X11; Linux x86_64)",
+            "Mozilla/5.0;",
+            "Mozilla 5.0",
+            "xMozilla/5.0",
+            "Opera/9.80"
+          ] do
+        refute UserAgent.bot?(ua), "expected #{inspect(ua)} not to be detected as a bot"
+      end
+    end
+
+    test "the bare token is read as the old pattern read it" do
+      old = ~r{^mozilla/\d+(\.\d+)?$}
+
+      for ua <- [
+            "mozilla/5.0",
+            "mozilla/5",
+            "mozilla/0.0",
+            "mozilla/007",
+            "mozilla/5.",
+            "mozilla/.5",
+            "mozilla/5.0.0",
+            "mozilla/5.0 ",
+            "mozilla/5.0a",
+            "mozilla/",
+            "mozilla"
+          ] do
+        expected = Regex.match?(old, String.downcase(String.trim(ua)))
+        assert UserAgent.bot?(ua) == expected, inspect(ua)
+      end
+    end
+
+    test "k6 is the token a load test starts with, not a phone model inside brackets" do
+      assert UserAgent.bot?("k6/0.54.0 (https://k6.io/)")
+      assert UserAgent.bot?("  K6/1.0")
+      refute UserAgent.bot?("Mozilla/5.0 (Linux; Android 10; K6/Note) AppleWebKit/537.36")
+      refute UserAgent.bot?("Mozilla/5.0 (Linux; Android 10; K6) Chrome/120.0.0.0 Mobile")
     end
 
     test "real browsers are not flagged" do

@@ -48,6 +48,22 @@ defmodule PhoenixKitWebAnalytics.TrafficFlagsCollectorTest do
       assert {:ok, %{traffic_flags: 0}} = Collector.track(hit(%{ip: {198, 51, 100, 1}}))
     end
 
+    test "internal_network: an IPv6 address in a network entered in Settings" do
+      enable_tracking(%{
+        "web_analytics_internal_networks_secret" => "2001:db8:aa::/48\n198.51.100.7"
+      })
+
+      assert {:ok, %{traffic_flags: 1}} =
+               Collector.track(hit(%{ip: {0x2001, 0xDB8, 0xAA, 1, 0, 0, 0, 5}}))
+
+      assert {:ok, %{traffic_flags: 0}} =
+               Collector.track(hit(%{ip: {0x2001, 0xDB8, 0xAB, 1, 0, 0, 0, 5}}))
+
+      # The same list holds an IPv4 host.
+      assert {:ok, %{traffic_flags: 1}} = Collector.track(hit(%{ip: {198, 51, 100, 7}}))
+      assert {:ok, %{traffic_flags: 0}} = Collector.track(hit())
+    end
+
     test "admin: the signed-in user holds a staff role" do
       assert {:ok, %{traffic_flags: 2}} =
                Collector.track(hit(%{user_uuid: UUIDv7.generate(), roles: ["Owner"]}))

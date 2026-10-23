@@ -70,6 +70,8 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   # Substring markers (already downcased) rather than one giant regex: cheaper,
   # and easier to extend without re-reasoning about alternation order.
+  # k6 is only its own token at the start ("k6/0.54.0 (https://k6.io/)"): as a
+  # substring it would match a phone model.
   @bot_markers ~w(
     bot crawl spider slurp scrap fetcher curl wget python-requests go-http-client
     java/ okhttp libwww-perl httpclient axios node-fetch headless phantomjs
@@ -77,6 +79,8 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
     facebookexternalhit whatsapp telegrambot twitterbot linkedinbot slackbot
     discordbot embedly quora preview feedly rss-parser semrush ahrefs mj12
     dotbot dataprovider zgrab masscan censys expanse
+    googleother google-inspectiontool google-extended mediapartners-google
+    apis-google heritrix rootevidence playwright puppeteer selenium
   )
 
   @unknown %{
@@ -130,13 +134,35 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   def bot?(nil), do: false
 
   def bot?(user_agent) when is_binary(user_agent) do
-    downcased = String.downcase(user_agent)
-    Enum.any?(@bot_markers, &String.contains?(downcased, &1))
+    downcased = user_agent |> String.trim() |> String.downcase()
+
+    Enum.any?(@bot_markers, &String.contains?(downcased, &1)) or
+      String.starts_with?(downcased, "k6/") or bare?(downcased)
   end
 
   def bot?(_user_agent), do: false
 
   # ── internals ─────────────────────────────────────────────────────────────
+
+  # A User-Agent that is only the product token — "Mozilla/5.0", no platform
+  # in brackets — is a script's default, never a browser's. A binary match,
+  # not a regex: OTP 28 can't keep a compiled regex in an attribute, and a
+  # literal in the function is rebuilt on every call.
+  defp bare?("mozilla/" <> version), do: bare_version?(version)
+  defp bare?(_downcased), do: false
+
+  # `5` or `5.0`: digits, then optionally a dot and more digits.
+  defp bare_version?(version) do
+    case digits(version, 0) do
+      {major, ""} when major > 0 -> true
+      {major, "." <> minor} when major > 0 -> match?({n, ""} when n > 0, digits(minor, 0))
+      _ -> false
+    end
+  end
+
+  # How many ASCII digits `binary` starts with, and what follows them.
+  defp digits(<<char, rest::binary>>, count) when char in ?0..?9, do: digits(rest, count + 1)
+  defp digits(rest, count), do: {count, rest}
 
   defp match_first(patterns, user_agent) do
     Enum.find_value(patterns, {"Other", nil}, fn {name, regex} ->
