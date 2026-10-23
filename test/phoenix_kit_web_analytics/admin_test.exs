@@ -367,6 +367,27 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       refute PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
     end
 
+    test "a write core refuses is logged by its field, never with the addresses" do
+      # A key that already holds a JSON value refuses a plain one: a real
+      # failed write, whose changeset carries what was being saved.
+      {:ok, _} =
+        PhoenixKit.Settings.update_json_setting_with_module(
+          "web_analytics_internal_networks_secret",
+          %{"kept" => true},
+          "web_analytics"
+        )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, :not_saved} =
+                   Admin.save_settings(%{"internal_networks" => "198.51.100.7\n2001:db8::/48"})
+        end)
+
+      assert log =~ "could not save web_analytics_internal_networks_secret: invalid (value_json)"
+      refute log =~ "198.51.100.7"
+      refute log =~ "2001:db8"
+    end
+
     test "a failed write is described without the value it tried to save" do
       changeset =
         {%{}, %{value: :string}}
