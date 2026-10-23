@@ -169,6 +169,7 @@ defmodule PhoenixKitWebAnalytics.Config do
     @exclude_admin_key,
     @exclude_admin_network_key,
     @internal_roles_key,
+    @internal_networks_key,
     @admin_network_hours_key,
     @visitor_rotation_key,
     @store_ip_key,
@@ -205,6 +206,7 @@ defmodule PhoenixKitWebAnalytics.Config do
           event_params: [String.t()],
           excluded_flags: non_neg_integer(),
           internal_roles: [String.t()],
+          internal_networks: list(),
           admin_network_hours: non_neg_integer(),
           visitor_rotation: PhoenixKitWebAnalytics.Visitor.rotation(),
           store_ip: :off | :truncated | :full,
@@ -252,6 +254,7 @@ defmodule PhoenixKitWebAnalytics.Config do
       event_params: parse_list(values[@event_params_key] || @default_event_params),
       excluded_flags: excluded_flags(values),
       internal_roles: parse_roles(values[@internal_roles_key]),
+      internal_networks: network_entries(values[@internal_networks_key]),
       admin_network_hours: admin_network_hours(values[@admin_network_hours_key]),
       visitor_rotation:
         one_of(values[@visitor_rotation_key], PhoenixKitWebAnalytics.Visitor.rotations(), :daily),
@@ -294,18 +297,11 @@ defmodule PhoenixKitWebAnalytics.Config do
 
   @doc """
   Every entry of `internal_networks` as configured, strings or not — so the
-  ones that aren't networks can be counted.
+  ones that aren't networks can be counted. `collection_config/0` carries the
+  same list, read with the rest of the hot keys.
   """
   @spec internal_network_entries() :: list()
-  def internal_network_entries do
-    configured =
-      case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
-        entries when is_list(entries) -> entries
-        _ -> []
-      end
-
-    parse_list(internal_networks_raw()) ++ configured
-  end
+  def internal_network_entries, do: network_entries(internal_networks_raw())
 
   @doc "The networks entered in Settings, as entered."
   @spec internal_networks_raw() :: String.t()
@@ -592,6 +588,7 @@ defmodule PhoenixKitWebAnalytics.Config do
       event_params: [],
       excluded_flags: PhoenixKitWebAnalytics.TrafficFlags.all(),
       internal_roles: system_staff_roles(),
+      internal_networks: [],
       admin_network_hours: 0,
       visitor_rotation: :daily,
       store_ip: :off,
@@ -603,6 +600,17 @@ defmodule PhoenixKitWebAnalytics.Config do
       consent_category: "analytics",
       without_consent: :drop
     }
+  end
+
+  # The Settings lines first, then the host's runtime config.
+  defp network_entries(raw) do
+    configured =
+      case Application.get_env(:phoenix_kit_web_analytics, :internal_networks, []) do
+        entries when is_list(entries) -> entries
+        _ -> []
+      end
+
+    parse_list(raw) ++ configured
   end
 
   defp consent_modes(values) do

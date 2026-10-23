@@ -10,6 +10,8 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
   alias PhoenixKitWebAnalytics.InternalTraffic
 
   @topic "phoenix_kit_web_analytics:admin_networks"
+  @networks_key {InternalTraffic, :internal_networks}
+  @networks_setting "web_analytics_internal_networks_secret"
 
   setup do
     previous = Application.get_env(:phoenix_kit_web_analytics, :internal_networks)
@@ -97,6 +99,138 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
       networks([])
       refute InternalTraffic.internal_network?({203, 0, 113, 1})
       refute InternalTraffic.internal_network?(nil)
+    end
+  end
+
+  describe "internal_network?/2" do
+    test "the list the config carries is the one matched" do
+      cfg = config(%{internal_networks: ["203.0.113.0/24", "2001:db8:aa::/48"]})
+
+      assert InternalTraffic.internal_network?({203, 0, 113, 9}, cfg)
+      assert InternalTraffic.internal_network?({0x2001, 0xDB8, 0xAA, 0, 0, 0, 0, 1}, cfg)
+      refute InternalTraffic.internal_network?({203, 0, 114, 9}, cfg)
+      refute InternalTraffic.internal_network?({0x2001, 0xDB8, 0xAB, 0, 0, 0, 0, 1}, cfg)
+    end
+
+    test "an IPv6 network matches by its prefix, not by the whole address" do
+      cfg = config(%{internal_networks: ["2001:db8:aa::/48", "2001:db8:bb::7"]})
+
+      assert InternalTraffic.internal_network?({0x2001, 0xDB8, 0xAA, 0xFFFF, 1, 2, 3, 4}, cfg)
+      # A bare address is one host.
+      assert InternalTraffic.internal_network?({0x2001, 0xDB8, 0xBB, 0, 0, 0, 0, 7}, cfg)
+      refute InternalTraffic.internal_network?({0x2001, 0xDB8, 0xBB, 0, 0, 0, 0, 8}, cfg)
+      # The IPv4 networks do not match an IPv6 address of the same value.
+      refute InternalTraffic.internal_network?(
+               {0, 0, 0, 0, 0, 0, 0xCB00, 0x7101},
+               config(%{internal_networks: ["203.0.113.0/24"]})
+             )
+    end
+
+    test "the flags of a hit come from the config's list, with no settings read of their own" do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["198.51.100.0/24"])
+      enable_tracking(%{@networks_setting => "203.0.113.0/24"})
+
+      cfg = Config.collection_config()
+      assert cfg.internal_networks == ["203.0.113.0/24", "198.51.100.0/24"]
+
+      calls =
+        settings_reads(fn ->
+          assert InternalTraffic.flags(%{ip: {203, 0, 113, 5}}, cfg) == 1
+          assert InternalTraffic.flags(%{ip: {198, 51, 100, 5}}, cfg) == 1
+          assert InternalTraffic.flags(%{ip: {192, 0, 2, 5}}, cfg) == 0
+        end)
+
+      assert calls == []
+    end
+
+    test "a hit costs one multi-get of the settings, the networks among them" do
+      enable_tracking(%{@networks_setting => "203.0.113.0/24"})
+
+      calls =
+        settings_reads(fn ->
+          cfg = Config.collection_config()
+          assert InternalTraffic.flags(%{ip: {203, 0, 113, 5}}, cfg) == 1
+        end)
+
+      assert [[keys, _defaults]] = calls
+      assert @networks_setting in keys
+    end
+
+    test "a failed settings read leaves the parsed list alone and warns of nothing" do
+      enable_tracking(%{@networks_setting => "203.0.113.0/24\n198.51.100.300/24"})
+      cfg = Config.collection_config()
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert InternalTraffic.internal_network?({203, 0, 113, 5}, cfg)
+      end)
+
+      parsed = :persistent_term.get(@networks_key)
+
+      # What a read that could not reach the settings answers: the defaults,
+      # tracking off among them, and none of the setting's lines.
+      failed = %{cfg | enabled?: false, internal_networks: ["198.51.100.0/24"]}
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          for _ <- 1..2 do
+            refute InternalTraffic.internal_network?({198, 51, 100, 5}, failed)
+            refute InternalTraffic.internal_network?({203, 0, 113, 5}, failed)
+            assert :persistent_term.get(@networks_key) == parsed
+          end
+
+          assert InternalTraffic.internal_network?({203, 0, 113, 5}, cfg)
+        end)
+
+      refute log =~ "invalid"
+      assert :persistent_term.get(@networks_key) == parsed
+    end
+
+    test "an empty list matches nothing and leaves the parsed list alone" do
+      listed = config(%{internal_networks: ["203.0.113.0/24"]})
+      assert InternalTraffic.internal_network?({203, 0, 113, 5}, listed)
+      parsed = :persistent_term.get(@networks_key)
+
+      refute InternalTraffic.internal_network?({203, 0, 113, 5}, config(%{internal_networks: []}))
+      assert :persistent_term.get(@networks_key) == parsed
+    end
+
+    # The calls to core's settings reads made by `fun`, each a list of its
+    # arguments. A process can't be its own tracer, hence the relay.
+    defp settings_reads(fun) do
+      test = self()
+
+      relay = spawn(fn -> relay_trace(test) end)
+
+      :erlang.trace_pattern({PhoenixKit.Settings, :get_settings_cached, 2}, true, [:global])
+      :erlang.trace(test, true, [:call, {:tracer, relay}])
+
+      try do
+        fun.()
+      after
+        :erlang.trace(test, false, [:call])
+        :erlang.trace_pattern({PhoenixKit.Settings, :get_settings_cached, 2}, false, [:global])
+      end
+
+      reads = drain_reads(test, [])
+      Process.exit(relay, :kill)
+      reads
+    end
+
+    defp relay_trace(test) do
+      receive do
+        message -> send(test, message)
+      end
+
+      relay_trace(test)
+    end
+
+    defp drain_reads(test, acc) do
+      receive do
+        {:trace, ^test, :call, {PhoenixKit.Settings, :get_settings_cached, args}} ->
+          drain_reads(test, [args | acc])
+      after
+        50 -> Enum.reverse(acc)
+      end
     end
   end
 

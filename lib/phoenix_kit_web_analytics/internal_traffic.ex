@@ -93,7 +93,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   """
   @spec network_flags(:inet.ip_address() | nil, Config.collection_config()) :: non_neg_integer()
   def network_flags(ip, config) when is_tuple(ip) do
-    internal = if internal_network?(ip), do: TrafficFlags.bit(:internal_network), else: 0
+    internal = if internal_network?(ip, config), do: TrafficFlags.bit(:internal_network), else: 0
     admin_net = if admin_network?(ip, config), do: TrafficFlags.bit(:admin_network), else: 0
     internal ||| admin_net
   rescue
@@ -140,12 +140,20 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   # ── internal networks ─────────────────────────────────────────────────────
 
   @doc """
-  Whether `ip` is in one of the configured `internal_networks`. An invalid
-  entry is skipped, with one warning.
+  Whether `ip` is in one of the networks `config` carries
+  (`config.internal_networks`, read with the rest of the hot keys). An
+  invalid entry is skipped, with one warning. A config with no list of its
+  own reads the settings once.
+
+  Never while tracking reads as off: a settings read that failed answers
+  with the defaults, tracking off among them, and its list (the setting's
+  lines missing) must not replace the parsed one.
   """
-  @spec internal_network?(:inet.ip_address() | nil) :: boolean()
-  def internal_network?(ip) when is_tuple(ip) do
-    case parsed_networks() do
+  @spec internal_network?(:inet.ip_address() | nil, map()) :: boolean()
+  def internal_network?(_ip, %{enabled?: false}), do: false
+
+  def internal_network?(ip, config) when is_tuple(ip) do
+    case parsed_networks(entries(config)) do
       [] ->
         false
 
@@ -157,7 +165,14 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     end
   end
 
-  def internal_network?(_ip), do: false
+  def internal_network?(_ip, _config), do: false
+
+  @doc "Whether `ip` is in one of the configured `internal_networks`, read from the settings."
+  @spec internal_network?(:inet.ip_address() | nil) :: boolean()
+  def internal_network?(ip), do: internal_network?(ip, %{})
+
+  defp entries(%{internal_networks: entries}) when is_list(entries), do: entries
+  defp entries(_config), do: Config.internal_network_entries()
 
   defp in_any?(networks, bits, value) do
     Enum.any?(networks, fn {net_bits, base, prefix} ->
@@ -171,16 +186,19 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   """
   @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
   def network_counts do
-    valid = length(parsed_networks())
-    %{valid: valid, invalid: length(Config.internal_network_entries()) - valid}
+    entries = Config.internal_network_entries()
+    valid = length(parsed_networks(entries))
+    %{valid: valid, invalid: length(entries) - valid}
   end
 
   # Parsed once per configured list: the hot path reads one persistent term.
   # Invalid entries are counted in the warning, never quoted — an entry is
-  # likely someone's address.
-  defp parsed_networks do
-    raw = Config.internal_network_entries()
+  # likely someone's address. An empty list has nothing to parse and leaves
+  # the term alone: a settings read that failed reads as empty, and must not
+  # replace the parsed list (and warn again) on every hit.
+  defp parsed_networks([]), do: []
 
+  defp parsed_networks(raw) do
     case :persistent_term.get(@networks_key, nil) do
       {^raw, parsed} ->
         parsed
