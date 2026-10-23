@@ -248,7 +248,7 @@ Every string goes through `PhoenixKitWebAnalytics.Gettext` (LiveViews do
 `use Gettext, backend: PhoenixKitWebAnalytics.Gettext` after
 `use PhoenixKitWeb, :live_view`, which repoints `gettext/1` at this module's
 catalogue; tabs set `gettext_backend:`). After changing strings run
-`mix gettext.extract --merge --no-fuzzy` and fill en/et/ru — none may stay
+`mix gettext.extract --merge --no-fuzzy` and fill en/et/ru/uk — none may stay
 empty.
 
 ## Common Commands
