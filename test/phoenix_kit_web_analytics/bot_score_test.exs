@@ -93,6 +93,29 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
       refute stale?(chrome.(114), ~D[2023-12-05])
     end
 
+    test "Edge and Firefox are judged from their own release dates" do
+      edge =
+        &"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/#{&1}.0.0.0 Safari/537.36 Edg/#{&1}.0.0.0"
+
+      firefox =
+        &"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:#{&1}.0) Gecko/20100101 Firefox/#{&1}.0"
+
+      # Edge 120 shipped on 2023-12-07 and Firefox 120 on 2023-11-21; on the
+      # judging day that estimates 157 and 158, and 24 releases back is stale.
+      assert stale?(edge.(133), ~D[2026-10-23])
+      refute stale?(edge.(134), ~D[2026-10-23])
+      assert stale?(firefox.(134), ~D[2026-10-23])
+      refute stale?(firefox.(135), ~D[2026-10-23])
+    end
+
+    test "Safari 15 is out of date and Safari 16 is not" do
+      safari =
+        &"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/#{&1} Safari/605.1.15"
+
+      assert stale?(safari.("15.6"), ~D[2026-10-23])
+      refute stale?(safari.("16.0"), ~D[2026-10-23])
+    end
+
     test "Safari before 16, on a phone or a Mac" do
       ios13 =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1"

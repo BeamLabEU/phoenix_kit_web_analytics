@@ -86,6 +86,10 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
         "Mozilla/5.0 (compatible; heritrix/3.4.0 +https://example.com)",
         "RootEvidence/1.0",
         "k6/0.54.0 (https://k6.io/)",
+        "Mozilla/5.0 (compatible; Google-InspectionTool/1.0)",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Playwright/1.48 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Puppeteer/23.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Selenium/4.25 Safari/537.36",
         "Mozilla/5.0",
         " mozilla/4.0 "
       ]
