@@ -70,6 +70,8 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   # Substring markers (already downcased) rather than one giant regex: cheaper,
   # and easier to extend without re-reasoning about alternation order.
+  # k6 is only its own token at the start ("k6/0.54.0 (https://k6.io/)"): as a
+  # substring it would match a phone model.
   @bot_markers ~w(
     bot crawl spider slurp scrap fetcher curl wget python-requests go-http-client
     java/ okhttp libwww-perl httpclient axios node-fetch headless phantomjs
@@ -78,7 +80,7 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
     discordbot embedly quora preview feedly rss-parser semrush ahrefs mj12
     dotbot dataprovider zgrab masscan censys expanse
     googleother google-inspectiontool google-extended mediapartners-google
-    apis-google heritrix rootevidence k6/ playwright puppeteer selenium
+    apis-google heritrix rootevidence playwright puppeteer selenium
   )
 
   @unknown %{
@@ -135,7 +137,7 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
     downcased = user_agent |> String.trim() |> String.downcase()
 
     Enum.any?(@bot_markers, &String.contains?(downcased, &1)) or
-      bare?(downcased)
+      String.starts_with?(downcased, "k6/") or bare?(downcased)
   end
 
   def bot?(_user_agent), do: false

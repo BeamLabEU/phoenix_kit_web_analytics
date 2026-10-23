@@ -145,6 +145,13 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       end
     end
 
+    test "k6 is the token a load test starts with, not a phone model inside brackets" do
+      assert UserAgent.bot?("k6/0.54.0 (https://k6.io/)")
+      assert UserAgent.bot?("  K6/1.0")
+      refute UserAgent.bot?("Mozilla/5.0 (Linux; Android 10; K6/Note) AppleWebKit/537.36")
+      refute UserAgent.bot?("Mozilla/5.0 (Linux; Android 10; K6) Chrome/120.0.0.0 Mobile")
+    end
+
     test "real browsers are not flagged" do
       for ua <- [@chrome, @safari_mac, @iphone, @firefox, @edge, @android_phone] do
         refute UserAgent.bot?(ua), "expected #{ua} not to be detected as a bot"
