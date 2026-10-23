@@ -434,12 +434,12 @@ msgstr "Останні 90 днів"
 #: lib/phoenix_kit_web_analytics/web/components.ex:606
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}"
-msgstr "Пішов через %{time}"
+msgstr "Вихід через %{time}"
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:600
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}, scrolled %{percent}%"
-msgstr "Пішов через %{time}, прокрутив на %{percent}%"
+msgstr "Вихід через %{time}, прокрутка до %{percent}%"
 
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:159
 #, elixir-autogen, elixir-format
@@ -972,7 +972,7 @@ msgstr "Перегляд сторінки"
 #: lib/phoenix_kit_web_analytics/web/components.ex:583
 #, elixir-autogen, elixir-format
 msgid "Viewed “%{title}”"
-msgstr "Переглянув «%{title}»"
+msgstr "Перегляд «%{title}»"
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:422
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:117
@@ -2184,7 +2184,7 @@ msgstr "Ця сторінка читає те, що зберігає розді�
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:170
 #, elixir-autogen, elixir-format
 msgid "User-Agents"
-msgstr "User-Agent"
+msgstr "Рядки User-Agent"
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:287
 #, elixir-autogen, elixir-format
@@ -2252,7 +2252,7 @@ msgstr "Аналітика"
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Answers come from the Legal module's cookie banner."
-msgstr "Відповіді надходять із банера cookie юридичного модуля."
+msgstr "Відповіді надходять із банера cookie модуля «Правові документи»."
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:310
 #, elixir-autogen, elixir-format
@@ -2268,7 +2268,7 @@ msgstr "Спочатку запитати"
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:665
 #, elixir-autogen, elixir-format
 msgid "Asked under"
-msgstr "Категорія запиту"
+msgstr "Запитується в категорії"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:275
 #, elixir-autogen, elixir-format
@@ -2413,7 +2413,7 @@ msgstr "Розмір екрана, часовий пояс і мови"
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "Something here waits for a yes, and nothing asks for one — so it is never collected. Switch on the Legal module's cookie banner, or point consent_source at your own consent tool."
-msgstr "Дещо тут чекає на згоду, а ніхто її не запитує — тому це ніколи не збирається. Увімкніть банер cookie юридичного модуля або вкажіть у consent_source власний інструмент згоди."
+msgstr "Дещо тут чекає на згоду, а ніхто її не запитує — тому це ніколи не збирається. Увімкніть банер cookie модуля «Правові документи» або вкажіть у consent_source власний інструмент згоди."
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:593
 #, elixir-autogen, elixir-format
@@ -2554,12 +2554,12 @@ msgstr "тиждень"
 #: lib/phoenix_kit_web_analytics/data_collection.ex:117
 #, elixir-autogen, elixir-format
 msgid "Keeps your privacy answer in this site's session cookie, so pages that update live follow it too."
-msgstr "Зберігає вашу відповідь щодо конфіденційності в сеансовій cookie цього сайту, щоб її дотримувалися й сторінки, що оновлюються в реальному часі."
+msgstr "Зберігає вашу відповідь щодо конфіденційності в сеансовому файлі cookie цього сайту, щоб її дотримувалися й сторінки, що оновлюються в реальному часі."
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:638
 #, elixir-autogen, elixir-format
 msgid "Live pages cannot read the banner's cookie: they follow a note the tracking plug leaves in the site's session. The plug must therefore run after the session is fetched — below :fetch_session in the browser pipeline. Where it runs earlier, or a live page is reached without it, nothing that waits for an answer is collected on live pages."
-msgstr "Сторінки, що оновлюються в реальному часі, не можуть прочитати cookie банера: вони дотримуються позначки, яку plug відстеження залишає в сеансі сайту. Тому plug має виконуватися після завантаження сеансу — нижче :fetch_session у browser pipeline. Якщо він виконується раніше або на таку сторінку потрапляють без нього, на цих сторінках не збирається нічого, що чекає на відповідь."
+msgstr "Сторінки, що оновлюються в реальному часі, не можуть прочитати файл cookie банера: вони дотримуються позначки, яку plug відстеження залишає в сеансі сайту. Тому plug має виконуватися після завантаження сеансу — нижче :fetch_session у browser pipeline. Якщо він виконується раніше або на таку сторінку потрапляють без нього, на цих сторінках не збирається нічого, що чекає на відповідь."
 
 #: lib/phoenix_kit_web_analytics/data_collection.ex:115
 #, elixir-autogen, elixir-format
@@ -2569,12 +2569,12 @@ msgstr "Сеанс"
 #: lib/phoenix_kit_web_analytics/data_collection.ex:114
 #, elixir-autogen, elixir-format
 msgid "cookie (site session)"
-msgstr "cookie (сеанс сайту)"
+msgstr "файл cookie (сеанс сайту)"
 
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "A visitor is counted once each day they open a page. Returning on another day counts again, whatever the visitor ID rotation."
-msgstr "Відвідувач враховується один раз за кожен день, коли він відкриває сторінку. Повернення в інший день враховується знову за будь-якої частоти зміни ID відвідувача."
+msgstr "Відвідувач враховується один раз за кожен день, коли він відкриває сторінку. Повернення в інший день враховується знову за будь-якої частоти зміни ідентифікатора відвідувача."
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:1049
 #, elixir-autogen, elixir-format
