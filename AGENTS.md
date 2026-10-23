@@ -157,7 +157,12 @@ can't, stays optional, and never writes a cookie or storage.
   core release from 2.38.0, the floor, to 2.62.2), and the same rule keeps
   the salt out of the log. Never rename it, and never put its value in a log
   line or an activity entry. Staff networks (`InternalTraffic`) live in ETS
-  only; what reaches a row is the `traffic_flags` bits.
+  only; what reaches a row is the `traffic_flags` bits. The list rides in
+  `collection_config` (`internal_networks`, one of the hot keys) and
+  `InternalTraffic.internal_network?/2` matches against it: a hit makes no
+  settings read of its own. A network wider than `/8` (IPv4) or `/16` (IPv6)
+  is refused (`check_cidr/1`) because a row marked as internal stays marked
+  after the setting is fixed.
 - **A bot score is evidence, never a verdict.** `BotScore` reasons and
   their sum live on the profile and are only shown (the Bots page, a visit's
   page). Nothing drops, flags `is_bot` or blocks because of a score. A new

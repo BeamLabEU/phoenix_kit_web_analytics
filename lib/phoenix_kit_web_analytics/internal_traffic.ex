@@ -6,8 +6,10 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     * **`internal_network`** — the client address falls in one of the
       networks in the `web_analytics_internal_networks_secret` setting or in
       `config :phoenix_kit_web_analytics, internal_networks: [...]` (CIDR,
-      IPv4 or IPv6; a bare address is one host). Parsed once and kept until
-      the setting or the config changes.
+      IPv4 or IPv6; a bare address is one host; nothing wider than `/8` or,
+      for IPv6, `/16`). Parsed once and kept until the setting or the config
+      changes. The list comes with `Config.collection_config/0`, so a hit
+      reads no setting of its own for it.
     * **`admin`** — the signed-in user holds a role listed in
       `web_analytics_internal_roles` (Owner and Admin by default), by
       `PhoenixKit.Users.Auth.Scope.held_roles/1`: the roles they really

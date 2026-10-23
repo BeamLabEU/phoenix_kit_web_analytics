@@ -340,8 +340,10 @@ back brings them back. Three marks (`traffic_flags` on each event, bits of
 
 The internal networks come from two places, and both count. Enter them in
 Settings, under **Leave out internal networks**, one per line: an address, or
-a network as `203.0.113.0/24` or `2001:db8:1234::/48`. Or list them in the
-app config:
+a network as `203.0.113.0/24` or `2001:db8:1234::/48`. A network wider than
+`/8` (IPv4) or `/16` (IPv6) is refused: `0.0.0.0/0`, or a `/2` meant as `/24`,
+would mark nearly every visit as your own, and correcting the setting later
+does not unmark the rows. Or list them in the app config:
 
 ```elixir
 # config/runtime.exs
