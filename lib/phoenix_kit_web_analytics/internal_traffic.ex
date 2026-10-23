@@ -237,7 +237,9 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   Reads one network. A bare address is one host. A prefix shorter than
   `/8` (IPv4) or `/16` (IPv6) is refused as `:too_wide`: `0.0.0.0/0`, or a
   `/2` that was meant as `/24`, would mark nearly every hit as the site's
-  own, and fixing the setting later does not unmark the rows.
+  own, and fixing the setting later does not unmark the rows. An address
+  with a zone (`fe80::1%eth0`) or a prefix that isn't plain decimal digits
+  (`/024`, `/+24`) is `:invalid`.
   """
   @spec check_cidr(term()) ::
           {:ok, {32 | 128, non_neg_integer(), non_neg_integer()}}
@@ -249,7 +251,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
         [address] -> {address, :host}
       end
 
-    with {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
+    with false <- String.contains?(address, "%"),
+         {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
          {bits, value} <- to_integer(unmap(ip)),
          len when is_integer(len) and len >= 0 and len <= bits <- prefix_length(prefix, bits) do
       if len < Map.fetch!(@min_prefix, bits),
@@ -264,9 +267,10 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   defp prefix_length(:host, bits), do: bits
 
+  # Plain decimal digits only: not "+24", not "024", not " 24".
   defp prefix_length(prefix, _bits) do
     case Integer.parse(prefix) do
-      {len, ""} -> len
+      {len, ""} -> if Integer.to_string(len) == prefix, do: len
       _ -> nil
     end
   end

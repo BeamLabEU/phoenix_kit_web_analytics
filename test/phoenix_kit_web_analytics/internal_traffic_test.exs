@@ -67,7 +67,20 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
     end
 
     test "skips what isn't a network" do
-      for bad <- ["", "nope", "203.0.113.0/33", "2001:db8::/129", "203.0.113.0/x", "1.2.3/8"] do
+      for bad <- [
+            "",
+            "nope",
+            "203.0.113.0/33",
+            "2001:db8::/129",
+            "203.0.113.0/x",
+            "1.2.3/8",
+            "203.0.113.0/024",
+            "203.0.113.0/+24",
+            "203.0.113.0/-24",
+            "203.0.113.0/",
+            "fe80::1%eth0",
+            "fe80::/64%eth0"
+          ] do
         assert InternalTraffic.parse_cidr(bad) == [], bad
       end
     end
