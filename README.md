@@ -783,7 +783,7 @@ statements are in the `PhoenixKitWebAnalytics.Migrations` docs.
 ## Translations
 
 Every string goes through the module's own gettext backend
-(`PhoenixKitWebAnalytics.Gettext`), with English, Estonian and Russian
+(`PhoenixKitWebAnalytics.Gettext`), with English, Estonian, Russian and Ukrainian
 catalogues in `priv/gettext`.
 
 ## License

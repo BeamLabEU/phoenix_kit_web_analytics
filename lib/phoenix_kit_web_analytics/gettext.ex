@@ -3,7 +3,7 @@ defmodule PhoenixKitWebAnalytics.Gettext do
   Gettext backend for phoenix_kit_web_analytics — every string the module
   shows: admin pages, tab labels, notification text.
 
-  Catalogues live in `priv/gettext` (en, et, ru). After changing strings:
+  Catalogues live in `priv/gettext` (en, et, ru, uk). After changing strings:
 
       mix gettext.extract --merge
   """
