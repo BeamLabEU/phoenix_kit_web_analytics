@@ -767,6 +767,11 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               "The office, VPN or server addresses, one per line: an address, or a network as 192.0.2.0/24 or 2001:db8::/48. Networks the app's config lists count as well. The addresses aren't written into the activity log."
             )}
           </p>
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."
+            )}
+          </p>
           <p
             :if={@internal_networks.invalid > 0}
             id="web-analytics-invalid-networks"

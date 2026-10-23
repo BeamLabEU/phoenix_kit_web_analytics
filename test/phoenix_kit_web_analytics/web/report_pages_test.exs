@@ -261,6 +261,14 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert html =~ "2 networks listed"
     end
 
+    test "the networks field says what is refused and where the address is read from",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, "#{@base}/settings")
+
+      assert html =~ "A network can&#39;t be wider than /8 (IPv4) or /16 (IPv6)."
+      assert html =~ "X-Forwarded-For"
+    end
+
     test "a network that is too wide is refused, and the page says which field", %{conn: conn} do
       enable_tracking()
       {:ok, view, _html} = live(conn, "#{@base}/settings")
