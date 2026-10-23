@@ -88,6 +88,13 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   # release instead of a list that would need updating. Browsers update
   # themselves, so one this far behind is a script's frozen User-Agent far
   # more often than a person's.
+  #
+  # The estimate does need a look when a vendor changes its cadence: Chrome
+  # (from 153) and Firefox (from 155) moved to two-week majors in September
+  # 2026, so from then on the estimate falls behind and "about two years"
+  # slowly stretches. Move the anchors to a newer release, and the day count
+  # with them, when that matters. Safari's fixed major below only gets weaker
+  # with time, too.
   @release_anchors %{
     "Chrome" => {120, ~D[2023-12-05]},
     "Edge" => {120, ~D[2023-12-07]},

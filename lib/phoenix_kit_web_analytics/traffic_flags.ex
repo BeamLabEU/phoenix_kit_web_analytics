@@ -11,7 +11,7 @@ defmodule PhoenixKitWebAnalytics.TrafficFlags do
 
   | Flag | Bit | Set when |
   |------|-----|----------|
-  | `internal_network` | 1 | the client address is in a network listed in `config :phoenix_kit_web_analytics, internal_networks: […]` |
+  | `internal_network` | 1 | the client address is in a network listed in the `web_analytics_internal_networks_secret` setting or in `config :phoenix_kit_web_analytics, internal_networks: […]` |
   | `admin` | 2 | the signed-in user holds a role listed in `web_analytics_internal_roles` |
   | `admin_network` | 4 | the client's network (an IPv4 address, an IPv6 /64) had such a user signed in within `web_analytics_admin_network_hours` |
 
