@@ -24,17 +24,21 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   | `no_languages` | 40 | a browser with no language set |
   | `mobile_from_hosting` | 30 | a phone's User-Agent from a hosting provider |
   | `old_http` | 30 | HTTP/1.0 |
-  | `stale_browser` | 30 | a browser version about two years out of date, or Safari before 16 |
   | `touch_mismatch` | 30 | a phone's User-Agent on a device without touch |
   | `no_accept_language` | 25 | no `Accept-Language` header |
   | `no_fetch_metadata` | 25 | a current browser's User-Agent without `Sec-Fetch-*` (HTTPS only) |
   | `no_client_hints` | 20 | a Chromium User-Agent without `Sec-CH-UA` (HTTPS only) |
+  | `stale_browser` | 20 | a browser version about two years out of date, or Safari before 16 |
   | `no_accept` | 15 | no `Accept` header |
 
   `score/1` is the sum, and `level/1` reads it: 60 and over is `:likely`, 30
   and over `:suspicious`, below that `:low`. The sum is not capped where it is stored,
   so a reason can be added or taken away without the rest being known;
   `percent/1` caps it for display.
+
+  A weight under 30 is a reason that counts only together with others.
+  `stale_browser` is one: a real person on a phone or a computer that can no
+  longer update has an old browser and nothing else odd about the visit.
 
   ## Where the reasons come from
 
@@ -63,11 +67,11 @@ defmodule PhoenixKitWebAnalytics.BotScore do
     "no_languages" => 40,
     "mobile_from_hosting" => 30,
     "old_http" => 30,
-    "stale_browser" => 30,
     "touch_mismatch" => 30,
     "no_accept_language" => 25,
     "no_fetch_metadata" => 25,
     "no_client_hints" => 20,
+    "stale_browser" => 20,
     "no_accept" => 15
   }
 

@@ -81,6 +81,15 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
     defp stale?(ua, today),
       do: "stale_browser" in BotScore.request_reasons(%{user_agent: ua, today: today})
 
+    test "weighs less than the suspicious threshold, so it counts only with other reasons" do
+      assert BotScore.weight("stale_browser") == 20
+      assert BotScore.weight("stale_browser") < BotScore.threshold(:suspicious)
+
+      assert BotScore.level(BotScore.score(["stale_browser"])) == :low
+      assert BotScore.level(BotScore.score(["stale_browser", "no_accept"])) == :suspicious
+      assert BotScore.level(BotScore.score(["stale_browser", "no_client_hints"])) == :suspicious
+    end
+
     test "a Chrome about two years behind the estimated current release" do
       chrome =
         &"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/#{&1}.0.0.0 Safari/537.36"
