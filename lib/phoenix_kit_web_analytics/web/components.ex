@@ -558,7 +558,6 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   nothing when every one does. `coverage` is `LiveHook.coverage/1`'s.
   """
   attr :coverage, :map, required: true
-  attr :settings_path, :string, default: nil
 
   def live_hook_notice(assigns) do
     assigns =
@@ -586,13 +585,31 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
         </p>
         <p class="mt-1">
           {gettext(
-            "On these pages live navigation, clicks and exits aren't recorded, and neither is the check that tells a person from a bot by whether the page ran JavaScript — scrapers posing as a browser are counted as visitors. Add %{hook} to the on_mount of these live_sessions.",
-            hook: "{PhoenixKitWebAnalytics.LiveHook, :track_navigation}"
+            "On these pages live navigation, clicks and exits aren't recorded, and neither is the check that tells a person from a bot by whether the page ran JavaScript — scrapers posing as a browser are counted as visitors."
           )}
         </p>
-        <.link :if={@settings_path} navigate={@settings_path} class="mt-2 inline-block underline">
-          {gettext("Open settings")}
-        </.link>
+        <ul class="mt-1 list-disc space-y-0.5 pl-5">
+          <li>
+            {gettext("A live_session of your own: add %{hook} to its on_mount.",
+              hook: "{PhoenixKitWebAnalytics.LiveHook, :track_navigation}"
+            )}
+          </li>
+          <li>
+            {gettext(
+              "PhoenixKit's own pages: add the same hook to extra_live_session_on_mount in the :phoenix_kit config."
+            )}
+          </li>
+          <li>
+            {gettext(
+              "A library's live_session (LiveDashboard, for one) takes it in its own on_mount option; a live route outside any live_session (:default) has to be wrapped in one first."
+            )}
+          </li>
+          <li>
+            {gettext(
+              "Pages that shouldn't be tracked: add their paths to Excluded paths in Settings."
+            )}
+          </li>
+        </ul>
       </div>
     </div>
     """
