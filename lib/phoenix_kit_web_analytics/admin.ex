@@ -60,12 +60,20 @@ defmodule PhoenixKitWebAnalytics.Admin do
     admin_network_hours: {0, 720}
   }
 
+  @doc "The most characters core stores in one setting value."
+  @spec max_setting_length() :: pos_integer()
+  def max_setting_length, do: @max_setting_length
+
   @doc """
   Saves the settings form. Every field present in `params` is validated;
   fields that fail keep their previous value and are returned by name.
 
   Returns `{:ok, changed_keys}`, `{:error, invalid_fields}` (nothing saved
   when any field is invalid), or `{:error, :not_saved}` when a write failed.
+  A field is named by its setting (`:internal_networks` for a line that isn't
+  a network), and the internal networks add two of their own:
+  `:internal_networks_wide` (a network wider than `/8` for IPv4 or `/16` for
+  IPv6) and `:internal_networks_long` (a list over `max_setting_length/0`).
   Writes stop at the first failure; the ones before it are saved. They are
   not one transaction on purpose: core announces each setting change (cache,
   history, broadcast) as its write returns, so wrapping them would announce

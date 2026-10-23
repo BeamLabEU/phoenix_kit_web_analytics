@@ -243,11 +243,12 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
     end
 
     # The calls to core's settings reads made by `fun`, each a list of its
-    # arguments. A process can't be its own tracer, hence the relay.
+    # arguments. A process can't be its own tracer, hence the relay, which
+    # keeps what it is sent until it is asked once the VM says every trace
+    # message has reached it.
     defp settings_reads(fun) do
       test = self()
-
-      relay = spawn(fn -> relay_trace(test) end)
+      relay = spawn(fn -> collect_trace([]) end)
 
       :erlang.trace_pattern({PhoenixKit.Settings, :get_settings_cached, 2}, true, [:global])
       :erlang.trace(test, true, [:call, {:tracer, relay}])
@@ -259,25 +260,21 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
         :erlang.trace_pattern({PhoenixKit.Settings, :get_settings_cached, 2}, false, [:global])
       end
 
-      reads = drain_reads(test, [])
+      delivered = :erlang.trace_delivered(test)
+      assert_receive {:trace_delivered, ^test, ^delivered}, 5_000
+
+      send(relay, {:flush, test})
+      assert_receive {:traces, traces}, 5_000
       Process.exit(relay, :kill)
-      reads
+
+      for {:trace, ^test, :call, {PhoenixKit.Settings, :get_settings_cached, args}} <- traces,
+          do: args
     end
 
-    defp relay_trace(test) do
+    defp collect_trace(traces) do
       receive do
-        message -> send(test, message)
-      end
-
-      relay_trace(test)
-    end
-
-    defp drain_reads(test, acc) do
-      receive do
-        {:trace, ^test, :call, {PhoenixKit.Settings, :get_settings_cached, args}} ->
-          drain_reads(test, [args | acc])
-      after
-        50 -> Enum.reverse(acc)
+        {:flush, to} -> send(to, {:traces, Enum.reverse(traces)})
+        message -> collect_trace([message | traces])
       end
     end
   end

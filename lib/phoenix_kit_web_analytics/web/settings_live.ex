@@ -357,7 +357,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
       )
 
   defp field_label(:internal_networks_long),
-    do: gettext("Internal networks (at most %{max} characters)", max: 1000)
+    do: gettext("Internal networks (at most %{max} characters)", max: Admin.max_setting_length())
 
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
