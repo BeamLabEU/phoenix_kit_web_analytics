@@ -35,6 +35,20 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         live "/pricing", PricingLive
       end
 
+  A `live_session` the host doesn't write takes the hook another way.
+  PhoenixKit's own pages get it from the host's config, which core prepends to
+  each of their `on_mount` lists:
+
+      config :phoenix_kit,
+        extra_live_session_on_mount: [{PhoenixKitWebAnalytics.LiveHook, :track_navigation}]
+
+  A library's `live_session` (LiveDashboard, for one) takes it in the library's
+  own `on_mount:` option, and a `live` route outside any `live_session` (the
+  router names that one `:default`) has to be wrapped in one first. Pages that
+  shouldn't be tracked at all go in the "Excluded paths" setting. `coverage/1`
+  finds the tracked pages that run without the hook; Settings and the
+  dashboard warn about them.
+
   ## Requires connect_info on the socket
 
   The hook needs the same two inputs the plug has — client IP and User-Agent —
@@ -171,6 +185,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, get_connect_info: 2, get_connect_params: 1]
 
+  require Logger
+
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
@@ -188,6 +204,83 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   # The same event within this window on one page counts once.
   @repeat_window_ms 1_000
   @max_param_value 60
+
+  @doc """
+  Which of `router`'s LiveView pages run this hook. A path the
+  `web_analytics_exclude_paths` setting leaves out (the admin, by default) isn't
+  expected to run it and isn't counted; the plug's own `:exclude` option isn't
+  visible to this read. A leading parameter segment (`/:locale/...`) is read
+  past, so a localized route and its bare twin are one page.
+
+  `:unhooked` is each live_session with pages that don't run the hook, with
+  how many pages, sorted by name (`:default` is a `live` route outside any
+  live_session). On those pages live navigation, clicks
+  and exits go unrecorded, and so does the live connection
+  `PhoenixKitWebAnalytics.BotSignals` reads to tell a visitor who ran no
+  JavaScript — for them that check is off. Settings and the dashboard warn
+  about it.
+  """
+  @spec coverage(module() | nil) :: %{
+          hooked: non_neg_integer(),
+          unhooked: [{atom(), pos_integer()}]
+        }
+  def coverage(router) when is_atom(router) and not is_nil(router) do
+    if Code.ensure_loaded?(router) and function_exported?(router, :__routes__, 0) do
+      exclusions = Config.collection_config().exclusions
+
+      {hooked, unhooked} =
+        router
+        |> tracked_pages(exclusions)
+        |> Enum.split_with(fn {_page, session} -> runs_in?(session) end)
+
+      %{
+        hooked: length(hooked),
+        unhooked:
+          unhooked
+          |> Enum.frequencies_by(fn {_page, session} -> session_name(session) end)
+          |> Enum.sort()
+      }
+    else
+      %{hooked: 0, unhooked: []}
+    end
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] could not read the live routes: #{Exception.message(error)}")
+      %{hooked: 0, unhooked: []}
+  end
+
+  def coverage(_router), do: %{hooked: 0, unhooked: []}
+
+  @doc false
+  # Whether a live_session (as the router keeps it) mounts this hook.
+  @spec runs_in?(term()) :: boolean()
+  def runs_in?(%{extra: %{on_mount: hooks}}) when is_list(hooks),
+    do: Enum.any?(hooks, &match?(%{id: {__MODULE__, _}}, &1))
+
+  def runs_in?(_session), do: false
+
+  # One `{page, live_session}` per tracked page: PhoenixKit routes each page
+  # twice, with and without `/:locale`, and the two count once.
+  defp tracked_pages(router, exclusions) do
+    for %{path: path, metadata: %{phoenix_live_view: {_view, _action, _opts, session}}} <-
+          Phoenix.Router.routes(router),
+        page = unparameterized(path),
+        not Config.excluded?(page, exclusions),
+        uniq: true do
+      {page, session}
+    end
+  end
+
+  defp session_name(%{name: name}), do: name
+  defp session_name(_session), do: nil
+
+  defp unparameterized(path) do
+    case String.split(path, "/", parts: 3) do
+      ["", ":" <> _param, rest] -> "/" <> rest
+      ["", ":" <> _param] -> "/"
+      _ -> path
+    end
+  end
 
   @doc """
   `on_mount` callback. Use `:track_navigation`.

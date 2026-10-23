@@ -58,6 +58,17 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
     end
   end
 
+  # A host's public pages that don't run the hook — what the warning on the
+  # dashboard and in Settings points out.
+  scope "/plain", PhoenixKitWebAnalytics.Test do
+    pipe_through(:browser)
+
+    live_session :untracked_test,
+      on_mount: {PhoenixKitWebAnalytics.Test.Hooks, :assign_scope} do
+      live("/", TrackedLive, :index)
+    end
+  end
+
   scope "/", PhoenixKitWebAnalytics.Web do
     pipe_through(:api)
 

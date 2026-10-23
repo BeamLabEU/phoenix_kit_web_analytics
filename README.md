@@ -110,6 +110,18 @@ Then enable **Web Analytics** on the admin Modules page, and:
      ] do
    ```
 
+   A `live_session` you don't write takes the hook another way: PhoenixKit's
+   own pages through `extra_live_session_on_mount`, a library's (LiveDashboard,
+   for one) through its own `on_mount:` option, and a `live` route outside any
+   `live_session` has to be wrapped in one first. Settings and the dashboard
+   warn about tracked pages whose `live_session` lacks the hook; pages you
+   don't want tracked go in Settings → Excluded paths instead.
+
+   ```elixir
+   config :phoenix_kit,
+     extra_live_session_on_mount: [{PhoenixKitWebAnalytics.LiveHook, :track_navigation}]
+   ```
+
 3. **`connect_info`** on the LiveView socket, **on both transports** — the
    hook needs the address and browser to hash the visitor the same way the
    plug does, and LiveView falls back to long polling when a websocket can't
