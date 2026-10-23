@@ -186,7 +186,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   @doc """
   How many configured `internal_networks` are networks and how many aren't
-  (those are skipped) — for the settings page.
+  (those are skipped: not a network, or wider than the limit) — for the
+  settings page.
   """
   @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
   def network_counts do
@@ -215,13 +216,21 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     end
   end
 
+  # An entry is skipped for one of two reasons: it isn't a network, or it is
+  # one wider than the limit (see `check_cidr/1`). The line says both.
   defp warn_invalid(0), do: :ok
 
   defp warn_invalid(1),
-    do: Logger.warning("[WebAnalytics] internal_networks: 1 invalid entry skipped")
+    do:
+      Logger.warning(
+        "[WebAnalytics] internal_networks: 1 entry skipped, not a network or wider than /8 (IPv4) or /16 (IPv6)"
+      )
 
   defp warn_invalid(count),
-    do: Logger.warning("[WebAnalytics] internal_networks: #{count} invalid entries skipped")
+    do:
+      Logger.warning(
+        "[WebAnalytics] internal_networks: #{count} entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
+      )
 
   @doc """
   `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` for anything that isn't a

@@ -92,9 +92,20 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
           assert InternalTraffic.network_counts() == %{valid: 1, invalid: 3}
         end)
 
-      assert log =~ "3 invalid entries skipped"
+      assert log =~ "3 entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
       refute log =~ "198.51.100"
       refute log =~ "nope"
+    end
+
+    test "a network that is too wide is skipped and counted like one that isn't a network" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          networks(["203.0.113.0/24", "fc00::/7", "0.0.0.0/0"])
+          assert InternalTraffic.network_counts() == %{valid: 1, invalid: 2}
+        end)
+
+      assert log =~ "2 entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
+      refute log =~ "fc00"
     end
 
     test "one invalid entry is warned about in the singular" do
@@ -104,7 +115,7 @@ defmodule PhoenixKitWebAnalytics.InternalTrafficTest do
           assert InternalTraffic.network_counts() == %{valid: 1, invalid: 1}
         end)
 
-      assert log =~ "1 invalid entry skipped"
+      assert log =~ "1 entry skipped, not a network or wider than /8 (IPv4) or /16 (IPv6)"
     end
   end
 

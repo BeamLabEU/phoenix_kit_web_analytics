@@ -778,8 +778,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             class="-mt-2 text-xs text-warning"
           >
             {ngettext(
-              "%{count} entry in internal_networks is not a network and is skipped.",
-              "%{count} entries in internal_networks are not networks and are skipped.",
+              "%{count} entry in internal_networks is not a network, or is wider than /8 (IPv4) or /16 (IPv6), and is skipped.",
+              "%{count} entries in internal_networks are not networks, or are wider than /8 (IPv4) or /16 (IPv6), and are skipped.",
               @internal_networks.invalid
             )}
           </p>

@@ -351,6 +351,24 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       refute html =~ "not-a-network"
     end
 
+    test "an entry wider than the limit is counted as skipped, and the page says why",
+         %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, [
+        "203.0.113.0/24",
+        "fc00::/7"
+      ])
+
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      assert has_element?(
+               view,
+               "#web-analytics-invalid-networks",
+               "1 entry in internal_networks is not a network, or is wider than /8 (IPv4) or /16 (IPv6)"
+             )
+    end
+
     test "an emptied staff-roles field shows empty, not the default", %{conn: conn} do
       enable_tracking(%{"web_analytics_internal_roles" => "-"})
 
