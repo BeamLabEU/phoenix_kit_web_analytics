@@ -342,10 +342,21 @@ defmodule PhoenixKitWebAnalytics.Admin do
         true
 
       other ->
-        Logger.warning("[WebAnalytics] could not save #{key}: #{inspect(other)}")
+        Logger.warning("[WebAnalytics] could not save #{key}: #{failure_summary(other)}")
         false
     end
   end
+
+  @doc false
+  # What a failed write says about itself, without the value: a changeset
+  # carries the changes (the internal networks are addresses), and a log line
+  # is not the activity log's withheld place.
+  @spec failure_summary(term()) :: String.t()
+  def failure_summary({:error, %Ecto.Changeset{errors: errors}}),
+    do: "invalid (#{errors |> Keyword.keys() |> Enum.join(", ")})"
+
+  def failure_summary({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  def failure_summary(_other), do: "unexpected result"
 
   # ── activity ──────────────────────────────────────────────────────────────
 

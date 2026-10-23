@@ -367,6 +367,21 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       refute PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
     end
 
+    test "a failed write is described without the value it tried to save" do
+      changeset =
+        {%{}, %{value: :string}}
+        |> Ecto.Changeset.cast(%{value: "198.51.100.7"}, [:value])
+        |> Ecto.Changeset.add_error(:value, "is invalid")
+
+      summary = Admin.failure_summary({:error, changeset})
+      assert summary == "invalid (value)"
+      refute summary =~ "198.51.100.7"
+
+      assert Admin.failure_summary({:error, :timeout}) == "timeout"
+      assert Admin.failure_summary({:error, "198.51.100.7"}) == "unexpected result"
+      assert Admin.failure_summary(nil) == "unexpected result"
+    end
+
     test "the addresses stay out of the activity log" do
       enable_tracking()
       {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})
