@@ -572,4 +572,37 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     {:cont, socket} = fun.(%{}, uri, socket)
     socket
   end
+
+  describe "coverage/1" do
+    test "names the tracked live_sessions that don't run the hook" do
+      # /admin is left out by the default exclusions; /shop runs the hook.
+      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router) == %{
+               hooked: 2,
+               unhooked: [untracked_test: 1]
+             }
+    end
+
+    test "a page left out of tracking isn't expected to run it" do
+      enable_tracking(%{"web_analytics_exclude_paths" => "/admin*\n/plain*"})
+
+      assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.Router).unhooked == []
+    end
+
+    test "is empty without a router" do
+      assert LiveHook.coverage(nil) == %{hooked: 0, unhooked: []}
+      assert LiveHook.coverage(String) == %{hooked: 0, unhooked: []}
+    end
+  end
+
+  describe "the warning about pages without the hook" do
+    test "Settings and the dashboard name the live_session", %{conn: conn} do
+      enable_tracking(%{})
+
+      {:ok, view, _html} = live(conn, "/admin/web-analytics/settings")
+      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
+
+      {:ok, view, _html} = live(conn, "/admin/web-analytics")
+      assert has_element?(view, "#web-analytics-live-hook-warning", ":untracked_test (1)")
+    end
+  end
 end

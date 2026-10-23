@@ -27,6 +27,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.LiveHook
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.TrafficFlags
@@ -215,6 +216,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:storage, Reports.storage_stats())
     |> assign(:profiles, Profiles.count())
     |> assign(:live_skips?, live_skips?())
+    |> assign(:live_hook, LiveHook.coverage(socket.router))
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
   end
 
@@ -375,6 +377,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           {if @enabled?, do: gettext("Turn off"), else: gettext("Turn on")}
         </button>
       </div>
+
+      <.live_hook_notice coverage={@live_hook} />
 
       <div
         :if={@live_skips?}

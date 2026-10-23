@@ -171,6 +171,8 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, get_connect_info: 2, get_connect_params: 1]
 
+  require Logger
+
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
@@ -188,6 +190,70 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   # The same event within this window on one page counts once.
   @repeat_window_ms 1_000
   @max_param_value 60
+
+  @doc """
+  Which of `router`'s LiveView pages run this hook. Only the pages the plug
+  tracks are counted: a path the `web_analytics_exclude_paths` setting leaves
+  out (the admin, by default) isn't expected to run it. A leading parameter
+  segment (`/:locale/...`) is read past, so a localized route is judged by
+  the path it repeats.
+
+  `:unhooked` is each live_session with tracked pages that don't run the
+  hook, with how many, sorted by name. On those pages live navigation, clicks
+  and exits go unrecorded, and so does the live connection
+  `PhoenixKitWebAnalytics.BotSignals` reads to tell a visitor who ran no
+  JavaScript — for them that check is off. Settings and the dashboard warn
+  about it.
+  """
+  @spec coverage(module() | nil) :: %{
+          hooked: non_neg_integer(),
+          unhooked: [{atom() | nil, pos_integer()}]
+        }
+  def coverage(router) when is_atom(router) and not is_nil(router) do
+    if Code.ensure_loaded?(router) and function_exported?(router, :__routes__, 0) do
+      exclusions = Config.collection_config().exclusions
+
+      {hooked, unhooked} =
+        for %{path: path, metadata: %{phoenix_live_view: {_view, _action, _opts, session}}} <-
+              Phoenix.Router.routes(router),
+            not Config.excluded?(unparameterized(path), exclusions) do
+          session
+        end
+        |> Enum.split_with(&runs_in?/1)
+
+      %{
+        hooked: length(hooked),
+        unhooked: unhooked |> Enum.frequencies_by(&session_name/1) |> Enum.sort()
+      }
+    else
+      %{hooked: 0, unhooked: []}
+    end
+  rescue
+    error ->
+      Logger.debug("[WebAnalytics] could not read the live routes: #{Exception.message(error)}")
+      %{hooked: 0, unhooked: []}
+  end
+
+  def coverage(_router), do: %{hooked: 0, unhooked: []}
+
+  @doc false
+  # Whether a live_session (as the router keeps it) mounts this hook.
+  @spec runs_in?(term()) :: boolean()
+  def runs_in?(%{extra: %{on_mount: hooks}}) when is_list(hooks),
+    do: Enum.any?(hooks, &match?(%{id: {__MODULE__, _}}, &1))
+
+  def runs_in?(_session), do: false
+
+  defp session_name(%{name: name}), do: name
+  defp session_name(_session), do: nil
+
+  defp unparameterized(path) do
+    case String.split(path, "/", parts: 3) do
+      ["", ":" <> _param, rest] -> "/" <> rest
+      ["", ":" <> _param] -> "/"
+      _ -> path
+    end
+  end
 
   @doc """
   `on_mount` callback. Use `:track_navigation`.
