@@ -553,6 +553,52 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   end
 
   @doc """
+  A warning that some tracked LiveView pages don't run
+  `PhoenixKitWebAnalytics.LiveHook`, naming their live_sessions. Renders
+  nothing when every one does. `coverage` is `LiveHook.coverage/1`'s.
+  """
+  attr :coverage, :map, required: true
+  attr :settings_path, :string, default: nil
+
+  def live_hook_notice(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :sessions,
+        Enum.map_join(assigns.coverage.unhooked, ", ", fn {name, count} ->
+          "#{inspect(name)} (#{count})"
+        end)
+      )
+
+    ~H"""
+    <div
+      :if={@coverage.unhooked != []}
+      id="web-analytics-live-hook-warning"
+      role="alert"
+      class="alert alert-warning text-sm"
+    >
+      <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+      <div>
+        <p class="font-medium">
+          {gettext("Some LiveView pages don't run the analytics hook: %{sessions}.",
+            sessions: @sessions
+          )}
+        </p>
+        <p class="mt-1">
+          {gettext(
+            "On these pages live navigation, clicks and exits aren't recorded, and neither is the check that tells a person from a bot by whether the page ran JavaScript — scrapers posing as a browser are counted as visitors. Add %{hook} to the on_mount of these live_sessions.",
+            hook: "{PhoenixKitWebAnalytics.LiveHook, :track_navigation}"
+          )}
+        </p>
+        <.link :if={@settings_path} navigate={@settings_path} class="mt-2 inline-block underline">
+          {gettext("Open settings")}
+        </.link>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   One hit described in words, with an icon — "Viewed page", "Clicked
   add_to_cart", "Left after 1m 05s" — for the live feed and session timelines.
   """

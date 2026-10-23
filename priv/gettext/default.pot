@@ -30,12 +30,12 @@ msgid_plural "(+%{count} more not shown)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:859
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Accept the beacon and pixel"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:847
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:851
 #, elixir-autogen, elixir-format
 msgid "Accept the client script"
 msgstr ""
@@ -46,29 +46,29 @@ msgstr ""
 msgid "Acquisition"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:674
+#: lib/phoenix_kit_web_analytics/web/components.ex:720
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Actions"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1097
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1101
 #, elixir-autogen, elixir-format
 msgid "Add the plug to your router's browser pipeline, after the session is fetched:"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:337
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:986
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:339
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:990
 #, elixir-autogen, elixir-format
 msgid "Alert on these events"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:911
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:915
 #, elixir-autogen, elixir-format
 msgid "Alerts"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:332
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:334
 #, elixir-autogen, elixir-format
 msgid "Alerts per hour"
 msgstr ""
@@ -83,12 +83,12 @@ msgstr ""
 msgid "All sites"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:771
+#: lib/phoenix_kit_web_analytics/web/components.ex:817
 #, elixir-autogen, elixir-format
 msgid "All time"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:233
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:235
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "All traffic in this period was direct."
@@ -109,12 +109,12 @@ msgstr ""
 msgid "An event listed in Web Analytics settings happened"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1105
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1109
 #, elixir-autogen, elixir-format
 msgid "And let the LiveView socket see the visitor's address and browser — on both transports, websocket and longpoll:"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:736
+#: lib/phoenix_kit_web_analytics/web/components.ex:782
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "Anonymous"
@@ -130,13 +130,13 @@ msgstr ""
 msgid "Average"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:790
+#: lib/phoenix_kit_web_analytics/web/components.ex:836
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Bot"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:153
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:155
 #, elixir-autogen, elixir-format
 msgid "Bounce rate"
 msgstr ""
@@ -146,7 +146,7 @@ msgstr ""
 msgid "Browsers"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:231
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:233
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:195
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:103
 #, elixir-autogen, elixir-format
@@ -169,35 +169,35 @@ msgstr ""
 msgid "Campaigns"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:252
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:254
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Channels"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:808
+#: lib/phoenix_kit_web_analytics/web/components.ex:854
 #, elixir-autogen, elixir-format
 msgid "Click"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:680
+#: lib/phoenix_kit_web_analytics/web/components.ex:726
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:203
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "Client"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:396
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Collection"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:839
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:843
 #, elixir-autogen, elixir-format
 msgid "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:807
+#: lib/phoenix_kit_web_analytics/web/components.ex:853
 #, elixir-autogen, elixir-format
 msgid "Contact link"
 msgstr ""
@@ -207,12 +207,12 @@ msgstr ""
 msgid "Cookieless, server-side traffic analytics"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:91
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Could not change tracking. Try again."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:123
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "Could not store a new salt. Try again."
 msgstr ""
@@ -228,7 +228,7 @@ msgstr ""
 msgid "Country"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:991
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:995
 #, elixir-autogen, elixir-format
 msgid "Custom event or interaction names, comma-separated. A trailing * matches a prefix."
 msgstr ""
@@ -239,7 +239,7 @@ msgstr ""
 msgid "Custom events"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:787
+#: lib/phoenix_kit_web_analytics/web/components.ex:833
 #, elixir-autogen, elixir-format
 msgid "Desktop"
 msgstr ""
@@ -247,7 +247,7 @@ msgstr ""
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:142
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:175
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:393
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:280
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:282
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:202
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:117
 #, elixir-autogen, elixir-format
@@ -256,35 +256,35 @@ msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:169
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:322
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:276
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:278
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:113
 #, elixir-autogen, elixir-format
 msgid "Devices"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:595
+#: lib/phoenix_kit_web_analytics/web/components.ex:641
 #, elixir-autogen, elixir-format
 msgid "Did “%{event}”"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:776
+#: lib/phoenix_kit_web_analytics/web/components.ex:822
 #, elixir-autogen, elixir-format
 msgid "Direct"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:806
+#: lib/phoenix_kit_web_analytics/web/components.ex:852
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:650
-#: lib/phoenix_kit_web_analytics/web/components.ex:677
+#: lib/phoenix_kit_web_analytics/web/components.ex:696
+#: lib/phoenix_kit_web_analytics/web/components.ex:723
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:781
+#: lib/phoenix_kit_web_analytics/web/components.ex:827
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
@@ -294,47 +294,47 @@ msgstr ""
 msgid "Enable Web Analytics on the Modules page, and make sure %{plug} is in your router's browser pipeline."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:335
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:834
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:337
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:838
 #, elixir-autogen, elixir-format
 msgid "Event values to keep"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:609
+#: lib/phoenix_kit_web_analytics/web/components.ex:655
 #, elixir-autogen, elixir-format
 msgid "Event “%{event}”"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics.ex:187
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1009
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1013
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:334
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:828
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:336
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:832
 #, elixir-autogen, elixir-format
 msgid "Events not to record"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:818
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:822
 #, elixir-autogen, elixir-format
 msgid "Every event a LiveView handles, by name. Form typing is never recorded, nor are form contents."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:333
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:435
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:335
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:439
 #, elixir-autogen, elixir-format
 msgid "Excluded paths"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:318
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "Exit pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:322
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:324
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:181
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:126
 #, elixir-autogen, elixir-format
@@ -346,7 +346,7 @@ msgstr ""
 msgid "For"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1101
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1105
 #, elixir-autogen, elixir-format
 msgid "For LiveView pages, add the hook to your live_session:"
 msgstr ""
@@ -356,7 +356,7 @@ msgstr ""
 msgid "Furthest scroll"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:611
+#: lib/phoenix_kit_web_analytics/web/components.ex:657
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -366,7 +366,7 @@ msgstr ""
 msgid "Hit type"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1094
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1098
 #, elixir-autogen, elixir-format
 msgid "Installation"
 msgstr ""
@@ -376,7 +376,7 @@ msgstr ""
 msgid "Interactions"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:780
+#: lib/phoenix_kit_web_analytics/web/components.ex:826
 #, elixir-autogen, elixir-format
 msgid "Internal"
 msgstr ""
@@ -386,13 +386,13 @@ msgstr ""
 msgid "It may have been pruned by retention, or the link is wrong."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:648
+#: lib/phoenix_kit_web_analytics/web/components.ex:694
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:200
 #, elixir-autogen, elixir-format
 msgid "Landed on"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:669
+#: lib/phoenix_kit_web_analytics/web/components.ex:715
 #, elixir-autogen, elixir-format
 msgid "Landed on → left from"
 msgstr ""
@@ -408,32 +408,32 @@ msgstr ""
 msgid "Languages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:770
+#: lib/phoenix_kit_web_analytics/web/components.ex:816
 #, elixir-autogen, elixir-format
 msgid "Last 12 months"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:768
+#: lib/phoenix_kit_web_analytics/web/components.ex:814
 #, elixir-autogen, elixir-format
 msgid "Last 30 days"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:767
+#: lib/phoenix_kit_web_analytics/web/components.ex:813
 #, elixir-autogen, elixir-format
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:769
+#: lib/phoenix_kit_web_analytics/web/components.ex:815
 #, elixir-autogen, elixir-format
 msgid "Last 90 days"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:606
+#: lib/phoenix_kit_web_analytics/web/components.ex:652
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:600
+#: lib/phoenix_kit_web_analytics/web/components.ex:646
 #, elixir-autogen, elixir-format
 msgid "Left after %{time}, scrolled %{percent}%"
 msgstr ""
@@ -448,12 +448,12 @@ msgstr ""
 msgid "Live presence isn't running on this node, so open pages can't be listed. It starts with the module's children."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:806
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:810
 #, elixir-autogen, elixir-format
 msgid "LiveView pages report clicks, form submits and exits over their socket — no script needed. The optional client script adds what the server can't see."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:788
+#: lib/phoenix_kit_web_analytics/web/components.ex:834
 #, elixir-autogen, elixir-format
 msgid "Mobile"
 msgstr ""
@@ -464,7 +464,7 @@ msgid "New sign-up: %{name}"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/alerts.ex:136
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:922
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:926
 #, elixir-autogen, elixir-format
 msgid "New sign-ups"
 msgstr ""
@@ -475,18 +475,18 @@ msgid "New visitor from %{source} on %{path}"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/alerts.ex:129
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:926
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:930
 #, elixir-autogen, elixir-format
 msgid "New visitors"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:301
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:303
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "No clicks or form submits recorded in this period."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:325
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:327
 #, elixir-autogen, elixir-format
 msgid "No exits recorded in this period."
 msgstr ""
@@ -496,7 +496,7 @@ msgstr ""
 msgid "No location data. Configure a geo resolver, or run behind a CDN that sets a country header."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:219
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:221
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "No page views recorded in this period."
@@ -522,7 +522,7 @@ msgstr ""
 msgid "No utm_source parameters seen in this period."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:631
+#: lib/phoenix_kit_web_analytics/web/components.ex:677
 #: lib/phoenix_kit_web_analytics/web/sessions_live.ex:124
 #, elixir-autogen, elixir-format
 msgid "No visits in this period."
@@ -538,7 +538,7 @@ msgstr ""
 msgid "Not enough traffic yet to rank response times."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:363
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:365
 #, elixir-autogen, elixir-format
 msgid "Nothing is being recorded."
 msgstr ""
@@ -553,28 +553,28 @@ msgstr ""
 msgid "Nothing recorded yet."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:65
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:66
 #, elixir-autogen, elixir-format
 msgid "Nothing was saved. Check: %{fields}."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:414
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:418
 #, elixir-autogen, elixir-format
 msgid "Off by default — crawlers and monitors would otherwise dominate every report."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1025
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1029
 #, elixir-autogen, elixir-format
 msgid "Oldest event"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:441
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:445
 #, elixir-autogen, elixir-format
 msgid "One pattern per line. A trailing * matches a prefix."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:338
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:934
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:340
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:938
 #, elixir-autogen, elixir-format
 msgid "Only from these channels"
 msgstr ""
@@ -591,6 +591,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:275
 #: lib/phoenix_kit_web_analytics/web/components.ex:548
+#: lib/phoenix_kit_web_analytics/web/components.ex:594
 #, elixir-autogen, elixir-format
 msgid "Open settings"
 msgstr ""
@@ -605,12 +606,12 @@ msgstr ""
 msgid "Operating systems"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:805
+#: lib/phoenix_kit_web_analytics/web/components.ex:851
 #, elixir-autogen, elixir-format
 msgid "Outbound link"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:850
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:854
 #, elixir-autogen, elixir-format
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr ""
@@ -620,8 +621,8 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:217
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:321
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:219
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:323
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:201
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:221
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:274
@@ -631,8 +632,8 @@ msgstr ""
 msgid "Page"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:117
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:205
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:119
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:207
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Page views"
@@ -643,21 +644,21 @@ msgstr ""
 msgid "Page views over time"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:862
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:866
 #, elixir-autogen, elixir-format
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics.ex:166
-#: lib/phoenix_kit_web_analytics/web/components.ex:649
-#: lib/phoenix_kit_web_analytics/web/components.ex:671
+#: lib/phoenix_kit_web_analytics/web/components.ex:695
+#: lib/phoenix_kit_web_analytics/web/components.ex:717
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:29
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:782
+#: lib/phoenix_kit_web_analytics/web/components.ex:828
 #, elixir-autogen, elixir-format
 msgid "Paid"
 msgstr ""
@@ -672,17 +673,17 @@ msgstr ""
 msgid "Recent visits"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:815
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:819
 #, elixir-autogen, elixir-format
 msgid "Record LiveView interactions"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:411
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:415
 #, elixir-autogen, elixir-format
 msgid "Record bot traffic"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:779
+#: lib/phoenix_kit_web_analytics/web/components.ex:825
 #, elixir-autogen, elixir-format
 msgid "Referral"
 msgstr ""
@@ -702,12 +703,12 @@ msgstr ""
 msgid "Remove the page filter"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:401
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:405
 #, elixir-autogen, elixir-format
 msgid "Respect Do Not Track"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:329
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "Retention"
 msgstr ""
@@ -718,69 +719,69 @@ msgstr ""
 msgid "Right now"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1075
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1079
 #, elixir-autogen, elixir-format
 msgid "Roll up & prune now"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:158
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:159
 #, elixir-autogen, elixir-format
 msgid "Rolled up %{days} day(s) and pruned %{events} event(s)."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1017
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Rollup rows"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1088
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1092
 #, elixir-autogen, elixir-format
 msgid "Rotate visitor salt"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1080
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1084
 #, elixir-autogen, elixir-format
 msgid "Rotating…"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:999
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Save settings"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:369
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:998
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:371
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1002
 #, elixir-autogen, elixir-format
 msgid "Saving…"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:809
+#: lib/phoenix_kit_web_analytics/web/components.ex:855
 #, elixir-autogen, elixir-format
 msgid "Scrolled"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:588
+#: lib/phoenix_kit_web_analytics/web/components.ex:634
 #, elixir-autogen, elixir-format
 msgid "Scrolled to %{percent}%"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:777
+#: lib/phoenix_kit_web_analytics/web/components.ex:823
 #, elixir-autogen, elixir-format
 msgid "Search"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:913
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:917
 #, elixir-autogen, elixir-format
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics.ex:201
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:38
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:50
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Settings saved."
 msgstr ""
@@ -800,7 +801,7 @@ msgstr ""
 msgid "Show this page's traffic"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:734
+#: lib/phoenix_kit_web_analytics/web/components.ex:780
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:241
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:155
 #, elixir-autogen, elixir-format
@@ -812,12 +813,12 @@ msgstr ""
 msgid "Site"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:966
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:970
 #, elixir-autogen, elixir-format
 msgid "Skip signed-in users"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:404
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:408
 #, elixir-autogen, elixir-format
 msgid "Skip visitors whose browser sends DNT or Global Privacy Control."
 msgstr ""
@@ -832,7 +833,7 @@ msgstr ""
 msgid "Slowest pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:778
+#: lib/phoenix_kit_web_analytics/web/components.ex:824
 #, elixir-autogen, elixir-format
 msgid "Social"
 msgstr ""
@@ -842,31 +843,31 @@ msgstr ""
 msgid "Someone started a visit (filters in Web Analytics settings)"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:651
-#: lib/phoenix_kit_web_analytics/web/components.ex:679
+#: lib/phoenix_kit_web_analytics/web/components.ex:697
+#: lib/phoenix_kit_web_analytics/web/components.ex:725
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:202
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Source"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:647
-#: lib/phoenix_kit_web_analytics/web/components.ex:667
+#: lib/phoenix_kit_web_analytics/web/components.ex:693
+#: lib/phoenix_kit_web_analytics/web/components.ex:713
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:371
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:373
 #, elixir-autogen, elixir-format
 msgid "Stop recording visits? Reports keep what is already stored."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1005
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1009
 #, elixir-autogen, elixir-format
 msgid "Stored data"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:789
+#: lib/phoenix_kit_web_analytics/web/components.ex:835
 #, elixir-autogen, elixir-format
 msgid "Tablet"
 msgstr ""
@@ -877,7 +878,7 @@ msgstr ""
 msgid "Technology"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:172
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:173
 #, elixir-autogen, elixir-format
 msgid "The retention pass failed. Details are in the server log."
 msgstr ""
@@ -892,30 +893,30 @@ msgstr ""
 msgid "Time"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:184
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:186
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "Time on page"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:299
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:301
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:118
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Times"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:765
+#: lib/phoenix_kit_web_analytics/web/components.ex:811
 #, elixir-autogen, elixir-format
 msgid "Today"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:214
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "Top pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:228
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:230
 #, elixir-autogen, elixir-format
 msgid "Top referrers"
 msgstr ""
@@ -925,7 +926,7 @@ msgstr ""
 msgid "Tracked events"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:358
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Tracking is off"
 msgstr ""
@@ -935,23 +936,23 @@ msgstr ""
 msgid "Tracking is off — no new hits are being recorded."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:358
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Tracking is on"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:375
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Turn off"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:375
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:377
 #, elixir-autogen, elixir-format
 msgid "Turn on"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:791
-#: lib/phoenix_kit_web_analytics/web/components.ex:799
+#: lib/phoenix_kit_web_analytics/web/components.ex:837
+#: lib/phoenix_kit_web_analytics/web/components.ex:845
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -961,12 +962,12 @@ msgstr ""
 msgid "View all"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:585
+#: lib/phoenix_kit_web_analytics/web/components.ex:631
 #, elixir-autogen, elixir-format
 msgid "Viewed page"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:583
+#: lib/phoenix_kit_web_analytics/web/components.ex:629
 #, elixir-autogen, elixir-format
 msgid "Viewed “%{title}”"
 msgstr ""
@@ -985,13 +986,13 @@ msgid "Visit"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:368
-#: lib/phoenix_kit_web_analytics/web/components.ex:668
+#: lib/phoenix_kit_web_analytics/web/components.ex:714
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:223
 #, elixir-autogen, elixir-format
 msgid "Visitor"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:118
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "Visitor salt rotated. Visitors seen before now will count again today."
 msgstr ""
@@ -1000,13 +1001,13 @@ msgstr ""
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:282
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:448
 #: lib/phoenix_kit_web_analytics/web/components.ex:421
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:102
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:104
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:114
 #, elixir-autogen, elixir-format
 msgid "Visitors"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1082
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1086
 #, elixir-autogen, elixir-format
 msgid "Visitors seen before now will be counted again today, and open visits split. Continue?"
 msgstr ""
@@ -1016,7 +1017,7 @@ msgstr ""
 msgid "Visitors, sign-ups and tracked events on the site"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:362
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Visits are being recorded."
 msgstr ""
@@ -1039,30 +1040,30 @@ msgstr ""
 msgid "What"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:295
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:297
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:114
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:804
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "What visitors do"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:928
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:932
 #, elixir-autogen, elixir-format
 msgid "When someone starts a visit that matches the filters below."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:923
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "Whenever an account is created."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1054
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1070
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1058
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1074
 #, elixir-autogen, elixir-format
 msgid "Working…"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:766
+#: lib/phoenix_kit_web_analytics/web/components.ex:812
 #, elixir-autogen, elixir-format
 msgid "Yesterday"
 msgstr ""
@@ -1087,7 +1088,7 @@ msgstr ""
 msgid "an ad"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:344
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "daily"
 msgstr ""
@@ -1097,17 +1098,17 @@ msgstr ""
 msgid "email"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:342
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "hourly"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:343
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:345
 #, elixir-autogen, elixir-format
 msgid "monthly"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:917
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:921
 #, elixir-autogen, elixir-format
 msgid "notification settings"
 msgstr ""
@@ -1122,119 +1123,119 @@ msgstr ""
 msgid "social media"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:662
+#: lib/phoenix_kit_web_analytics/web/components.ex:708
 #, elixir-autogen, elixir-format
 msgid "Open visit"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:465
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:469
 #, elixir-autogen, elixir-format
 msgid "0 keeps raw events forever. Daily totals are always kept."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:973
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:977
 #, elixir-autogen, elixir-format
 msgid "Alerts per hour, at most"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:979
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:983
 #, elixir-autogen, elixir-format
 msgid "Beyond this, the next alert says how many were held back. 0 means no limit."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:458
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:462
 #, elixir-autogen, elixir-format
 msgid "Keep raw events, days"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:336
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:955
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:338
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:959
 #, elixir-autogen, elixir-format
 msgid "Landing pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:960
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:964
 #, elixir-autogen, elixir-format
 msgid "Only visits that start on these pages. Blank means any page."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:298
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:300
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:117
 #, elixir-autogen, elixir-format
 msgid "Action"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:170
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:172
 #, elixir-autogen, elixir-format
 msgid "Avg. visit"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:305
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:307
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "Buttons clicked and forms sent on LiveView pages, by the name the page gives them — plus outbound links and downloads when the optional client script is on."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:256
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:258
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:80
 #, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:286
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:288
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Desktop, mobile or tablet — read from the browser's description of itself, which it sends with every page."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:269
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:271
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:93
 #, elixir-autogen, elixir-format
 msgid "Direct — no link to tell: typed in, a bookmark, an app"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:264
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:266
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "Email — webmail and newsletter links"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:162
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:164
 #, elixir-autogen, elixir-format
 msgid "High is normal for a blog post or a contact page people came for; high on a home page or a shop means people aren't going any further. Lower is usually better."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:190
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:192
 #, elixir-autogen, elixir-format
 msgid "How long a page stays open on average, before the visitor moves on or leaves."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:174
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "How long a visit lasts on average."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:123
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "How many times a page was opened, by all visitors together."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:195
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "It is measured when a page is left, so it covers LiveView pages (and every page once the optional client script is on)."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:176
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "Measured from the moment the first page opens until the visitor leaves the last one. For a visit to a single page, that's how long the page was open."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:139
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "One visit is everything a person does on the site in one go — from the first page they open until they leave."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:125
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Opening a page, moving to another page of the site, and reloading each count once."
 msgstr ""
@@ -1244,58 +1245,58 @@ msgstr ""
 msgid "People on the site now — open Right now"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:268
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:270
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Referral — any other website"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:262
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:264
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:86
 #, elixir-autogen, elixir-format
 msgid "Search — Google, Bing, DuckDuckGo, ChatGPT…"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:263
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:265
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:87
 #, elixir-autogen, elixir-format
 msgid "Social — Facebook, Instagram, X, LinkedIn, Hacker News…"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:222
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:224
 #, elixir-autogen, elixir-format
 msgid "The pages opened most often."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:329
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:331
 #, elixir-autogen, elixir-format
 msgid "The pages visits ended on — where people left the site."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:160
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:162
 #, elixir-autogen, elixir-format
 msgid "The share of visits that saw only one page and left."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:238
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:240
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "The site a visitor came from. When someone clicks a link to your site, their browser tells us the page the link was on; a campaign link's utm_source says it too."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:328
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "Visit timeout"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:449
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:453
 #, elixir-autogen, elixir-format
 msgid "Visit timeout, minutes"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics.ex:159
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:133
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:324
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:135
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:326
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:139
 #: lib/phoenix_kit_web_analytics/web/sessions_live.ex:28
 #: lib/phoenix_kit_web_analytics/web/sessions_live.ex:96
@@ -1303,7 +1304,7 @@ msgstr ""
 msgid "Visits"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:243
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:245
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:114
 #, elixir-autogen, elixir-format
 msgid "Visits with neither — typed in, a bookmark, or an app that hides it — are Direct, and aren't listed here."
@@ -1314,7 +1315,7 @@ msgstr ""
 msgid "What does “%{title}” mean?"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:260
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:262
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Where visitors came from, grouped by kind:"
@@ -1502,17 +1503,17 @@ msgstr ""
 msgid "How this visitor moved the pointer, what they clicked and hovered, and how the page scrolled — played over the page as it looks today. Text, typing and form values are never recorded."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:331
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Keep recordings"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:901
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:905
 #, elixir-autogen, elixir-format
 msgid "Keep recordings, days"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:881
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Off by default. A recorded page sends a few rows a minute while someone is using it — on a busy site, record a share of visitors."
 msgstr ""
@@ -1527,7 +1528,7 @@ msgstr ""
 msgid "Play"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:879
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:883
 #, elixir-autogen, elixir-format
 msgid "Record visits"
 msgstr ""
@@ -1537,15 +1538,15 @@ msgstr ""
 msgid "Recording"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:873
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:877
 #, elixir-autogen, elixir-format
 msgid "Replay a visit: where the pointer went, what was clicked and hovered, how the page scrolled. Recorded by the client script; only coordinates and element positions — never text, typing or form values. Visitors asking not to be tracked, bots and excluded paths are never recorded."
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/data_collection.ex:88
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:265
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:344
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:871
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:267
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:346
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:875
 #, elixir-autogen, elixir-format
 msgid "Session recordings"
 msgstr ""
@@ -1560,22 +1561,22 @@ msgstr ""
 msgid "This page can't be shown behind the replay; only the pointer is drawn."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:330
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Visitors recorded"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:892
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:896
 #, elixir-autogen, elixir-format
 msgid "Visitors recorded, %"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:426
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
 #, elixir-autogen, elixir-format
 msgid "Bots are recognised by the name their browser sends. This also catches ones posing as a normal browser: browsers under automation (needs the client script), page views faster than a person reads, and LiveView pages that never connected — a scraper fetching HTML runs no JavaScript."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:423
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Spot bots by behaviour"
 msgstr ""
@@ -1600,38 +1601,38 @@ msgstr ""
 msgid "Yes — the browser was under automation"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:800
+#: lib/phoenix_kit_web_analytics/web/components.ex:846
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:57
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Some settings could not be saved. Check them and try again."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:266
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:268
 #: lib/phoenix_kit_web_analytics/web/sources_live.ex:90
 #, elixir-autogen, elixir-format
 msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1111
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1115
 #, elixir-autogen, elixir-format
 msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:386
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:390
 #, elixir-autogen, elixir-format
 msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:798
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:802
 #, elixir-autogen, elixir-format
 msgid "0 stops marking staff networks. Kept in memory only."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:731
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:735
 #, elixir-autogen, elixir-format
 msgid "Addresses in the network listed in the app's config (internal_networks)."
 msgid_plural "Addresses in the %{count} networks listed in the app's config (internal_networks)."
@@ -1656,7 +1657,7 @@ msgstr ""
 msgid "Bots"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:782
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:786
 #, elixir-autogen, elixir-format
 msgid "Every visit from an address where a staff member signed in or was active within the hours below. Behind a mobile network, carrier-grade NAT or an office gateway one address is many people: a staff sign-in from a phone leaves out everyone sharing that address for those hours. Visits before the sign-in are not marked afterwards."
 msgstr ""
@@ -1666,22 +1667,22 @@ msgstr ""
 msgid "Internal network"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:726
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:730
 #, elixir-autogen, elixir-format
 msgid "Leave out internal networks"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:757
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:761
 #, elixir-autogen, elixir-format
 msgid "Leave out site staff"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:779
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:783
 #, elixir-autogen, elixir-format
 msgid "Leave out staff networks"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:737
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:741
 #, elixir-autogen, elixir-format
 msgid "No networks are configured. List the office or VPN ranges in the app's config — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — not here: every settings change is kept in the activity log."
 msgstr ""
@@ -1697,7 +1698,7 @@ msgstr ""
 msgid "Read from raw events: days older than the raw-event retention have no data here, rather than zero visits."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:760
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:764
 #, elixir-autogen, elixir-format
 msgid "Signed-in users holding one of the staff roles below — whichever role they are acting as. A visit that turns into a staff member's (a sign-in midway) is left out whole."
 msgstr ""
@@ -1712,36 +1713,36 @@ msgstr ""
 msgid "Staff network"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:348
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:792
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:350
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:796
 #, elixir-autogen, elixir-format
 msgid "Staff network, hours"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:347
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:769
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:349
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:773
 #, elixir-autogen, elixir-format
 msgid "Staff roles"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:717
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:721
 #, elixir-autogen, elixir-format
 msgid "Visits by the site's own people are stored with a mark and left out of the statistics, alerts and recordings — nothing is deleted. Untick a kind to count it in again; a report shows it all with Own traffic. Only the mark is stored, never an address."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:715
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:719
 #, elixir-autogen, elixir-format
 msgid "Your own traffic"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:747
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:751
 #, elixir-autogen, elixir-format
 msgid "%{count} entry in internal_networks is not a network and is skipped."
 msgid_plural "%{count} entries in internal_networks are not networks and are skipped."
 msgstr[0] ""
 msgstr[1] ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:773
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:777
 #, elixir-autogen, elixir-format
 msgid "Comma-separated role names, e.g. Owner, Admin. Empty: no one counts as staff."
 msgstr ""
@@ -1756,56 +1757,56 @@ msgstr ""
 msgid "(not kept)"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:339
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:484
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:341
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:488
 #, elixir-autogen, elixir-format
 msgid "A visitor ID lasts"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:497
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:501
 #, elixir-autogen, elixir-format
 msgid "After that the same person counts as a new visitor. A longer period recognises a returning visitor across days; changing it splits today's open visits."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:476
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:480
 #, elixir-autogen, elixir-format
 msgid "By default nothing that identifies a visitor is kept: a visitor is a one-way hash of the address and the browser that changes every day. Each switch below keeps more — to see which network a crawler comes from, to tell scrapers apart, to have something to block by. An address is personal data, and what may be kept without asking the visitor depends on the law your site answers to; that decision is yours."
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:224
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:340
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:504
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1044
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:342
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:508
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1048
 #, elixir-autogen, elixir-format
 msgid "IP address"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:517
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:521
 #, elixir-autogen, elixir-format
 msgid "Its network is the first three parts of an IPv4 address, or the first 48 bits of an IPv6 one — enough to say whose network, not which machine."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:323
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "Its network only"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:539
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:543
 #, elixir-autogen, elixir-format
 msgid "Keep request headers"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:527
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:531
 #, elixir-autogen, elixir-format
 msgid "Keep the browser's full User-Agent"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:551
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:555
 #, elixir-autogen, elixir-format
 msgid "Keep the network's owner"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:573
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."
 msgstr ""
@@ -1813,58 +1814,58 @@ msgstr ""
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:139
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:172
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:225
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1047
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1051
 #, elixir-autogen, elixir-format
 msgid "Network"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:322
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "Not kept"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:242
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "One day"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:244
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "One month"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:243
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:245
 #, elixir-autogen, elixir-format
 msgid "One week"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:282
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1046
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1050
 #, elixir-autogen, elixir-format
 msgid "Request headers"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:542
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "The headers of a visit's first page view, in the order they arrived: what a script posing as a browser rarely gets right. Cookies, authorisation and anything named like a token or key are never kept; headers carrying the visitor's address only when the whole address is."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:554
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:558
 #, elixir-autogen, elixir-format
 msgid "The network's number and name, and whether it is a hosting provider — when the site's geo resolver returns them. Nothing in the module knows them by itself."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:324
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "The whole address"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:530
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:534
 #, elixir-autogen, elixir-format
 msgid "The whole string the browser sent, beside the browser, system and device read out of it — which crawler it was, which library, which exact version."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:245
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Until the address or browser changes"
 msgstr ""
@@ -1872,12 +1873,12 @@ msgstr ""
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:143
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:176
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:276
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1045
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1049
 #, elixir-autogen, elixir-format
 msgid "User-Agent"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1033
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1037
 #, elixir-autogen, elixir-format
 msgid "Visitor profiles"
 msgstr ""
@@ -1887,7 +1888,7 @@ msgstr ""
 msgid "What the browser sent"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:474
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:478
 #, elixir-autogen, elixir-format
 msgid "Who a visitor is"
 msgstr ""
@@ -1954,12 +1955,12 @@ msgstr ""
 msgid "Bot score"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:883
+#: lib/phoenix_kit_web_analytics/web/components.ex:929
 #, elixir-autogen, elixir-format
 msgid "Browser under automation"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:887
+#: lib/phoenix_kit_web_analytics/web/components.ex:933
 #, elixir-autogen, elixir-format
 msgid "Device and User-Agent disagree"
 msgstr ""
@@ -1979,12 +1980,12 @@ msgstr ""
 msgid "Everyone"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:889
+#: lib/phoenix_kit_web_analytics/web/components.ex:935
 #, elixir-autogen, elixir-format
 msgid "Graphics drawn in software"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:893
+#: lib/phoenix_kit_web_analytics/web/components.ex:939
 #, elixir-autogen, elixir-format
 msgid "HTTP/1.0"
 msgstr ""
@@ -1994,12 +1995,12 @@ msgstr ""
 msgid "Highest score"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:888
+#: lib/phoenix_kit_web_analytics/web/components.ex:934
 #, elixir-autogen, elixir-format
 msgid "Hosting provider's network"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:563
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:567
 #, elixir-autogen, elixir-format
 msgid "Keep device measurements"
 msgstr ""
@@ -2015,7 +2016,7 @@ msgstr ""
 msgid "Latest visit"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:876
+#: lib/phoenix_kit_web_analytics/web/components.ex:922
 #, elixir-autogen, elixir-format
 msgid "Likely a bot"
 msgstr ""
@@ -2053,42 +2054,42 @@ msgstr ""
 msgid "Networks"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:886
+#: lib/phoenix_kit_web_analytics/web/components.ex:932
 #, elixir-autogen, elixir-format
 msgid "Never ran JavaScript"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:898
+#: lib/phoenix_kit_web_analytics/web/components.ex:944
 #, elixir-autogen, elixir-format
 msgid "No Accept header"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:895
+#: lib/phoenix_kit_web_analytics/web/components.ex:941
 #, elixir-autogen, elixir-format
 msgid "No Accept-Language header"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:896
+#: lib/phoenix_kit_web_analytics/web/components.ex:942
 #, elixir-autogen, elixir-format
 msgid "No Sec-Fetch headers"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:884
+#: lib/phoenix_kit_web_analytics/web/components.ex:930
 #, elixir-autogen, elixir-format
 msgid "No User-Agent"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:891
+#: lib/phoenix_kit_web_analytics/web/components.ex:937
 #, elixir-autogen, elixir-format
 msgid "No browser language"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:897
+#: lib/phoenix_kit_web_analytics/web/components.ex:943
 #, elixir-autogen, elixir-format
 msgid "No client-hint headers"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:890
+#: lib/phoenix_kit_web_analytics/web/components.ex:936
 #, elixir-autogen, elixir-format
 msgid "No screen or window size"
 msgstr ""
@@ -2108,22 +2109,22 @@ msgstr ""
 msgid "Nothing to group by."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:878
+#: lib/phoenix_kit_web_analytics/web/components.ex:924
 #, elixir-autogen, elixir-format
 msgid "Nothing unusual"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:885
+#: lib/phoenix_kit_web_analytics/web/components.ex:931
 #, elixir-autogen, elixir-format
 msgid "Pages faster than a person reads"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:892
+#: lib/phoenix_kit_web_analytics/web/components.ex:938
 #, elixir-autogen, elixir-format
 msgid "Phone User-Agent from a server"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:894
+#: lib/phoenix_kit_web_analytics/web/components.ex:940
 #, elixir-autogen, elixir-format
 msgid "Phone without a touch screen"
 msgstr ""
@@ -2133,7 +2134,7 @@ msgstr ""
 msgid "Remove this filter"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:882
+#: lib/phoenix_kit_web_analytics/web/components.ex:928
 #, elixir-autogen, elixir-format
 msgid "Says it is a bot"
 msgstr ""
@@ -2155,7 +2156,7 @@ msgid "Subnets"
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:308
-#: lib/phoenix_kit_web_analytics/web/components.ex:877
+#: lib/phoenix_kit_web_analytics/web/components.ex:923
 #, elixir-autogen, elixir-format
 msgid "Suspicious"
 msgstr ""
@@ -2190,7 +2191,7 @@ msgstr ""
 msgid "Visitors by how much they look automated, and why. Nothing here drops or blocks anyone — it is what you would decide by."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:566
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:570
 #, elixir-autogen, elixir-format
 msgid "What the client script can measure about the device — screen, time zone, languages, processor, graphics card, fonts, how it draws a canvas and renders a sound — and a hash of them that stays the same when the visitor's address changes. This is browser fingerprinting: it recognises a scraper across the addresses it rotates through, and a person across theirs. Needs the client script switched on."
 msgstr ""
@@ -2232,49 +2233,49 @@ msgstr ""
 msgid "A visitor number worked out from your IP address and browser, which stays the same until one of them changes"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:251
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Always — visitors are told, not asked"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:292
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:294
 #, elixir-autogen, elixir-format
 msgid "Analytics"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:306
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:308
 #, elixir-autogen, elixir-format
 msgid "Answers come from the Legal module's cookie banner."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:310
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:312
 #, elixir-autogen, elixir-format
 msgid "Answers come from the site's own consent tool (%{source})."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:274
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:276
 #, elixir-autogen, elixir-format
 msgid "Ask first"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:345
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:665
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:347
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:669
 #, elixir-autogen, elixir-format
 msgid "Asked under"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:275
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:277
 #, elixir-autogen, elixir-format
 msgid "Collect until refused"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:273
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:275
 #, elixir-autogen, elixir-format
 msgid "Count visits, ask for the rest"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:259
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:341
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:261
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Counting visits"
 msgstr ""
@@ -2284,8 +2285,8 @@ msgstr ""
 msgid "Counts visits to our pages so we can see which are read, where visitors come from and what does not work."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:261
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:342
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:263
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "Details about a visitor"
 msgstr ""
@@ -2295,25 +2296,25 @@ msgstr ""
 msgid "Details about your connection"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:632
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:636
 #, elixir-autogen, elixir-format
 msgid "Details, device measurements and recordings describe a visitor, so they are only ever kept for one whose visits are counted."
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/data_collection.ex:68
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:263
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:343
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1048
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:265
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:345
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1052
 #, elixir-autogen, elixir-format
 msgid "Device measurements"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:704
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "Device measurements are taken without the visitor's agreement. They read the device to recognise it again — browser fingerprinting — which EU and UK regulators treat as needing consent whatever it is used for, security included. Elsewhere the rule differs; the choice is yours."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:658
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "For a visitor whose visits may not be counted. Counting the view keeps page totals honest, but every such view is a visitor and a visit of its own, so those two numbers rise with it."
 msgstr ""
@@ -2338,7 +2339,7 @@ msgstr ""
 msgid "Links you follow away from the site, and how far you scroll"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:293
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "Marketing"
 msgstr ""
@@ -2348,27 +2349,27 @@ msgstr ""
 msgid "Measurements of your device that let us recognise it again when its address changes, used to tell people from automated traffic."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:605
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:609
 #, elixir-autogen, elixir-format
 msgid "Not saved yet."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:300
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "Nothing is recorded"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:315
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "Nothing on this site asks visitors: no visitor has given an answer."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:252
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Only after the visitor agrees"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:260
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Page views, visits and what visitors do, under the visitor ID."
 msgstr ""
@@ -2378,12 +2379,12 @@ msgstr ""
 msgid "Pointer movement, clicks and scrolling on a page"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:266
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "Pointer movement, clicks and scrolling."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:294
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:296
 #, elixir-autogen, elixir-format
 msgid "Preferences"
 msgstr ""
@@ -2403,22 +2404,22 @@ msgstr ""
 msgid "Screen size, time zone and languages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:693
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:697
 #, elixir-autogen, elixir-format
 msgid "Something here waits for a yes, and nothing asks for one — so it is never collected. Switch on the Legal module's cookie banner, or point consent_source at your own consent tool."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:593
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:597
 #, elixir-autogen, elixir-format
 msgid "Start from:"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:272
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:274
 #, elixir-autogen, elixir-format
 msgid "Tell, don't ask"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:678
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:682
 #, elixir-autogen, elixir-format
 msgid "The banner's category whose answer these rules follow."
 msgstr ""
@@ -2428,7 +2429,7 @@ msgstr ""
 msgid "The buttons and links you use on our pages"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:264
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:266
 #, elixir-autogen, elixir-format
 msgid "The measurements the client script takes, and their hash."
 msgstr ""
@@ -2438,7 +2439,7 @@ msgstr ""
 msgid "The network part of your IP address"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:301
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:303
 #, elixir-autogen, elixir-format
 msgid "The page view is counted, with no visitor"
 msgstr ""
@@ -2463,7 +2464,7 @@ msgstr ""
 msgid "The technical headers your browser sent with its first request"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:253
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:255
 #, elixir-autogen, elixir-format
 msgid "Until the visitor objects"
 msgstr ""
@@ -2478,17 +2479,17 @@ msgstr ""
 msgid "Visit statistics"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:262
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:264
 #, elixir-autogen, elixir-format
 msgid "Whatever “Who a visitor is” keeps: address, User-Agent, headers, network."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:584
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:588
 #, elixir-autogen, elixir-format
 msgid "When it is collected"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:586
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "Whether a visitor has to be asked first depends on the law your site answers to, so each kind of collection has its own rule. “Always” is how the module has always worked. The other two read the visitor's answer from the consent banner, and a browser that sends Global Privacy Control or Do Not Track counts as an objection."
 msgstr ""
@@ -2498,8 +2499,8 @@ msgstr ""
 msgid "Who runs the network you connect from"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:346
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:645
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:348
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:649
 #, elixir-autogen, elixir-format
 msgid "Without an answer that allows it"
 msgstr ""
@@ -2549,7 +2550,7 @@ msgstr ""
 msgid "Keeps your privacy answer in this site's session cookie, so pages that update live follow it too."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:638
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:642
 #, elixir-autogen, elixir-format
 msgid "Live pages cannot read the banner's cookie: they follow a note the tracking plug leaves in the site's session. The plug must therefore run after the session is fetched — below :fetch_session in the browser pipeline. Where it runs earlier, or a live page is reached without it, nothing that waits for an answer is collected on live pages."
 msgstr ""
@@ -2564,42 +2565,42 @@ msgstr ""
 msgid "cookie (site session)"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:109
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "A visitor is counted once each day they open a page. Returning on another day counts again, whatever the visitor ID rotation."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1049
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1053
 #, elixir-autogen, elixir-format
 msgid "All visitor profiles"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:187
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Could not remove stored profile data. Try again."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:107
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "Daily unique visitors added across the period."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1062
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1066
 #, elixir-autogen, elixir-format
 msgid "Remove stored data"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1042
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1046
 #, elixir-autogen, elixir-format
 msgid "Remove stored profile data"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1056
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Remove the selected data from every profile? This cannot be undone. Switch its collection setting off first to prevent new data being stored."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:179
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:180
 #, elixir-autogen, elixir-format
 msgid "Removed stored data from %{count} profile(s)."
 msgstr ""
@@ -2609,19 +2610,29 @@ msgstr ""
 msgid "Visitors: daily unique visitors added across the period. One visitor on two days counts as 2. Views: every page opening, including repeats."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:310
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:312
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:128
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Visitors: daily unique visitors who did it, added across the period. Times: how often it was done in total."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:331
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "Visitors: daily unique visitors who left from it, added across the period. Exits: how many visits ended there."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:144
+#: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "If they are away for more than %{minutes} minutes and come back, that starts a new visit. Totals count each UTC day of a visit separately; bounce rate and average length use those daily portions. The visit list shows the full visit."
+msgstr ""
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:588
+#, elixir-autogen, elixir-format
+msgid "On these pages live navigation, clicks and exits aren't recorded, and neither is the check that tells a person from a bot by whether the page ran JavaScript — scrapers posing as a browser are counted as visitors. Add %{hook} to the on_mount of these live_sessions."
+msgstr ""
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:583
+#, elixir-autogen, elixir-format
+msgid "Some LiveView pages don't run the analytics hook: %{sessions}."
 msgstr ""
