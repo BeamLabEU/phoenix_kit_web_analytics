@@ -2672,3 +2672,18 @@ msgstr "Pages that shouldn't be tracked: add their paths to Excluded paths in Se
 #, elixir-autogen, elixir-format
 msgid "PhoenixKit's own pages: add the same hook to extra_live_session_on_mount in the :phoenix_kit config."
 msgstr "PhoenixKit's own pages: add the same hook to extra_live_session_on_mount in the :phoenix_kit config."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:355
+#, elixir-autogen, elixir-format
+msgid "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+msgstr "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Internal networks (at most %{max} characters)"
+msgstr "Internal networks (at most %{max} characters)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:771
+#, elixir-autogen, elixir-format
+msgid "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."
+msgstr "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."

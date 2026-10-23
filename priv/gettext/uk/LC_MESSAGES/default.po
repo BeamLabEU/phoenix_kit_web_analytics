@@ -2678,3 +2678,18 @@ msgstr "Сторінки, які не потрібно відстежувати:
 #, elixir-autogen, elixir-format
 msgid "PhoenixKit's own pages: add the same hook to extra_live_session_on_mount in the :phoenix_kit config."
 msgstr "Власні сторінки PhoenixKit: додайте той самий хук до extra_live_session_on_mount у конфігурації :phoenix_kit."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:355
+#, elixir-autogen, elixir-format
+msgid "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+msgstr "Внутрішні мережі (префікс коротший за /8 для IPv4 або /16 для IPv6 охоплює забагато)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Internal networks (at most %{max} characters)"
+msgstr "Внутрішні мережі (не більше %{max} символів)"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:771
+#, elixir-autogen, elixir-format
+msgid "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."
+msgstr "Мережа не може бути ширшою за /8 (IPv4) або /16 (IPv6). Адреси порівнюються з адресою відвідувача в тому вигляді, як її читає модуль: за зворотним проксі на тій самій машині або в тій самій мережі це останній запис X-Forwarded-For (інакше X-Real-IP), тому проксі має його передавати. Якщо нічого не виключається, спершу перевірте це."
