@@ -553,6 +553,69 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   end
 
   @doc """
+  A warning that some tracked LiveView pages don't run
+  `PhoenixKitWebAnalytics.LiveHook`, naming their live_sessions. Renders
+  nothing when every one does. `coverage` is `LiveHook.coverage/1`'s.
+  """
+  attr :coverage, :map, required: true
+
+  def live_hook_notice(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :sessions,
+        Enum.map_join(assigns.coverage.unhooked, ", ", fn {name, count} ->
+          "#{inspect(name)} (#{count})"
+        end)
+      )
+
+    ~H"""
+    <div
+      :if={@coverage.unhooked != []}
+      id="web-analytics-live-hook-warning"
+      role="alert"
+      class="alert alert-warning text-sm"
+    >
+      <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+      <div>
+        <p class="font-medium">
+          {gettext("Some LiveView pages don't run the analytics hook: %{sessions}.",
+            sessions: @sessions
+          )}
+        </p>
+        <p class="mt-1">
+          {gettext(
+            "On these pages live navigation, clicks and exits aren't recorded, and neither is the check that tells a person from a bot by whether the page ran JavaScript — scrapers posing as a browser are counted as visitors."
+          )}
+        </p>
+        <ul class="mt-1 list-disc space-y-0.5 pl-5">
+          <li>
+            {gettext("A live_session of your own: add %{hook} to its on_mount.",
+              hook: "{PhoenixKitWebAnalytics.LiveHook, :track_navigation}"
+            )}
+          </li>
+          <li>
+            {gettext(
+              "PhoenixKit's own pages: add the same hook to extra_live_session_on_mount in the :phoenix_kit config."
+            )}
+          </li>
+          <li>
+            {gettext(
+              "A library's live_session (LiveDashboard, for one) takes it in its own on_mount option; a live route outside any live_session (:default) has to be wrapped in one first."
+            )}
+          </li>
+          <li>
+            {gettext(
+              "Pages that shouldn't be tracked: add their paths to Excluded paths in Settings."
+            )}
+          </li>
+        </ul>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   One hit described in words, with an icon — "Viewed page", "Clicked
   add_to_cart", "Left after 1m 05s" — for the live feed and session timelines.
   """

@@ -384,10 +384,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # `PhoenixKitWebAnalytics.BotSignals`). Read off the route's live_session.
   defp live_metadata(conn) do
     case conn.private[:phoenix_live_view] do
-      {_view, _opts, %{extra: %{on_mount: hooks}}} when is_list(hooks) ->
-        if Enum.any?(hooks, &match?(%{id: {PhoenixKitWebAnalytics.LiveHook, _}}, &1)),
-          do: %{"lv" => true},
-          else: %{}
+      {_view, _opts, session} ->
+        if PhoenixKitWebAnalytics.LiveHook.runs_in?(session), do: %{"lv" => true}, else: %{}
 
       _ ->
         %{}
