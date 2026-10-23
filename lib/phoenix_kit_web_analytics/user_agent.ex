@@ -143,9 +143,24 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   # ── internals ─────────────────────────────────────────────────────────────
 
   # A User-Agent that is only the product token — "Mozilla/5.0", no platform
-  # in brackets — is a script's default, never a browser's. A regex literal
-  # in the function, not an attribute (OTP 28 can't store compiled regexes).
-  defp bare?(downcased), do: Regex.match?(~r{^mozilla/\d+(\.\d+)?$}, downcased)
+  # in brackets — is a script's default, never a browser's. A binary match,
+  # not a regex: OTP 28 can't keep a compiled regex in an attribute, and a
+  # literal in the function is rebuilt on every call.
+  defp bare?("mozilla/" <> version), do: bare_version?(version)
+  defp bare?(_downcased), do: false
+
+  # `5` or `5.0`: digits, then optionally a dot and more digits.
+  defp bare_version?(version) do
+    case digits(version, 0) do
+      {major, ""} when major > 0 -> true
+      {major, "." <> minor} when major > 0 -> match?({n, ""} when n > 0, digits(minor, 0))
+      _ -> false
+    end
+  end
+
+  # How many ASCII digits `binary` starts with, and what follows them.
+  defp digits(<<char, rest::binary>>, count) when char in ?0..?9, do: digits(rest, count + 1)
+  defp digits(rest, count), do: {count, rest}
 
   defp match_first(patterns, user_agent) do
     Enum.find_value(patterns, {"Other", nil}, fn {name, regex} ->
