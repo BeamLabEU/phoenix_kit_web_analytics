@@ -22,18 +22,12 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
 
   describe "request_reasons/1" do
     test "a browser sending what a browser sends has none" do
-      assert BotScore.request_reasons(%{
-               user_agent: @chrome,
-               headers: headers(@browser_headers)
-             }) ==
+      assert BotScore.request_reasons(%{user_agent: @chrome, headers: headers(@browser_headers)}) ==
                []
     end
 
     test "a declared bot and a missing User-Agent" do
-      assert BotScore.request_reasons(%{user_agent: "curl/8.4.0"}) == [
-               "declared_bot"
-             ]
-
+      assert BotScore.request_reasons(%{user_agent: "curl/8.4.0"}) == ["declared_bot"]
       assert BotScore.request_reasons(%{user_agent: nil}) == ["no_user_agent"]
     end
 
@@ -42,10 +36,7 @@ defmodule PhoenixKitWebAnalytics.BotScoreTest do
     end
 
     test "a browser's User-Agent on a script's headers" do
-      assert BotScore.request_reasons(%{
-               user_agent: @chrome,
-               headers: headers(["host"])
-             }) ==
+      assert BotScore.request_reasons(%{user_agent: @chrome, headers: headers(["host"])}) ==
                ~w(no_accept_language no_accept no_fetch_metadata no_client_hints)
     end
 

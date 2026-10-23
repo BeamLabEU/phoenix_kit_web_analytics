@@ -665,6 +665,10 @@ config :phoenix_kit_web_analytics, geo_resolver: MyApp.GeoIP
 # page has a field for the same list; both are counted.
 config :phoenix_kit_web_analytics, internal_networks: ["203.0.113.0/24"]
 
+# The day a browser's age is judged at (the "stale browser" bot reason).
+# Leave it unset; a test suite whose fixtures carry fixed User-Agents pins it.
+config :phoenix_kit_web_analytics, browser_versions_as_of: ~D[2024-06-01]
+
 # Concurrent background writes before hits are dropped.
 config :phoenix_kit_web_analytics, max_concurrent_writes: 20
 

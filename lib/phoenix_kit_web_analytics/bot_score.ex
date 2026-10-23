@@ -257,6 +257,7 @@ defmodule PhoenixKitWebAnalytics.BotScore do
   # The day browser versions are judged at. A suite whose fixtures carry
   # fixed User-Agents pins it (`config :phoenix_kit_web_analytics,
   # :browser_versions_as_of, ~D[...]`), or every fixture would go stale.
+  # Production leaves it unset (see the README's application config).
   defp judged_on,
     do:
       Application.get_env(:phoenix_kit_web_analytics, :browser_versions_as_of) || Date.utc_today()
