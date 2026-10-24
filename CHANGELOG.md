@@ -3,6 +3,56 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.8.0 - 2026-10-24
+
+No migrations. On a multi-language install, PhoenixKit's admin pages in a
+language other than the default were being tracked; see Fixed.
+
+### Added
+
+- **Internal networks in Settings.** A new **Leave out internal networks**
+  field (`web_analytics_internal_networks_secret`) takes one address or CIDR
+  network per line, IPv4 or IPv6, and adds them to the app config's
+  `internal_networks`; both lists count. Every line must parse, and a network
+  wider than `/8` (IPv4) or `/16` (IPv6) is refused, as is a zone id or a
+  prefix that isn't plain digits. The key carries `secret`, so core leaves the
+  value out of the activity log, settings history and change broadcast. A
+  failed write is logged without the value. The list is read with the hit's
+  other settings in one cached read.
+- **More bots posing as browsers are caught.** A new `stale_browser` bot reason
+  (weight 20, so it counts only together with another reason) covers Chrome,
+  Edge and Firefox about two years behind the current release, and Safari
+  before 16. The `:browser_versions_as_of` config pins the judging day for test
+  fixtures. New User-Agent markers: GoogleOther, Google-InspectionTool,
+  heritrix, RootEvidence, Playwright, Puppeteer, Selenium, `k6/` at the start
+  of the string, and a bare `Mozilla/5.0` with no platform.
+- **A warning for tracked LiveView pages that don't run `LiveHook`.**
+  Settings and the dashboard list each live_session with unhooked pages, and
+  how to hook it (your own live_session, PhoenixKit's through `config
+  :phoenix_kit, extra_live_session_on_mount`, a library's `on_mount:`, or
+  wrapping a bare `live` route). New `LiveHook.coverage/1` and
+  `LiveHook.runs_in?/1`.
+- Ukrainian (uk) translations, alongside en, et and ru.
+
+### Changed
+
+- `Retention.rollup_day/1` drops a site's `daily_stats` row for a day once
+  every raw hit of that site that day is marked (a bot found later, or your own
+  traffic), instead of keeping the old counts. A site whose raw events were
+  pruned keeps its rollup.
+- Locked dependencies refreshed (`phoenix_kit` 2.64.1).
+
+### Fixed
+
+- `web_analytics_exclude_paths` also matches past a leading locale segment, so
+  `/admin*` leaves out `/et/admin/...`. Before this, localized admin page
+  views, live navigation, clicks, beacons and recordings were tracked. The
+  plug, hook, beacon, recordings, alert path filters and `LiveHook.coverage/1`
+  use the same matcher. A first segment shaped like a locale but not one
+  (`/faq/admin`) is matched the same way.
+- Re-running `Retention.rollup_day/1` after pruning no longer erases a pruned
+  site's page, acquisition and technology breakdowns (`daily_dims`).
+
 ## 0.7.0 - 2026-10-13
 
 Requires `mix phoenix_kit.update` (migrations V09 and V10).
