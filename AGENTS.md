@@ -368,8 +368,7 @@ pointers.
 
 ### Commit Message Rules
 
-Start with an action verb: `Add`, `Update`, `Fix`, `Remove`, `Merge`. **Do not
-include AI attribution or `Co-Authored-By` footers.**
+Start with an action verb: `Add`, `Update`, `Fix`, `Remove`, `Merge`.
 
 ## Pull Requests
 
