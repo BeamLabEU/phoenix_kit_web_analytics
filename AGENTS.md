@@ -202,6 +202,12 @@ can't, stays optional, and never writes a cookie or storage.
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.
+- **A path exclusion covers the page in every language.** `Config.excluded?/2`
+  also matches past a leading locale-shaped segment (`/et/admin` for
+  `/admin*`), because PhoenixKit serves every non-default language as
+  `/:locale/...`. The plug, the hook, the beacon, recordings and
+  `LiveHook.coverage/1` all go through it, so they agree on what is left out;
+  don't add a path check of your own.
 - **Nothing in the tracking path may raise.** The plug's `before_send` callback,
   the collector, `Config.collection_config/0`, and every `Reports` query rescue
   and degrade. A broken analytics read costs a missing row, never a failed page.

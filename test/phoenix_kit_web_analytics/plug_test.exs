@@ -188,6 +188,12 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert tracking_callbacks(conn) == []
       conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
 
+      # PhoenixKit's admin in another language: /admin* covers it too.
+      conn = "/et/admin/settings" |> request() |> TrackingPlug.call(TrackingPlug.init([]))
+
+      assert tracking_callbacks(conn) == []
+      conn |> Plug.Conn.put_resp_content_type("text/html") |> Plug.Conn.send_resp(200, "")
+
       "/healthz"
       |> request()
       |> TrackingPlug.call(TrackingPlug.init(exclude: "/healthz"))

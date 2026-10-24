@@ -277,12 +277,13 @@ defmodule PhoenixKitWebAnalytics.Retention do
   # A site whose every hit that day is now marked (a bot found later, own
   # traffic) has no totals: its stored row is dropped, not left as it was.
   # Only a site with raw events that day — a day whose events were pruned
-  # keeps its rollup.
+  # keeps its rollup. A hit without a host is site "" here, as in the totals
+  # and the stored row: a NULL would match neither.
   defp emptied_sites(from, to, totals) do
     from(e in Event,
       where: e.inserted_at >= ^from and e.inserted_at < ^to,
       distinct: true,
-      select: e.site
+      select: fragment("COALESCE(?, '')", e.site)
     )
     |> repo().all()
     |> Enum.reject(&Map.has_key?(totals, &1))

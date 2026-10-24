@@ -17,6 +17,26 @@ defmodule PhoenixKitWebAnalytics.ConfigTest do
       refute Config.excluded?("/administration-blog-post", ["/admin/*"])
     end
 
+    test "a pattern matches past a leading locale segment too" do
+      for path <- ~w(/et/admin /et/admin/users /en-GB/admin /fil/admin /zh-Hant/admin) do
+        assert Config.excluded?(path, ["/admin*"]), path
+      end
+
+      assert Config.excluded?("/et", ["/"])
+      assert Config.excluded?("/et/healthz", ["/healthz"])
+      refute Config.excluded?("/et/healthz/deep", ["/healthz"])
+    end
+
+    test "a first segment that isn't shaped like a locale is part of the path" do
+      for path <-
+            ~w(/blog/admin /api/admin /mcp/admin /EN/admin /e/admin /en-x/admin /en-GBR1/admin) do
+        refute Config.excluded?(path, ["/admin*"]), path
+      end
+
+      refute Config.excluded?("/et/blog", ["/admin*"])
+      refute Config.excluded?("validate", ["/admin*"])
+    end
+
     test "no patterns excludes nothing" do
       refute Config.excluded?("/anything", [])
     end

@@ -619,7 +619,7 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_respect_dnt` | `true` | Skip visitors sending `DNT` / `Sec-GPC` |
 | `web_analytics_track_bots` | `false` | Record automated traffic |
 | `web_analytics_detect_bots` | `true` | Also spot bots by behaviour (automation flag, speed, no JavaScript) |
-| `web_analytics_exclude_paths` | `/admin*` … | Path patterns to ignore (trailing `*` = prefix) |
+| `web_analytics_exclude_paths` | `/admin*` … | Path patterns to ignore (trailing `*` = prefix; also matched past a leading locale, `/et/admin`) |
 | `web_analytics_session_timeout_minutes` | `30` | Inactivity gap that ends a session |
 | `web_analytics_retention_days` | `365` | Age at which raw events are rolled up and deleted |
 | `web_analytics_track_interactions` | `true` | Record LiveView events as interactions |

@@ -31,12 +31,12 @@ msgid_plural "(+%{count} more not shown)"
 msgstr[0] "(+%{count} veel, pole näidatud)"
 msgstr[1] "(+%{count} veel, pole näidatud)"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:892
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:894
 #, elixir-autogen, elixir-format
 msgid "Accept the beacon and pixel"
 msgstr "Luba beacon ja piksel"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:880
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:882
 #, elixir-autogen, elixir-format
 msgid "Accept the client script"
 msgstr "Luba kliendiskript"
@@ -53,18 +53,18 @@ msgstr "Hankimine"
 msgid "Actions"
 msgstr "Toimingud"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1130
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1132
 #, elixir-autogen, elixir-format
 msgid "Add the plug to your router's browser pipeline, after the session is fetched:"
 msgstr "Lisa plug ruuteri browser-pipeline'i, pärast seansi laadimist:"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:340
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1019
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1021
 #, elixir-autogen, elixir-format
 msgid "Alert on these events"
 msgstr "Teavita nende sündmuste korral"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:944
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:946
 #, elixir-autogen, elixir-format
 msgid "Alerts"
 msgstr "Teavitused"
@@ -110,7 +110,7 @@ msgstr "Loodi konto"
 msgid "An event listed in Web Analytics settings happened"
 msgstr "Toimus veebianalüütika seadetes loetletud sündmus"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1138
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1140
 #, elixir-autogen, elixir-format
 msgid "And let the LiveView socket see the visitor's address and browser — on both transports, websocket and longpoll:"
 msgstr "Ja luba LiveView soklil näha külastaja aadressi ja brauserit — mõlemal transpordil, websocket ja longpoll:"
@@ -193,7 +193,7 @@ msgstr "Klient"
 msgid "Collection"
 msgstr "Kogumine"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:872
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:874
 #, elixir-autogen, elixir-format
 msgid "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
 msgstr "Komadega eraldatud. Loetletud parameetrite väärtused (ainult lühikesed) säilitatakse koos interaktsiooniga, nt milline vahekaart avati."
@@ -229,7 +229,7 @@ msgstr "Riigid"
 msgid "Country"
 msgstr "Riik"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1024
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Custom event or interaction names, comma-separated. A trailing * matches a prefix."
 msgstr "Kohandatud sündmuste või interaktsioonide nimed, komadega eraldatud. Lõpus olev * vastab eesliitele."
@@ -296,7 +296,7 @@ msgid "Enable Web Analytics on the Modules page, and make sure %{plug} is in you
 msgstr "Lülita veebianalüütika sisse moodulite lehel ja veendu, et %{plug} on ruuteri browser-pipeline'is."
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:338
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:867
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:869
 #, elixir-autogen, elixir-format
 msgid "Event values to keep"
 msgstr "Säilitatavad sündmuse väärtused"
@@ -308,18 +308,18 @@ msgstr "Sündmus „%{event}“"
 
 #: lib/phoenix_kit_web_analytics.ex:187
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:33
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1042
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1044
 #, elixir-autogen, elixir-format
 msgid "Events"
 msgstr "Sündmused"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:337
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:861
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Events not to record"
 msgstr "Salvestamata jäetavad sündmused"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:851
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:853
 #, elixir-autogen, elixir-format
 msgid "Every event a LiveView handles, by name. Form typing is never recorded, nor are form contents."
 msgstr "Kõik LiveView poolt käsitletud sündmused nime järgi. Vormi tippimist ega vormi sisu ei salvestata kunagi."
@@ -347,7 +347,7 @@ msgstr "Lahkumised"
 msgid "For"
 msgstr "Kellele"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1134
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1136
 #, elixir-autogen, elixir-format
 msgid "For LiveView pages, add the hook to your live_session:"
 msgstr "LiveView lehtede jaoks lisa hook oma live_session'isse:"
@@ -367,7 +367,7 @@ msgstr "Päring"
 msgid "Hit type"
 msgstr "Päringu tüüp"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1127
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1129
 #, elixir-autogen, elixir-format
 msgid "Installation"
 msgstr "Paigaldus"
@@ -449,7 +449,7 @@ msgstr "Reaalajas voog"
 msgid "Live presence isn't running on this node, so open pages can't be listed. It starts with the module's children."
 msgstr "Reaalajas kohalolu ei tööta selles sõlmes, seega avatud lehti ei saa kuvada. See käivitub koos mooduli alamprotsessidega."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:839
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:841
 #, elixir-autogen, elixir-format
 msgid "LiveView pages report clicks, form submits and exits over their socket — no script needed. The optional client script adds what the server can't see."
 msgstr "LiveView lehed teatavad klõpsudest, vormide saatmisest ja lahkumistest oma sokli kaudu — skripti pole vaja. Valikuline kliendiskript lisab selle, mida server ei näe."
@@ -465,7 +465,7 @@ msgid "New sign-up: %{name}"
 msgstr "Uus registreerumine: %{name}"
 
 #: lib/phoenix_kit_web_analytics/alerts.ex:136
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:955
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:957
 #, elixir-autogen, elixir-format
 msgid "New sign-ups"
 msgstr "Uued registreerumised"
@@ -476,7 +476,7 @@ msgid "New visitor from %{source} on %{path}"
 msgstr "Uus külastaja allikast %{source} lehel %{path}"
 
 #: lib/phoenix_kit_web_analytics/alerts.ex:129
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:959
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:961
 #, elixir-autogen, elixir-format
 msgid "New visitors"
 msgstr "Uued külastajad"
@@ -564,18 +564,13 @@ msgstr "Midagi ei salvestatud. Kontrolli: %{fields}."
 msgid "Off by default — crawlers and monitors would otherwise dominate every report."
 msgstr "Vaikimisi väljas — muidu domineeriksid igas aruandes indekseerijad ja monitorid."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1058
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1060
 #, elixir-autogen, elixir-format
 msgid "Oldest event"
 msgstr "Vanim sündmus"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:457
-#, elixir-autogen, elixir-format
-msgid "One pattern per line. A trailing * matches a prefix."
-msgstr "Üks muster rea kohta. Lõpus olev * vastab eesliitele."
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:341
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:967
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:969
 #, elixir-autogen, elixir-format
 msgid "Only from these channels"
 msgstr "Ainult nendest kanalitest"
@@ -611,7 +606,7 @@ msgstr "Operatsioonisüsteemid"
 msgid "Outbound link"
 msgstr "Väljaminev link"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:883
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:885
 #, elixir-autogen, elixir-format
 msgid "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
 msgstr "Väljaminevad lingid, allalaadimised, tavanupud, kerimissügavus ja lahkumised lehtedelt, millel pole LiveView'd. Skript tuleb mooduliga kaasa; see lüliti otsustab, kas selle aruandeid salvestatakse."
@@ -644,7 +639,7 @@ msgstr "Lehevaatamised"
 msgid "Page views over time"
 msgstr "Lehevaatamised ajas"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:895
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:897
 #, elixir-autogen, elixir-format
 msgid "Page views reported from the browser, for pages a CDN serves without reaching the app. The endpoints are public — leave off unless you use them."
 msgstr "Brauserist teatatud lehevaatamised lehtede kohta, mida CDN serveerib rakenduseni jõudmata. Lõpp-punktid on avalikud — jäta välja, kui sa neid ei kasuta."
@@ -673,7 +668,7 @@ msgstr "Periood"
 msgid "Recent visits"
 msgstr "Hiljutised külastused"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:848
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:850
 #, elixir-autogen, elixir-format
 msgid "Record LiveView interactions"
 msgstr "Salvesta LiveView interaktsioonid"
@@ -719,7 +714,7 @@ msgstr "Säilitamine"
 msgid "Right now"
 msgstr "Praegu"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1108
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1110
 #, elixir-autogen, elixir-format
 msgid "Roll up & prune now"
 msgstr "Koonda ja kustuta kohe"
@@ -729,28 +724,28 @@ msgstr "Koonda ja kustuta kohe"
 msgid "Rolled up %{days} day(s) and pruned %{events} event(s)."
 msgstr "Koondati %{days} päev(a) ja kustutati %{events} sündmus(t)."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1050
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1052
 #, elixir-autogen, elixir-format
 msgid "Rollup rows"
 msgstr "Koondread"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1121
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1123
 #, elixir-autogen, elixir-format
 msgid "Rotate visitor salt"
 msgstr "Vaheta külastaja sool"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1113
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1115
 #, elixir-autogen, elixir-format
 msgid "Rotating…"
 msgstr "Vahetan…"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1032
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1034
 #, elixir-autogen, elixir-format
 msgid "Save settings"
 msgstr "Salvesta seaded"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:383
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1031
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1033
 #, elixir-autogen, elixir-format
 msgid "Saving…"
 msgstr "Salvestan…"
@@ -770,7 +765,7 @@ msgstr "Keritud %{percent}%-ni"
 msgid "Search"
 msgstr "Otsing"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:946
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:948
 #, elixir-autogen, elixir-format
 msgid "Sent to everyone who can open Web Analytics. Each person chooses in-app, email or Telegram, and an hourly or daily digest instead, in"
 msgstr "Saadetakse kõigile, kes saavad veebianalüütikat avada. Igaüks valib rakendusesisese teavituse, e-kirja või Telegrami ning soovi korral tunni- või päevakokkuvõtte asukohas"
@@ -813,7 +808,7 @@ msgstr "Sisselogitud kasutaja"
 msgid "Site"
 msgstr "Sait"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:999
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1001
 #, elixir-autogen, elixir-format
 msgid "Skip signed-in users"
 msgstr "Jäta sisselogitud kasutajad vahele"
@@ -862,7 +857,7 @@ msgstr "Algus"
 msgid "Stop recording visits? Reports keep what is already stored."
 msgstr "Kas lõpetada külastuste salvestamine? Aruanded säilitavad juba salvestatud andmed."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1038
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Stored data"
 msgstr "Salvestatud andmed"
@@ -1007,7 +1002,7 @@ msgstr "Külastaja sool vahetatud. Varem nähtud külastajad loetakse täna uues
 msgid "Visitors"
 msgstr "Külastajad"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1115
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1117
 #, elixir-autogen, elixir-format
 msgid "Visitors seen before now will be counted again today, and open visits split. Continue?"
 msgstr "Varem nähtud külastajad loetakse täna uuesti ja pooleli olevad külastused jagunevad kaheks. Kas jätkata?"
@@ -1042,23 +1037,23 @@ msgstr "Mis"
 
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:297
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:114
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:837
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:839
 #, elixir-autogen, elixir-format
 msgid "What visitors do"
 msgstr "Mida külastajad teevad"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:961
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:963
 #, elixir-autogen, elixir-format
 msgid "When someone starts a visit that matches the filters below."
 msgstr "Kui keegi alustab külastust, mis vastab allolevatele filtritele."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:956
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:958
 #, elixir-autogen, elixir-format
 msgid "Whenever an account is created."
 msgstr "Iga kord, kui luuakse konto."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1087
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1103
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1089
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1105
 #, elixir-autogen, elixir-format
 msgid "Working…"
 msgstr "Töötan…"
@@ -1108,7 +1103,7 @@ msgstr "iga tund"
 msgid "monthly"
 msgstr "iga kuu"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:950
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:952
 #, elixir-autogen, elixir-format
 msgid "notification settings"
 msgstr "teavituste seadetes"
@@ -1128,33 +1123,33 @@ msgstr "sotsiaalmeedia"
 msgid "Open visit"
 msgstr "Ava külastus"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:481
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:483
 #, elixir-autogen, elixir-format
 msgid "0 keeps raw events forever. Daily totals are always kept."
 msgstr "0 säilitab toorsündmused igaveseks. Päevased kokkuvõtted säilitatakse alati."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1006
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1008
 #, elixir-autogen, elixir-format
 msgid "Alerts per hour, at most"
 msgstr "Teavitusi tunnis, kõige rohkem"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1012
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1014
 #, elixir-autogen, elixir-format
 msgid "Beyond this, the next alert says how many were held back. 0 means no limit."
 msgstr "Sellest üle ütleb järgmine teavitus, mitu jäi saatmata. 0 tähendab piiranguta."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:474
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:476
 #, elixir-autogen, elixir-format
 msgid "Keep raw events, days"
 msgstr "Toorsündmuste säilitamine, päevades"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:339
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:988
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:990
 #, elixir-autogen, elixir-format
 msgid "Landing pages"
 msgstr "Maandumislehed"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:993
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:995
 #, elixir-autogen, elixir-format
 msgid "Only visits that start on these pages. Blank means any page."
 msgstr "Ainult külastused, mis algavad nendelt lehtedelt. Tühi tähendab mis tahes lehte."
@@ -1289,7 +1284,7 @@ msgstr "Sait, kust külastaja tuli. Kui keegi klõpsab lingil sinu saidile, ütl
 msgid "Visit timeout"
 msgstr "Külastuse aegumine"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:465
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:467
 #, elixir-autogen, elixir-format
 msgid "Visit timeout, minutes"
 msgstr "Külastuse aegumine, minutites"
@@ -1508,12 +1503,12 @@ msgstr "Kuidas see külastaja kursorit liigutas, millele klõpsas ja millel peat
 msgid "Keep recordings"
 msgstr "Salvestuste säilitamine"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:934
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:936
 #, elixir-autogen, elixir-format
 msgid "Keep recordings, days"
 msgstr "Salvestusi säilitatakse, päeva"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:914
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:916
 #, elixir-autogen, elixir-format
 msgid "Off by default. A recorded page sends a few rows a minute while someone is using it — on a busy site, record a share of visitors."
 msgstr "Vaikimisi väljas. Salvestatav leht saadab kasutamise ajal mõne rea minutis — suure liiklusega saidil salvesta osa külastajatest."
@@ -1528,7 +1523,7 @@ msgstr "Paus"
 msgid "Play"
 msgstr "Esita"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:912
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:914
 #, elixir-autogen, elixir-format
 msgid "Record visits"
 msgstr "Salvesta külastused"
@@ -1538,7 +1533,7 @@ msgstr "Salvesta külastused"
 msgid "Recording"
 msgstr "Salvestus"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:906
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:908
 #, elixir-autogen, elixir-format
 msgid "Replay a visit: where the pointer went, what was clicked and hovered, how the page scrolled. Recorded by the client script; only coordinates and element positions — never text, typing or form values. Visitors asking not to be tracked, bots and excluded paths are never recorded."
 msgstr "Külastuse taasesitus: kuhu kursor liikus, millele klõpsati ja millel peatuti, kuidas lehte keriti. Salvestab kliendiskript; ainult koordinaadid ja elementide asukohad — mitte kunagi teksti, trükkimist ega vormide väärtusi. Jälgimisest keeldunud külastajaid, roboteid ja välistatud teid ei salvestata kunagi."
@@ -1546,7 +1541,7 @@ msgstr "Külastuse taasesitus: kuhu kursor liikus, millele klõpsati ja millel p
 #: lib/phoenix_kit_web_analytics/data_collection.ex:88
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:268
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:347
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:904
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:906
 #, elixir-autogen, elixir-format
 msgid "Session recordings"
 msgstr "Külastuste salvestused"
@@ -1566,7 +1561,7 @@ msgstr "Seda lehte ei saa taasesituse taustal näidata; joonistatakse ainult kur
 msgid "Visitors recorded"
 msgstr "Salvestatavad külastajad"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:925
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:927
 #, elixir-autogen, elixir-format
 msgid "Visitors recorded, %"
 msgstr "Salvestatavad külastajad, %"
@@ -1617,7 +1612,7 @@ msgstr "Mõnda seadet ei saanud salvestada. Kontrolli neid ja proovi uuesti."
 msgid "Paid — ad clicks, auto-tagged (gclid, msclkid…) or marked utm_medium=cpc"
 msgstr "Tasuline — reklaamiklikid, automaatselt märgistatud (gclid, msclkid…) või märgitud utm_medium=cpc"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1144
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1146
 #, elixir-autogen, elixir-format
 msgid "Behind a reverse proxy on the same host or network, the visitor's address is read from X-Forwarded-For (a port the proxy appends is dropped). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip (such as remote_ip) before the tracking plug."
 msgstr "Samas masinas või võrgus oleva pöördproksi taga loetakse külastaja aadress X-Forwarded-For päisest (proksi lisatud port jäetakse ära). Ahela taga — CDN koormusjaoturi ees — pane jälgimis-plugi ette plug, mis kirjutab remote_ip ümber (näiteks remote_ip)."
@@ -1627,7 +1622,7 @@ msgstr "Samas masinas või võrgus oleva pöördproksi taga loetakse külastaja 
 msgid "LiveView visits from a private or loopback address — a reverse proxy, a container network, localhost in development — are not being recorded: the LiveView socket's connect_info lacks :x_headers. Add it on both transports — see Installation below."
 msgstr "Privaat- või loopback-aadressilt tulevaid LiveView külastusi — pöördproksi, konteinervõrk, localhost arenduses — ei salvestata: LiveView sokli connect_info'st puudub :x_headers. Lisa see mõlemale transpordile — vaata allpool „Paigaldus“."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:831
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:833
 #, elixir-autogen, elixir-format
 msgid "0 stops marking staff networks. Kept in memory only."
 msgstr "0 lõpetab töötajate võrkude märkimise. Hoitakse ainult mälus."
@@ -1650,7 +1645,7 @@ msgstr "Arvesta ka liiklust, mille seaded statistikast välja jätavad: saidi en
 msgid "Bots"
 msgstr "Robotid"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:815
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Every visit from an address where a staff member signed in or was active within the hours below. Behind a mobile network, carrier-grade NAT or an office gateway one address is many people: a staff sign-in from a phone leaves out everyone sharing that address for those hours. Visits before the sign-in are not marked afterwards."
 msgstr "Iga külastus aadressilt, kus töötaja allpool toodud tundide jooksul sisse logis või oli aktiivne. Mobiilsidevõrgu, operaatori NAT-i (CGNAT) või kontori lüüsi taga on ühel aadressil palju inimesi: töötaja sisselogimine telefonist jätab nendeks tundideks välja kõik, kes seda aadressi jagavad. Enne sisselogimist toimunud külastusi tagantjärele ei märgita."
@@ -1660,17 +1655,17 @@ msgstr "Iga külastus aadressilt, kus töötaja allpool toodud tundide jooksul s
 msgid "Internal network"
 msgstr "Sisevõrk"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:742
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "Leave out internal networks"
 msgstr "Jäta sisevõrgud välja"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:790
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:792
 #, elixir-autogen, elixir-format
 msgid "Leave out site staff"
 msgstr "Jäta saidi töötajad välja"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:812
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:814
 #, elixir-autogen, elixir-format
 msgid "Leave out staff networks"
 msgstr "Jäta töötajate võrgud välja"
@@ -1686,7 +1681,7 @@ msgstr "Oma liiklus"
 msgid "Read from raw events: days older than the raw-event retention have no data here, rather than zero visits."
 msgstr "Loetakse toorsündmustest: toorsündmuste säilitusajast vanemate päevade kohta pole siin andmeid — see ei tähenda null külastust."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:793
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:795
 #, elixir-autogen, elixir-format
 msgid "Signed-in users holding one of the staff roles below — whichever role they are acting as. A visit that turns into a staff member's (a sign-in midway) is left out whole."
 msgstr "Sisselogitud kasutajad, kellel on üks allpool toodud töötajarollidest — ükskõik millises rollis nad parasjagu tegutsevad. Külastus, mis muutub töötaja omaks (sisselogimine poole pealt), jäetakse välja tervikuna."
@@ -1702,28 +1697,28 @@ msgid "Staff network"
 msgstr "Töötajate võrk"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:362
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:825
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:827
 #, elixir-autogen, elixir-format
 msgid "Staff network, hours"
 msgstr "Töötajate võrk, tundi"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:350
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:802
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:804
 #, elixir-autogen, elixir-format
 msgid "Staff roles"
 msgstr "Töötajate rollid"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:733
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:735
 #, elixir-autogen, elixir-format
 msgid "Visits by the site's own people are stored with a mark and left out of the statistics, alerts and recordings — nothing is deleted. Untick a kind to count it in again; a report shows it all with Own traffic. Only the mark is stored, never an address."
 msgstr "Saidi enda inimeste külastused salvestatakse märgisega ja jäetakse statistikast, teavitustest ja salvestustest välja — midagi ei kustutata. Eemalda linnuke, et seda liiki taas arvestada; aruandes näitab kõike lüliti „Oma liiklus“. Salvestatakse ainult märgis, mitte kunagi aadress."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:731
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:733
 #, elixir-autogen, elixir-format
 msgid "Your own traffic"
 msgstr "Teie oma liiklus"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:806
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:808
 #, elixir-autogen, elixir-format
 msgid "Comma-separated role names, e.g. Owner, Admin. Empty: no one counts as staff."
 msgstr "Rollide nimed komaga eraldatult, nt Owner, Admin. Tühi väli: keegi ei ole töötaja."
@@ -1739,30 +1734,30 @@ msgid "(not kept)"
 msgstr "(ei säilitata)"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:342
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:500
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:502
 #, elixir-autogen, elixir-format
 msgid "A visitor ID lasts"
 msgstr "Külastaja ID kehtib"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:513
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:515
 #, elixir-autogen, elixir-format
 msgid "After that the same person counts as a new visitor. A longer period recognises a returning visitor across days; changing it splits today's open visits."
 msgstr "Pärast seda loetakse sama inimene uueks külastajaks. Pikem periood tunneb naasva külastaja ära ka järgmistel päevadel; selle muutmine poolitab tänased pooleliolevad külastused."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:492
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:494
 #, elixir-autogen, elixir-format
 msgid "By default nothing that identifies a visitor is kept: a visitor is a one-way hash of the address and the browser that changes every day. Each switch below keeps more — to see which network a crawler comes from, to tell scrapers apart, to have something to block by. An address is personal data, and what may be kept without asking the visitor depends on the law your site answers to; that decision is yours."
 msgstr "Vaikimisi ei säilitata midagi, mis külastajat tuvastaks: külastaja on aadressist ja brauserist arvutatud ühesuunaline räsi, mis muutub iga päev. Iga allolev lüliti säilitab rohkem — et näha, mis võrgust roomik tuleb, eristada kraapijaid ja omada midagi, mille järgi blokeerida. Aadress on isikuandmed ning see, mida tohib külastajalt küsimata säilitada, sõltub seadusest, millele teie sait allub; see otsus on teie teha."
 
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:224
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:343
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:520
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1077
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:522
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1079
 #, elixir-autogen, elixir-format
 msgid "IP address"
 msgstr "IP-aadress"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:533
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:535
 #, elixir-autogen, elixir-format
 msgid "Its network is the first three parts of an IPv4 address, or the first 48 bits of an IPv6 one — enough to say whose network, not which machine."
 msgstr "Võrk on IPv4-aadressi kolm esimest osa või IPv6-aadressi esimesed 48 bitti — piisav, et öelda, kelle võrk see on, mitte milline masin."
@@ -1772,22 +1767,22 @@ msgstr "Võrk on IPv4-aadressi kolm esimest osa või IPv6-aadressi esimesed 48 b
 msgid "Its network only"
 msgstr "Ainult selle võrk"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:555
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:557
 #, elixir-autogen, elixir-format
 msgid "Keep request headers"
 msgstr "Säilita päringu päised"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:543
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:545
 #, elixir-autogen, elixir-format
 msgid "Keep the browser's full User-Agent"
 msgstr "Säilita brauseri täielik User-Agent"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:567
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:569
 #, elixir-autogen, elixir-format
 msgid "Keep the network's owner"
 msgstr "Säilita võrgu omanik"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:589
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:591
 #, elixir-autogen, elixir-format
 msgid "Kept once per visitor, when a visit starts, and removed when the visitor hasn't been seen for as long as raw events are kept. Switching one off stops it being recorded; what is already stored stays until then."
 msgstr "Säilitatakse üks kord külastaja kohta, külastuse alguses, ja eemaldatakse, kui külastajat pole nähtud nii kaua, kui toorsündmusi säilitatakse. Väljalülitamine lõpetab salvestamise; juba salvestatu jääb selle ajani alles."
@@ -1795,7 +1790,7 @@ msgstr "Säilitatakse üks kord külastaja kohta, külastuse alguses, ja eemalda
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:139
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:172
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:225
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1080
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Network"
 msgstr "Võrk"
@@ -1821,17 +1816,17 @@ msgid "One week"
 msgstr "Üks nädal"
 
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:282
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1079
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1081
 #, elixir-autogen, elixir-format
 msgid "Request headers"
 msgstr "Päringu päised"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:558
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:560
 #, elixir-autogen, elixir-format
 msgid "The headers of a visit's first page view, in the order they arrived: what a script posing as a browser rarely gets right. Cookies, authorisation and anything named like a token or key are never kept; headers carrying the visitor's address only when the whole address is."
 msgstr "Külastuse esimese lehevaatamise päised saabumise järjekorras: see, mida brauserina esinev skript harva õigesti teeb. Küpsiseid, autoriseerimist ega midagi, mille nimi viitab tõendile või võtmele, ei säilitata kunagi; külastaja aadressi kandvaid päiseid ainult siis, kui säilitatakse kogu aadress."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:570
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:572
 #, elixir-autogen, elixir-format
 msgid "The network's number and name, and whether it is a hosting provider — when the site's geo resolver returns them. Nothing in the module knows them by itself."
 msgstr "Võrgu number ja nimi ning kas tegu on majutusteenuse pakkujaga — kui saidi geolahendaja need tagastab. Moodul ise neid ei tea."
@@ -1841,7 +1836,7 @@ msgstr "Võrgu number ja nimi ning kas tegu on majutusteenuse pakkujaga — kui 
 msgid "The whole address"
 msgstr "Kogu aadress"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:546
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:548
 #, elixir-autogen, elixir-format
 msgid "The whole string the browser sent, beside the browser, system and device read out of it — which crawler it was, which library, which exact version."
 msgstr "Kogu brauseri saadetud string lisaks sellest välja loetud brauserile, süsteemile ja seadmele — milline roomik, milline teek, milline täpne versioon."
@@ -1854,12 +1849,12 @@ msgstr "Kuni aadress või brauser muutub"
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:143
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:176
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:276
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1078
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1080
 #, elixir-autogen, elixir-format
 msgid "User-Agent"
 msgstr "User-Agent"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1066
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1068
 #, elixir-autogen, elixir-format
 msgid "Visitor profiles"
 msgstr "Külastajaprofiilid"
@@ -1869,7 +1864,7 @@ msgstr "Külastajaprofiilid"
 msgid "What the browser sent"
 msgstr "Mida brauser saatis"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:490
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Who a visitor is"
 msgstr "Kes külastaja on"
@@ -1981,7 +1976,7 @@ msgstr "Kõrgeim skoor"
 msgid "Hosting provider's network"
 msgstr "Majutusteenuse pakkuja võrk"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:579
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:581
 #, elixir-autogen, elixir-format
 msgid "Keep device measurements"
 msgstr "Säilita seadme mõõtmised"
@@ -2172,7 +2167,7 @@ msgstr "Sel perioodil nähtud külastaja-ID-d, mille kohta midagi säilitatakse.
 msgid "Visitors by how much they look automated, and why. Nothing here drops or blocks anyone — it is what you would decide by."
 msgstr "Külastajad selle järgi, kui automaatsed nad paistavad, ja miks. Siin ei jäeta kedagi välja ega blokeerita — selle põhjal saad otsustada."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:582
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "What the client script can measure about the device — screen, time zone, languages, processor, graphics card, fonts, how it draws a canvas and renders a sound — and a hash of them that stays the same when the visitor's address changes. This is browser fingerprinting: it recognises a scraper across the addresses it rotates through, and a person across theirs. Needs the client script switched on."
 msgstr "See, mida kliendiskript saab seadme kohta mõõta — ekraan, ajavöönd, keeled, protsessor, graafikakaart, fondid, kuidas seade joonistab lõuendit ja renderdab heli — ning nende räsi, mis jääb samaks, kui külastaja aadress muutub. See on brauseri sõrmejälje võtmine: see tunneb kraapija ära kõigil aadressidel, mida ta vahetab, ja inimese tema omadel. Eeldab sisselülitatud kliendiskripti."
@@ -2240,7 +2235,7 @@ msgid "Ask first"
 msgstr "Küsi enne"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:348
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:681
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:683
 #, elixir-autogen, elixir-format
 msgid "Asked under"
 msgstr "Küsitakse kategoorias"
@@ -2277,7 +2272,7 @@ msgstr "Külastaja andmed"
 msgid "Details about your connection"
 msgstr "Teie ühenduse andmed"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:648
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:650
 #, elixir-autogen, elixir-format
 msgid "Details, device measurements and recordings describe a visitor, so they are only ever kept for one whose visits are counted."
 msgstr "Andmed, seadme mõõtmised ja salvestised kirjeldavad külastajat, seega säilitatakse neid ainult selle külastaja kohta, kelle külastusi loendatakse."
@@ -2285,17 +2280,17 @@ msgstr "Andmed, seadme mõõtmised ja salvestised kirjeldavad külastajat, seega
 #: lib/phoenix_kit_web_analytics/data_collection.ex:68
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:266
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:346
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1081
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Device measurements"
 msgstr "Seadme mõõtmised"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:720
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:722
 #, elixir-autogen, elixir-format
 msgid "Device measurements are taken without the visitor's agreement. They read the device to recognise it again — browser fingerprinting — which EU and UK regulators treat as needing consent whatever it is used for, security included. Elsewhere the rule differs; the choice is yours."
 msgstr "Seadme mõõtmised tehakse külastaja nõusolekuta. Need loevad seadet, et see hiljem ära tunda — see on brauseri sõrmejälje võtmine — ning EL-i ja Ühendkuningriigi järelevalveasutuste hinnangul nõuab see nõusolekut olenemata eesmärgist, ka turvalisuse puhul. Mujal on reegel teistsugune; valik on teie."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:674
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:676
 #, elixir-autogen, elixir-format
 msgid "For a visitor whose visits may not be counted. Counting the view keeps page totals honest, but every such view is a visitor and a visit of its own, so those two numbers rise with it."
 msgstr "Külastaja kohta, kelle külastusi ei tohi loendada. Vaatamise loendamine hoiab lehtede koguarvud õiged, kuid iga selline vaatamine on omaette külastaja ja omaette külastus, nii et need kaks arvu kasvavad koos sellega."
@@ -2330,7 +2325,7 @@ msgstr "Turundus"
 msgid "Measurements of your device that let us recognise it again when its address changes, used to tell people from automated traffic."
 msgstr "Teie seadme mõõtmised, mis võimaldavad seda ära tunda ka siis, kui selle aadress muutub; kasutatakse inimeste eristamiseks automaatsest liiklusest."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:621
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:623
 #, elixir-autogen, elixir-format
 msgid "Not saved yet."
 msgstr "Pole veel salvestatud."
@@ -2385,12 +2380,12 @@ msgstr "Lehe kasutamise taasesitused, et näeksime, kus leht inimesi segadusse a
 msgid "Screen size, time zone and languages"
 msgstr "Ekraani suurus, ajavöönd ja keeled"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:709
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:711
 #, elixir-autogen, elixir-format
 msgid "Something here waits for a yes, and nothing asks for one — so it is never collected. Switch on the Legal module's cookie banner, or point consent_source at your own consent tool."
 msgstr "Miski siin ootab nõusolekut, kuid keegi seda ei küsi — seega ei koguta seda kunagi. Lülitage sisse õigusmooduli küpsiseriba või suunake consent_source oma nõusolekutööriistale."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:609
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:611
 #, elixir-autogen, elixir-format
 msgid "Start from:"
 msgstr "Alusta valmis seadistusest:"
@@ -2400,7 +2395,7 @@ msgstr "Alusta valmis seadistusest:"
 msgid "Tell, don't ask"
 msgstr "Teavita, ära küsi"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:694
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:696
 #, elixir-autogen, elixir-format
 msgid "The banner's category whose answer these rules follow."
 msgstr "Riba kategooria, mille vastust need reeglid järgivad."
@@ -2465,12 +2460,12 @@ msgstr "Külastusstatistika"
 msgid "Whatever “Who a visitor is” keeps: address, User-Agent, headers, network."
 msgstr "Kõik, mida „Kes on külastaja“ säilitab: aadress, User-Agent, päised, võrk."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:600
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:602
 #, elixir-autogen, elixir-format
 msgid "When it is collected"
 msgstr "Millal andmeid kogutakse"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:602
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:604
 #, elixir-autogen, elixir-format
 msgid "Whether a visitor has to be asked first depends on the law your site answers to, so each kind of collection has its own rule. “Always” is how the module has always worked. The other two read the visitor's answer from the consent banner, and a browser that sends Global Privacy Control or Do Not Track counts as an objection."
 msgstr "Kas külastajalt tuleb enne luba küsida, sõltub õigusest, mis teie saidile kehtib, seega on igal kogumise liigil oma reegel. „Alati“ on see, kuidas moodul on seni töötanud. Ülejäänud kaks loevad külastaja vastust nõusolekuribalt ning brauser, mis saadab Global Privacy Control või Do Not Track signaali, loetakse keeldumiseks."
@@ -2481,7 +2476,7 @@ msgid "Who runs the network you connect from"
 msgstr "Kes haldab võrku, millest ühenduse loote"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:349
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:661
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:663
 #, elixir-autogen, elixir-format
 msgid "Without an answer that allows it"
 msgstr "Kui vastus seda ei luba"
@@ -2531,7 +2526,7 @@ msgstr "nädal"
 msgid "Keeps your privacy answer in this site's session cookie, so pages that update live follow it too."
 msgstr "Hoiab teie privaatsusvalikut selle saidi seansiküpsises, et seda järgiksid ka reaalajas uuenevad lehed."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:654
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:656
 #, elixir-autogen, elixir-format
 msgid "Live pages cannot read the banner's cookie: they follow a note the tracking plug leaves in the site's session. The plug must therefore run after the session is fetched — below :fetch_session in the browser pipeline. Where it runs earlier, or a live page is reached without it, nothing that waits for an answer is collected on live pages."
 msgstr "Reaalajas uuenevad lehed ei saa riba küpsist lugeda: nad järgivad märget, mille jälgimis-plug jätab saidi seanssi. Seepärast peab plug käivituma pärast seansi laadimist — browser-pipeline'is allpool :fetch_session-it. Kui see käivitub varem või reaalajas uuenevale lehele jõutakse ilma selleta, ei koguta neil lehtedel midagi, mis ootab vastust."
@@ -2551,7 +2546,7 @@ msgstr "küpsis (saidi seanss)"
 msgid "A visitor is counted once each day they open a page. Returning on another day counts again, whatever the visitor ID rotation."
 msgstr "Külastajat loendatakse üks kord iga päeva kohta, mil ta lehe avab. Teisel päeval naasmine loetakse uuesti, olenemata külastaja ID vahetumise sagedusest."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1082
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1084
 #, elixir-autogen, elixir-format
 msgid "All visitor profiles"
 msgstr "Kõik külastajaprofiilid"
@@ -2566,17 +2561,17 @@ msgstr "Salvestatud profiiliandmeid ei saanud eemaldada. Proovige uuesti."
 msgid "Daily unique visitors added across the period."
 msgstr "Perioodi päevade unikaalsete külastajate summa."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1095
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1097
 #, elixir-autogen, elixir-format
 msgid "Remove stored data"
 msgstr "Eemalda salvestatud andmed"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1075
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1077
 #, elixir-autogen, elixir-format
 msgid "Remove stored profile data"
 msgstr "Eemalda salvestatud profiiliandmed"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1089
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Remove the selected data from every profile? This cannot be undone. Switch its collection setting off first to prevent new data being stored."
 msgstr "Kas eemaldada valitud andmed kõigist profiilidest? Seda ei saa tagasi võtta. Uute andmete salvestamise vältimiseks lülitage esmalt nende kogumine välja."
@@ -2608,7 +2603,7 @@ msgstr "Külastajad: sellelt lehelt lahkunud unikaalsete külastajate arv päeva
 msgid "If they are away for more than %{minutes} minutes and come back, that starts a new visit. Totals count each UTC day of a visit separately; bounce rate and average length use those daily portions. The visit list shows the full visit."
 msgstr "Kui nad on eemal kauem kui %{minutes} minutit ja naasevad, algab uus külastus. Kokkuvõttes loetakse külastuse iga UTC päev eraldi; põrkemäär ja keskmine kestus põhinevad neil päevastel osadel. Külastuste loend näitab tervet külastust."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:747
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:749
 #, elixir-autogen, elixir-format
 msgid "Addresses in the network listed below or in the app's config (internal_networks)."
 msgid_plural "Addresses in the %{count} networks listed below or in the app's config (internal_networks)."
@@ -2621,17 +2616,17 @@ msgid "Browser years out of date"
 msgstr "Brauser aastaid vananenud"
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:351
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:759
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:761
 #, elixir-autogen, elixir-format
 msgid "Internal networks"
 msgstr "Sisevõrgud"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:752
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:754
 #, elixir-autogen, elixir-format
 msgid "No networks are listed yet."
 msgstr "Võrke pole veel loetletud."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:766
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:768
 #, elixir-autogen, elixir-format
 msgid "The office, VPN or server addresses, one per line: an address, or a network as 192.0.2.0/24 or 2001:db8::/48. Networks the app's config lists count as well. The addresses aren't written into the activity log."
 msgstr "Kontori, VPN-i või serverite aadressid, üks rea kohta: aadress või võrk kujul 192.0.2.0/24 või 2001:db8::/48. Arvesse lähevad ka rakenduse konfiguratsioonis loetletud võrgud. Aadresse tegevuslogisse ei kirjutata."
@@ -2676,14 +2671,19 @@ msgstr "Sisevõrgud (prefiks, mis on lühem kui /8 IPv4 puhul või /16 IPv6 puhu
 msgid "Internal networks (at most %{max} characters)"
 msgstr "Sisevõrgud (kuni %{max} märki)"
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:771
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:773
 #, elixir-autogen, elixir-format
 msgid "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."
 msgstr "Võrk ei tohi olla laiem kui /8 (IPv4) või /16 (IPv6). Aadresse võrreldakse külastaja aadressiga sellisena, nagu moodul seda loeb: samas masinas või võrgus oleva pöördproksi taga on selleks viimane X-Forwarded-For kirje (muidu X-Real-IP), seega peab proksi selle saatma. Kui midagi välja ei jää, vaata kõigepealt sealt."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:780
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "%{count} entry in internal_networks is not a network, or is wider than /8 (IPv4) or /16 (IPv6), and is skipped."
 msgid_plural "%{count} entries in internal_networks are not networks, or are wider than /8 (IPv4) or /16 (IPv6), and are skipped."
 msgstr[0] "%{count} kirje internal_networks'is ei ole võrk või on laiem kui /8 (IPv4) või /16 (IPv6) ja jäetakse vahele."
 msgstr[1] "%{count} kirjet internal_networks'is ei ole võrgud või on laiemad kui /8 (IPv4) või /16 (IPv6) ja jäetakse vahele."
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:457
+#, elixir-autogen, elixir-format
+msgid "One pattern per line. A trailing * matches a prefix. A pattern covers the page in every language too: /admin* leaves out /et/admin."
+msgstr "Üks muster rea kohta. Lõpus olev * vastab eesliitele. Muster katab lehte ka kõigis keeltes: /admin* jätab välja ka /et/admin."

@@ -90,6 +90,19 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert Repo.get_by!(DailyStat, site: "whole.test").pageviews == 1
     end
 
+    test "drops the row of hits without a host once they're all marked" do
+      date = Date.add(Date.utc_today(), -2)
+      insert_event(%{site: nil, inserted_at: DateTime.new!(date, ~T[10:00:00], "Etc/UTC")})
+
+      assert :ok = Retention.rollup_day(date)
+      assert rolled_sites() == [""]
+
+      mark_bot(Event)
+
+      assert :ok = Retention.rollup_day(date)
+      assert rolled_sites() == []
+    end
+
     test "keeps the rollup of a day whose raw events were pruned" do
       date = Date.add(Date.utc_today(), -2)
       insert_event(%{inserted_at: DateTime.new!(date, ~T[10:00:00], "Etc/UTC")})

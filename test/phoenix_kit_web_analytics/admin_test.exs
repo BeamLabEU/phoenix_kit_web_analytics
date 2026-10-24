@@ -367,6 +367,22 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
       refute PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
     end
 
+    test "no activity row, core's own setting history included, holds the networks" do
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "198.51.100.7\n2001:db8::/48"})
+
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "203.0.113.0/24"})
+
+      # Core writes a `setting.changed` row per setting write, and withholds
+      # the value only for a key whose name marks it as a secret.
+      assert Enum.any?(list_activities(), &(&1.action == "setting.changed"))
+      logged = inspect(list_activities(), limit: :infinity, printable_limit: :infinity)
+      refute logged =~ "198.51.100"
+      refute logged =~ "2001:db8"
+      refute logged =~ "203.0.113"
+    end
+
     test "a write core refuses is logged by its field, never with the addresses" do
       # A key that already holds a JSON value refuses a plain one: a real
       # failed write, whose changeset carries what was being saved.

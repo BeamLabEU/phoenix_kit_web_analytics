@@ -24,7 +24,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_track_bots` | `false` | Store hits whose User-Agent looks automated |
   | `web_analytics_detect_bots` | `true` | Also flag bots by behaviour — see `PhoenixKitWebAnalytics.BotSignals` |
   | `web_analytics_respect_dnt` | `true` | Skip requests sending `DNT: 1` |
-  | `web_analytics_exclude_paths` | `/admin*` … | Newline/comma separated path patterns to ignore |
+  | `web_analytics_exclude_paths` | `/admin*` … | Newline/comma separated path patterns to ignore, in every language (see `excluded?/2`) |
   | `web_analytics_session_timeout_minutes` | `30` | Inactivity gap that ends a session |
   | `web_analytics_retention_days` | `365` | Age at which raw events are rolled up and deleted |
   | `web_analytics_beacon_enabled` | `false` | Accept hits from the JS beacon / pixel endpoints |
@@ -427,9 +427,17 @@ defmodule PhoenixKitWebAnalytics.Config do
   Whether `path` matches any exclusion pattern.
 
   A pattern is a literal path, optionally ending in `*` to match a prefix.
-  Matching is case-sensitive and anchored at the start of the path.
+  Matching is case-sensitive and anchored at the start of the path — or just
+  past a leading locale segment (`/et/admin`, `/en-GB/admin`), which is how
+  PhoenixKit serves every page in a language other than the default one. So
+  `/admin*` leaves out the admin in every language. A locale segment is
+  shaped like core's: two or three lowercase letters, optionally a dash and
+  two to four more.
 
       iex> PhoenixKitWebAnalytics.Config.excluded?("/admin/users", ["/admin*"])
+      true
+
+      iex> PhoenixKitWebAnalytics.Config.excluded?("/et/admin/users", ["/admin*"])
       true
 
       iex> PhoenixKitWebAnalytics.Config.excluded?("/blog", ["/admin*"])
@@ -437,10 +445,43 @@ defmodule PhoenixKitWebAnalytics.Config do
   """
   @spec excluded?(String.t(), [String.t()]) :: boolean()
   def excluded?(path, exclusions) when is_binary(path) and is_list(exclusions) do
-    Enum.any?(exclusions, &matches_pattern?(path, &1))
+    unlocalized = without_locale(path)
+
+    Enum.any?(exclusions, fn pattern ->
+      matches_pattern?(path, pattern) or
+        (unlocalized != nil and matches_pattern?(unlocalized, pattern))
+    end)
   end
 
   def excluded?(_path, _exclusions), do: false
+
+  # "/et/admin" -> "/admin", "/et" -> "/"; nil when the first segment isn't a
+  # locale. A binary match, not a regex: OTP 28 can't keep a compiled regex in
+  # an attribute. "api" and "mcp" are core's reserved segments of that shape.
+  defp without_locale("/" <> rest) do
+    case String.split(rest, "/", parts: 2) do
+      [segment, tail] -> if locale_segment?(segment), do: "/" <> tail
+      [segment] -> if locale_segment?(segment), do: "/"
+    end
+  end
+
+  defp without_locale(_path), do: nil
+
+  defp locale_segment?(segment) when segment in ["api", "mcp"], do: false
+
+  defp locale_segment?(segment) do
+    case String.split(segment, "-", parts: 2) do
+      [language] -> letters?(language, 2..3, false)
+      [language, region] -> letters?(language, 2..3, false) and letters?(region, 2..4, true)
+    end
+  end
+
+  defp letters?(binary, sizes, upper?) do
+    byte_size(binary) in sizes and
+      binary
+      |> :binary.bin_to_list()
+      |> Enum.all?(&(&1 in ?a..?z or (upper? and &1 in ?A..?Z)))
+  end
 
   @doc """
   The secret mixed into the daily visitor hash, or `nil` when it can't be read

@@ -454,7 +454,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
             class="textarea w-full font-mono text-xs"
           />
           <p class="-mt-2 text-xs text-base-content/50">
-            {gettext("One pattern per line. A trailing * matches a prefix.")}
+            {gettext(
+              "One pattern per line. A trailing * matches a prefix. A pattern covers the page in every language too: /admin* leaves out /et/admin."
+            )}
           </p>
 
           <div class="grid gap-4 sm:grid-cols-2">
