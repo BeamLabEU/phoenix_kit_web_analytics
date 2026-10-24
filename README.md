@@ -334,18 +334,31 @@ back brings them back. Three marks (`traffic_flags` on each event, bits of
 
 | Mark | Set when |
 |------|----------|
-| **Internal network** | the visitor's address is in one of the networks in `config :phoenix_kit_web_analytics, internal_networks: [...]` |
+| **Internal network** | the visitor's address is in one of the networks in the **Internal networks** field of Settings or in `config :phoenix_kit_web_analytics, internal_networks: [...]` |
 | **Site staff** | the signed-in user holds a staff role (`web_analytics_internal_roles`: Owner and Admin by default) — the roles they really hold, whichever one they are acting as |
 | **Staff network** | the visitor's network (an IPv4 address, an IPv6 /64) had a staff member signed in or active within `web_analytics_admin_network_hours` (24 by default) |
 
-The internal networks are app config, not a setting — every settings change
-is a permanent activity-log entry, and this one would be your own addresses:
+The internal networks come from two places, and both count. Enter them in
+Settings, under **Leave out internal networks**, one per line: an address, or
+a network as `203.0.113.0/24` or `2001:db8:1234::/48`. A network wider than
+`/8` (IPv4) or `/16` (IPv6) is refused: `0.0.0.0/0`, or a `/2` meant as `/24`,
+would mark nearly every visit as your own, and correcting the setting later
+does not unmark the rows. Or list them in the app config:
 
 ```elixir
 # config/runtime.exs
 config :phoenix_kit_web_analytics,
   internal_networks: ["203.0.113.0/24", "2001:db8:1234::/48"]
 ```
+
+Every settings change is a permanent activity-log entry, and this one is your
+own addresses, so the setting is stored under
+`web_analytics_internal_networks_secret`: core withholds the value of a key
+with `secret` in its name from that entry and from the change broadcast. The
+addresses never reach the activity log. They are matched against the client
+address as the module resolves it (`X-Forwarded-For` from a private peer, see
+[Behind a reverse proxy](#behind-a-reverse-proxy)), so behind a proxy that is
+the first thing to check when nothing gets excluded.
 
 A **visit is marked whole**: its later hits inherit its marks, and a mark
 that appears mid-visit — an anonymous visitor signs in as an admin — is
@@ -418,7 +431,8 @@ server itself saw that visit request — never a path the visitor's browser
 merely claims. Recordings are deleted after 30 days by default.
 
 The **own-traffic marks** are a few bits on the event — never the address
-that set them. The internal networks are your app's config; staff networks
+that set them. The internal networks are the Settings field and your app's
+config (the setting's value is kept out of the activity log); staff networks
 are held in memory, by their network key, for their hours, and never written
 to the database or the settings.
 
@@ -619,6 +633,7 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_exclude_internal_network` | `true` | Leave internal-network traffic out of the statistics |
 | `web_analytics_exclude_admin` | `true` | Leave the site staff's visits out of the statistics |
 | `web_analytics_exclude_admin_network` | `true` | Leave visits from staff networks out of the statistics |
+| `web_analytics_internal_networks_secret` | empty | The site's own networks, one per line (an address or a CIDR network, IPv4 or IPv6), added to the config's `internal_networks`. The name keeps `secret` so core keeps the value out of the activity log |
 | `web_analytics_internal_roles` | `Owner, Admin` | Roles whose holders are site staff (comma-separated; `-`, an emptied field, is no one) |
 | `web_analytics_admin_network_hours` | `24` | How long a staff sign-in marks its network (`0` = never) |
 | `web_analytics_visitor_rotation` | `daily` | How long a visitor ID lasts: `daily`, `weekly`, `monthly`, `never` |
@@ -648,8 +663,13 @@ Application config:
 config :phoenix_kit_web_analytics, geo_resolver: MyApp.GeoIP
 
 # Your own networks (offices, VPN): their visits are marked and left out of
-# the statistics — see "Your own traffic". CIDR, IPv4 or IPv6.
+# the statistics — see "Your own traffic". CIDR, IPv4 or IPv6. The Settings
+# page has a field for the same list; both are counted.
 config :phoenix_kit_web_analytics, internal_networks: ["203.0.113.0/24"]
+
+# The day a browser's age is judged at (the "stale browser" bot reason).
+# Leave it unset; a test suite whose fixtures carry fixed User-Agents pins it.
+config :phoenix_kit_web_analytics, browser_versions_as_of: ~D[2024-06-01]
 
 # Concurrent background writes before hits are dropped.
 config :phoenix_kit_web_analytics, max_concurrent_writes: 20

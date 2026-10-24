@@ -51,9 +51,10 @@ can't, stays optional, and never writes a cookie or storage.
   `PhoenixKitWebAnalyticsReplay` hook in the client script.
 - `traffic_flags.ex` + `internal_traffic.ex` — the own-traffic bits
   (internal network, staff, staff network) and how a hit gets them: CIDRs
-  from app config, staff roles from the scope (or a 5-minute per-user role
-  cache), staff networks in ETS learnt from core's `session_created` and
-  from staff requests in the plug, shared over `PubSub.Manager` when new.
+  from the `web_analytics_internal_networks_secret` setting and app config,
+  staff roles from the scope (or a 5-minute per-user role cache), staff
+  networks in ETS learnt from core's `session_created` and from staff
+  requests in the plug, shared over `PubSub.Manager` when new.
 - `alerts.ex` — the "Website activity" notification type; turns stored hits
   and core's `{:user_created, user}` broadcast into activity entries per
   recipient (core routes them to inbox / email / Telegram / digests).
@@ -146,10 +147,22 @@ can't, stays optional, and never writes a cookie or storage.
   referrer or a stored `Referer` header — campaign parameters get their own
   columns first), and the value of a credential header (`Profiles`'
   `@secret_headers` / `@secret_words`).
-- **An operator's own addresses aren't a setting.** `internal_networks` is
-  app config and staff networks (`InternalTraffic`) live in ETS only; what
-  reaches a row is the `traffic_flags` bits. Every settings write is a
-  permanent activity entry.
+- **An operator's own addresses are a setting only under a `*secret*` key.**
+  The internal networks come from two places, both counted: the
+  `web_analytics_internal_networks_secret` setting (Settings, one network per
+  line) and `config :phoenix_kit_web_analytics, internal_networks: [...]`.
+  Every settings write is a permanent activity entry, so the setting's name
+  must keep the word `secret`: core withholds the value of such a key from
+  the `setting.changed` entry and from the change broadcast (checked on every
+  core release from 2.38.0, the floor, to 2.62.2), and the same rule keeps
+  the salt out of the log. Never rename it, and never put its value in a log
+  line or an activity entry. Staff networks (`InternalTraffic`) live in ETS
+  only; what reaches a row is the `traffic_flags` bits. The list rides in
+  `collection_config` (`internal_networks`, one of the hot keys) and
+  `InternalTraffic.internal_network?/2` matches against it: a hit makes no
+  settings read of its own. A network wider than `/8` (IPv4) or `/16` (IPv6)
+  is refused (`check_cidr/1`) because a row marked as internal stays marked
+  after the setting is fixed.
 - **A bot score is evidence, never a verdict.** `BotScore` reasons and
   their sum live on the profile and are only shown (the Bots page, a visit's
   page). Nothing drops, flags `is_bot` or blocks because of a score. A new
@@ -250,6 +263,11 @@ Every string goes through `PhoenixKitWebAnalytics.Gettext` (LiveViews do
 catalogue; tabs set `gettext_backend:`). After changing strings run
 `mix gettext.extract --merge --no-fuzzy` and fill en/et/ru/uk — none may stay
 empty.
+
+`stale_browser` judges versions against today's date. A suite whose fixtures
+carry fixed User-Agents pins the day with `config :phoenix_kit_web_analytics,
+:browser_versions_as_of, ~D[...]` (the test config does); production leaves
+it unset.
 
 ## Common Commands
 

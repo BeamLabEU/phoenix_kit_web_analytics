@@ -4,9 +4,12 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   the site's own people or their networks — without a query on the way.
 
     * **`internal_network`** — the client address falls in one of the
-      networks in `config :phoenix_kit_web_analytics, internal_networks:
-      [...]` (CIDR, IPv4 or IPv6; a bare address is one host). Parsed once
-      and kept until the config changes.
+      networks in the `web_analytics_internal_networks_secret` setting or in
+      `config :phoenix_kit_web_analytics, internal_networks: [...]` (CIDR,
+      IPv4 or IPv6; a bare address is one host; nothing wider than `/8` or,
+      for IPv6, `/16`). Parsed once and kept until the setting or the config
+      changes. The list comes with `Config.collection_config/0`, so a hit
+      reads no setting of its own for it.
     * **`admin`** — the signed-in user holds a role listed in
       `web_analytics_internal_roles` (Owner and Admin by default), by
       `PhoenixKit.Users.Auth.Scope.held_roles/1`: the roles they really
@@ -60,6 +63,8 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @table :phoenix_kit_web_analytics_internal_traffic
   @topic "phoenix_kit_web_analytics:admin_networks"
   @networks_key {__MODULE__, :internal_networks}
+  # The shortest prefix a network may have, by address size.
+  @min_prefix %{32 => 8, 128 => 16}
   @roles_ttl_ms :timer.minutes(5)
   # A lookup in flight blocks another for the same user this long.
   @pending_ttl_ms :timer.seconds(30)
@@ -92,7 +97,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   """
   @spec network_flags(:inet.ip_address() | nil, Config.collection_config()) :: non_neg_integer()
   def network_flags(ip, config) when is_tuple(ip) do
-    internal = if internal_network?(ip), do: TrafficFlags.bit(:internal_network), else: 0
+    internal = if internal_network?(ip, config), do: TrafficFlags.bit(:internal_network), else: 0
     admin_net = if admin_network?(ip, config), do: TrafficFlags.bit(:admin_network), else: 0
     internal ||| admin_net
   rescue
@@ -139,12 +144,20 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   # ── internal networks ─────────────────────────────────────────────────────
 
   @doc """
-  Whether `ip` is in one of the configured `internal_networks`. An invalid
-  entry is skipped, with one warning.
+  Whether `ip` is in one of the networks `config` carries
+  (`config.internal_networks`, read with the rest of the hot keys). An
+  invalid entry is skipped, with one warning. A config with no list of its
+  own reads the settings once.
+
+  Never while tracking reads as off: a settings read that failed answers
+  with the defaults, tracking off among them, and its list (the setting's
+  lines missing) must not replace the parsed one.
   """
-  @spec internal_network?(:inet.ip_address() | nil) :: boolean()
-  def internal_network?(ip) when is_tuple(ip) do
-    case parsed_networks() do
+  @spec internal_network?(:inet.ip_address() | nil, map()) :: boolean()
+  def internal_network?(_ip, %{enabled?: false}), do: false
+
+  def internal_network?(ip, config) when is_tuple(ip) do
+    case parsed_networks(entries(config)) do
       [] ->
         false
 
@@ -156,7 +169,14 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     end
   end
 
-  def internal_network?(_ip), do: false
+  def internal_network?(_ip, _config), do: false
+
+  @doc "Whether `ip` is in one of the configured `internal_networks`, read from the settings."
+  @spec internal_network?(:inet.ip_address() | nil) :: boolean()
+  def internal_network?(ip), do: internal_network?(ip, %{})
+
+  defp entries(%{internal_networks: entries}) when is_list(entries), do: entries
+  defp entries(_config), do: Config.internal_network_entries()
 
   defp in_any?(networks, bits, value) do
     Enum.any?(networks, fn {net_bits, base, prefix} ->
@@ -166,20 +186,24 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   @doc """
   How many configured `internal_networks` are networks and how many aren't
-  (those are skipped) — for the settings page.
+  (those are skipped: not a network, or wider than the limit) — for the
+  settings page.
   """
   @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
   def network_counts do
-    valid = length(parsed_networks())
-    %{valid: valid, invalid: length(Config.internal_network_entries()) - valid}
+    entries = Config.internal_network_entries()
+    valid = length(parsed_networks(entries))
+    %{valid: valid, invalid: length(entries) - valid}
   end
 
   # Parsed once per configured list: the hot path reads one persistent term.
   # Invalid entries are counted in the warning, never quoted — an entry is
-  # likely someone's address.
-  defp parsed_networks do
-    raw = Config.internal_network_entries()
+  # likely someone's address. An empty list has nothing to parse and leaves
+  # the term alone: a settings read that failed reads as empty, and must not
+  # replace the parsed list (and warn again) on every hit.
+  defp parsed_networks([]), do: []
 
+  defp parsed_networks(raw) do
     case :persistent_term.get(@networks_key, nil) do
       {^raw, parsed} ->
         parsed
@@ -192,40 +216,75 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
     end
   end
 
+  # An entry is skipped for one of two reasons: it isn't a network, or it is
+  # one wider than the limit (see `check_cidr/1`). The line says both.
   defp warn_invalid(0), do: :ok
 
   defp warn_invalid(1),
-    do: Logger.warning("[WebAnalytics] internal_networks: 1 invalid entry skipped")
+    do:
+      Logger.warning(
+        "[WebAnalytics] internal_networks: 1 entry skipped, not a network or wider than /8 (IPv4) or /16 (IPv6)"
+      )
 
   defp warn_invalid(count),
-    do: Logger.warning("[WebAnalytics] internal_networks: #{count} invalid entries skipped")
+    do:
+      Logger.warning(
+        "[WebAnalytics] internal_networks: #{count} entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
+      )
 
   @doc """
   `"203.0.113.0/24"` → `[{32, base, 24}]`; `[]` for anything that isn't a
-  network.
+  network, or is one too wide to be an office's (see `check_cidr/1`).
   """
   @spec parse_cidr(term()) :: [{32 | 128, non_neg_integer(), non_neg_integer()}]
-  def parse_cidr(cidr) when is_binary(cidr) do
-    {address, prefix} =
-      case String.split(String.trim(cidr), "/", parts: 2) do
-        [address, prefix] -> {address, Integer.parse(prefix)}
-        [address] -> {address, :host}
-      end
-
-    with {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
-         {bits, value} <- to_integer(unmap(ip)),
-         len when is_integer(len) and len >= 0 and len <= bits <- prefix_length(prefix, bits) do
-      [{bits, value, len}]
-    else
-      _ -> []
+  def parse_cidr(cidr) do
+    case check_cidr(cidr) do
+      {:ok, network} -> [network]
+      {:error, _reason} -> []
     end
   end
 
-  def parse_cidr(_entry), do: []
+  @doc """
+  Reads one network. A bare address is one host. A prefix shorter than
+  `/8` (IPv4) or `/16` (IPv6) is refused as `:too_wide`: `0.0.0.0/0`, or a
+  `/2` that was meant as `/24`, would mark nearly every hit as the site's
+  own, and fixing the setting later does not unmark the rows. An address
+  with a zone (`fe80::1%eth0`) or a prefix that isn't plain decimal digits
+  (`/024`, `/+24`) is `:invalid`.
+  """
+  @spec check_cidr(term()) ::
+          {:ok, {32 | 128, non_neg_integer(), non_neg_integer()}}
+          | {:error, :invalid | :too_wide}
+  def check_cidr(cidr) when is_binary(cidr) do
+    {address, prefix} =
+      case String.split(String.trim(cidr), "/", parts: 2) do
+        [address, prefix] -> {address, prefix}
+        [address] -> {address, :host}
+      end
+
+    with false <- String.contains?(address, "%"),
+         {:ok, ip} <- :inet.parse_strict_address(String.to_charlist(address)),
+         {bits, value} <- to_integer(unmap(ip)),
+         len when is_integer(len) and len >= 0 and len <= bits <- prefix_length(prefix, bits) do
+      if len < Map.fetch!(@min_prefix, bits),
+        do: {:error, :too_wide},
+        else: {:ok, {bits, value, len}}
+    else
+      _ -> {:error, :invalid}
+    end
+  end
+
+  def check_cidr(_entry), do: {:error, :invalid}
 
   defp prefix_length(:host, bits), do: bits
-  defp prefix_length({len, ""}, _bits), do: len
-  defp prefix_length(_prefix, _bits), do: nil
+
+  # Plain decimal digits only: not "+24", not "024", not " 24".
+  defp prefix_length(prefix, _bits) do
+    case Integer.parse(prefix) do
+      {len, ""} -> if Integer.to_string(len) == prefix, do: len
+      _ -> nil
+    end
+  end
 
   defp to_integer({a, b, c, d}) do
     <<value::32>> = <<a::8, b::8, c::8, d::8>>

@@ -954,6 +954,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   def bot_reason_label("no_languages"), do: gettext("No browser language")
   def bot_reason_label("mobile_from_hosting"), do: gettext("Phone User-Agent from a server")
   def bot_reason_label("old_http"), do: gettext("HTTP/1.0")
+  def bot_reason_label("stale_browser"), do: gettext("Browser years out of date")
   def bot_reason_label("touch_mismatch"), do: gettext("Phone without a touch screen")
   def bot_reason_label("no_accept_language"), do: gettext("No Accept-Language header")
   def bot_reason_label("no_fetch_metadata"), do: gettext("No Sec-Fetch headers")

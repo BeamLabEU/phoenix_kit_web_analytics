@@ -245,6 +245,46 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert PhoenixKitWebAnalytics.Config.collection_config().admin_network_hours == 12
     end
 
+    test "networks entered in the own-traffic section are saved and shown again",
+         %{conn: conn} do
+      enable_tracking()
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      view
+      |> element("form[phx-submit='save']")
+      |> render_submit(%{"internal_networks" => "198.51.100.0/24\n198.51.100.200"})
+
+      clear_settings_cache()
+      {:ok, _view, html} = live(conn, "#{@base}/settings")
+      assert html =~ "198.51.100.0/24\n198.51.100.200"
+      assert html =~ "2 networks listed"
+    end
+
+    test "the networks field says what is refused and where the address is read from",
+         %{conn: conn} do
+      {:ok, _view, html} = live(conn, "#{@base}/settings")
+
+      assert html =~ "A network can&#39;t be wider than /8 (IPv4) or /16 (IPv6)."
+      assert html =~ "X-Forwarded-For"
+    end
+
+    test "a network that is too wide is refused, and the page says which field", %{conn: conn} do
+      enable_tracking()
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      html =
+        view
+        |> element("form[phx-submit='save']")
+        |> render_submit(%{"internal_networks" => "0.0.0.0/0"})
+
+      assert html =~ "Nothing was saved"
+      assert html =~ "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6"
+
+      clear_settings_cache()
+      assert PhoenixKitWebAnalytics.Config.internal_networks_raw() == ""
+    end
+
     test "what is kept about a visitor is off until it is saved on", %{conn: conn} do
       enable_tracking()
 
@@ -309,6 +349,24 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert html =~ "Addresses in the network listed"
       assert has_element?(view, "#web-analytics-invalid-networks", "1 entry")
       refute html =~ "not-a-network"
+    end
+
+    test "an entry wider than the limit is counted as skipped, and the page says why",
+         %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :internal_networks, [
+        "203.0.113.0/24",
+        "fc00::/7"
+      ])
+
+      on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+
+      assert has_element?(
+               view,
+               "#web-analytics-invalid-networks",
+               "1 entry in internal_networks is not a network, or is wider than /8 (IPv4) or /16 (IPv6)"
+             )
     end
 
     test "an emptied staff-roles field shows empty, not the default", %{conn: conn} do

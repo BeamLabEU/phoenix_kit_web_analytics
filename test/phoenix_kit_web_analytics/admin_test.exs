@@ -289,15 +289,126 @@ defmodule PhoenixKitWebAnalytics.AdminTest do
                Admin.save_settings(%{"admin_network_hours" => "-1"})
     end
 
-    test "internal networks come from the app config, never the settings" do
+    test "internal networks come from Settings and the app config together" do
       Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["203.0.113.0/24", 42])
       on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+      enable_tracking()
 
-      assert Config.internal_networks() == ["203.0.113.0/24"]
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "198.51.100.7, 2001:db8::/48"})
 
-      refute Enum.any?(Config.setting_keys(), fn {_name, key} ->
-               key =~ "network" and key =~ "internal_networks"
-             end)
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == "198.51.100.7\n2001:db8::/48"
+
+      assert Config.internal_networks() == [
+               "198.51.100.7",
+               "2001:db8::/48",
+               "203.0.113.0/24"
+             ]
+
+      assert PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
+    end
+
+    test "a line that isn't a network refuses the field, and saves nothing" do
+      assert {:error, [:internal_networks]} =
+               Admin.save_settings(%{"internal_networks" => "203.0.113.0/24\nnot-an-address"})
+
+      assert read("web_analytics_internal_networks_secret") == nil
+    end
+
+    test "a network too wide to be the site's own is refused by name, and saves nothing" do
+      for wide <- ["0.0.0.0/0", "::/0", "203.0.113.0/2", "10.0.0.0/7", "2001:db8::/15"] do
+        assert {:error, [:internal_networks_wide]} =
+                 Admin.save_settings(%{"internal_networks" => "198.51.100.7\n" <> wide}),
+               wide
+      end
+
+      assert read("web_analytics_internal_networks_secret") == nil
+
+      # A line that isn't a network at all is named first.
+      assert {:error, [:internal_networks]} =
+               Admin.save_settings(%{"internal_networks" => "0.0.0.0/0\nnot-an-address"})
+    end
+
+    test "the narrowest prefixes allowed, and every narrower one, are saved" do
+      networks = ~w(10.0.0.0/8 203.0.113.0/24 198.51.100.7/32 2001:db8::/16 2001:db8::/48)
+      value = Enum.join(networks ++ ["2001:db8::1/128", "192.0.2.1"], "\n")
+
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => value})
+
+      assert read("web_analytics_internal_networks_secret") == value
+    end
+
+    test "a list is refused as its own field when it is over the stored length" do
+      # 91 networks of 10 characters and 90 line breaks: exactly 1000.
+      fits = List.duplicate("10.0.0.0/8", 91) |> Enum.join("\n")
+      assert String.length(fits) == 1000
+      assert {:ok, [_]} = Admin.save_settings(%{"internal_networks" => fits})
+
+      assert {:error, [:internal_networks_long]} =
+               Admin.save_settings(%{"internal_networks" => fits <> "\n10.0.0.0/8"})
+
+      assert read("web_analytics_internal_networks_secret") == fits
+    end
+
+    test "emptying the field clears the networks" do
+      enable_tracking()
+      {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == "198.51.100.7"
+
+      assert {:ok, ["web_analytics_internal_networks_secret"]} =
+               Admin.save_settings(%{"internal_networks" => "  "})
+
+      clear_settings_cache()
+      assert Config.internal_networks_raw() == ""
+      assert Config.collection_config().internal_networks == []
+      refute PhoenixKitWebAnalytics.InternalTraffic.internal_network?({198, 51, 100, 7})
+    end
+
+    test "a write core refuses is logged by its field, never with the addresses" do
+      # A key that already holds a JSON value refuses a plain one: a real
+      # failed write, whose changeset carries what was being saved.
+      {:ok, _} =
+        PhoenixKit.Settings.update_json_setting_with_module(
+          "web_analytics_internal_networks_secret",
+          %{"kept" => true},
+          "web_analytics"
+        )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, :not_saved} =
+                   Admin.save_settings(%{"internal_networks" => "198.51.100.7\n2001:db8::/48"})
+        end)
+
+      assert log =~ "could not save web_analytics_internal_networks_secret: invalid (value_json)"
+      refute log =~ "198.51.100.7"
+      refute log =~ "2001:db8"
+    end
+
+    test "a failed write is described without the value it tried to save" do
+      changeset =
+        {%{}, %{value: :string}}
+        |> Ecto.Changeset.cast(%{value: "198.51.100.7"}, [:value])
+        |> Ecto.Changeset.add_error(:value, "is invalid")
+
+      summary = Admin.failure_summary({:error, changeset})
+      assert summary == "invalid (value)"
+      refute summary =~ "198.51.100.7"
+
+      assert Admin.failure_summary({:error, :timeout}) == "timeout"
+      assert Admin.failure_summary({:error, "198.51.100.7"}) == "unexpected result"
+      assert Admin.failure_summary(nil) == "unexpected result"
+    end
+
+    test "the addresses stay out of the activity log" do
+      enable_tracking()
+      {:ok, _} = Admin.save_settings(%{"internal_networks" => "198.51.100.7"})
+
+      refute inspect(list_activities(), limit: :infinity, printable_limit: :infinity) =~
+               "198.51.100.7"
     end
   end
 

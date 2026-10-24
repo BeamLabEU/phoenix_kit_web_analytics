@@ -211,6 +211,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
       roles_field(raw(keys.internal_roles, Config.default_internal_roles()))
     )
     |> assign(:internal_networks, InternalTraffic.network_counts())
+    |> assign(:internal_networks_raw, Config.internal_networks_raw())
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
@@ -347,6 +348,17 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:consent_category), do: gettext("Asked under")
   defp field_label(:without_consent), do: gettext("Without an answer that allows it")
   defp field_label(:internal_roles), do: gettext("Staff roles")
+  defp field_label(:internal_networks), do: gettext("Internal networks")
+
+  defp field_label(:internal_networks_wide),
+    do:
+      gettext(
+        "Internal networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+      )
+
+  defp field_label(:internal_networks_long),
+    do: gettext("Internal networks (at most %{max} characters)", max: Admin.max_setting_length())
+
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
@@ -733,24 +745,41 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               {if @internal_networks.valid > 0,
                 do:
                   ngettext(
-                    "Addresses in the network listed in the app's config (internal_networks).",
-                    "Addresses in the %{count} networks listed in the app's config (internal_networks).",
+                    "Addresses in the network listed below or in the app's config (internal_networks).",
+                    "Addresses in the %{count} networks listed below or in the app's config (internal_networks).",
                     @internal_networks.valid
                   ),
-                else:
-                  gettext(
-                    "No networks are configured. List the office or VPN ranges in the app's config — config :phoenix_kit_web_analytics, internal_networks: [\"203.0.113.0/24\"] — not here: every settings change is kept in the activity log."
-                  )}
+                else: gettext("No networks are listed yet.")}
             </:description>
           </.checkbox>
+
+          <.textarea
+            id="internal_networks"
+            name="internal_networks"
+            label={gettext("Internal networks")}
+            value={@internal_networks_raw}
+            rows="3"
+            placeholder="192.0.2.0/24"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "The office, VPN or server addresses, one per line: an address, or a network as 192.0.2.0/24 or 2001:db8::/48. Networks the app's config lists count as well. The addresses aren't written into the activity log."
+            )}
+          </p>
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "A network can't be wider than /8 (IPv4) or /16 (IPv6). Addresses are matched against the visitor's address as this module reads it: behind a reverse proxy on the same machine or network that is the last X-Forwarded-For entry (else X-Real-IP), so the proxy has to send it. If nothing is left out, look there first."
+            )}
+          </p>
           <p
             :if={@internal_networks.invalid > 0}
             id="web-analytics-invalid-networks"
             class="-mt-2 text-xs text-warning"
           >
             {ngettext(
-              "%{count} entry in internal_networks is not a network and is skipped.",
-              "%{count} entries in internal_networks are not networks and are skipped.",
+              "%{count} entry in internal_networks is not a network, or is wider than /8 (IPv4) or /16 (IPv6), and is skipped.",
+              "%{count} entries in internal_networks are not networks, or are wider than /8 (IPv4) or /16 (IPv6), and are skipped.",
               @internal_networks.invalid
             )}
           </p>
