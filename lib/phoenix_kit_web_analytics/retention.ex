@@ -214,7 +214,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
     totals = day |> Dimensions.totals() |> repo().all() |> Map.new(&{&1.site, &1})
 
-    emptied = emptied_sites(from, to, totals)
+    sites = sites_with_events(from, to)
+    emptied = Enum.reject(sites, &Map.has_key?(totals, &1))
 
     sessions = day_sessions(day)
     now = DateTime.utc_now()
@@ -253,7 +254,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
         drop_stats(date, emptied)
 
-        from(d in DailyDim, where: d.date == ^date) |> repo().delete_all()
+        # As with the totals, replace only sites whose raw events remain.
+        # A pruned site's breakdowns cannot be reconstructed.
+        from(d in DailyDim, where: d.date == ^date and d.site in ^sites) |> repo().delete_all()
 
         dims
         |> Enum.chunk_every(1_000)
@@ -274,19 +277,16 @@ defmodule PhoenixKitWebAnalytics.Retention do
       :error
   end
 
-  # A site whose every hit that day is now marked (a bot found later, own
-  # traffic) has no totals: its stored row is dropped, not left as it was.
-  # Only a site with raw events that day — a day whose events were pruned
-  # keeps its rollup. A hit without a host is site "" here, as in the totals
-  # and the stored row: a NULL would match neither.
-  defp emptied_sites(from, to, totals) do
+  # Only sites with raw events can be rebuilt. A site whose hits are all
+  # marked (bots or own traffic) has no totals and is dropped; a pruned site
+  # keeps both rollups. Hostless hits use "", as in the stored rows.
+  defp sites_with_events(from, to) do
     from(e in Event,
       where: e.inserted_at >= ^from and e.inserted_at < ^to,
       distinct: true,
       select: fragment("COALESCE(?, '')", e.site)
     )
     |> repo().all()
-    |> Enum.reject(&Map.has_key?(totals, &1))
   end
 
   defp drop_stats(_date, []), do: :ok

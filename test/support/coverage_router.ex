@@ -24,6 +24,16 @@ defmodule PhoenixKitWebAnalytics.Test.CoverageRouter do
       live("/:locale/admin/posts", TrackedLive, :index)
     end
 
+    live_session :slugged do
+      live("/:slug/admin/orders", TrackedLive, :index)
+      live("/:slug", TrackedLive, :index)
+    end
+
+    live_session :nested_locale do
+      live("/faq/admin", TrackedLive, :index)
+      live("/:locale/faq/admin", TrackedLive, :index)
+    end
+
     live("/bare", TrackedLive, :index)
   end
 end

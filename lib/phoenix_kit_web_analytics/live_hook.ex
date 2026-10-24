@@ -209,7 +209,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   Which of `router`'s LiveView pages run this hook. A path the
   `web_analytics_exclude_paths` setting leaves out (the admin, by default) isn't
   expected to run it and isn't counted; the plug's own `:exclude` option isn't
-  visible to this read. A leading parameter segment (`/:locale/...`) is read
+  visible to this read. A leading locale parameter (`/:locale/...`) is read
   past, so a localized route and its bare twin are one page.
 
   `:unhooked` is each live_session with pages that don't run the hook, with
@@ -260,12 +260,13 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   def runs_in?(_session), do: false
 
   # One `{page, live_session}` per tracked page: PhoenixKit routes each page
-  # twice, with and without `/:locale`, and the two count once.
+  # twice, with and without `/:locale`, and the two count once. Check the
+  # original path first so Config reads past at most one locale segment.
   defp tracked_pages(router, exclusions) do
     for %{path: path, metadata: %{phoenix_live_view: {_view, _action, _opts, session}}} <-
           Phoenix.Router.routes(router),
+        not Config.excluded?(path, exclusions),
         page = unparameterized(path),
-        not Config.excluded?(page, exclusions),
         uniq: true do
       {page, session}
     end
@@ -274,13 +275,9 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp session_name(%{name: name}), do: name
   defp session_name(_session), do: nil
 
-  defp unparameterized(path) do
-    case String.split(path, "/", parts: 3) do
-      ["", ":" <> _param, rest] -> "/" <> rest
-      ["", ":" <> _param] -> "/"
-      _ -> path
-    end
-  end
+  defp unparameterized("/:locale/" <> rest), do: "/" <> rest
+  defp unparameterized("/:locale"), do: "/"
+  defp unparameterized(path), do: path
 
   @doc """
   `on_mount` callback. Use `:track_navigation`.

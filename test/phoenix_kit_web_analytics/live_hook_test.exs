@@ -571,8 +571,27 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       # /:locale/admin/... is left out by the default exclusions.
       assert LiveHook.coverage(PhoenixKitWebAnalytics.Test.CoverageRouter) == %{
                hooked: 2,
-               unhooked: [default: 1, unhooked: 1]
+               unhooked: [default: 1, nested_locale: 1, slugged: 2, unhooked: 1]
              }
+    end
+
+    test "a non-locale parameter keeps its path when exclusions are checked" do
+      enable_tracking(%{"web_analytics_exclude_paths" => "/admin*\n/"})
+
+      # /customer/admin/orders and /customer are tracked, even though
+      # /admin/orders and / are excluded.
+      coverage = LiveHook.coverage(PhoenixKitWebAnalytics.Test.CoverageRouter)
+      assert coverage.unhooked[:slugged] == 2
+    end
+
+    test "a locale is stripped only once when exclusions are checked" do
+      # /faq/admin is excluded by the locale-shaped prefix rule, but
+      # /et/faq/admin is not: only /et is stripped from that request.
+      assert Config.excluded?("/faq/admin", ["/admin*"])
+      refute Config.excluded?("/et/faq/admin", ["/admin*"])
+
+      coverage = LiveHook.coverage(PhoenixKitWebAnalytics.Test.CoverageRouter)
+      assert coverage.unhooked[:nested_locale] == 1
     end
 
     test "is empty without a router" do

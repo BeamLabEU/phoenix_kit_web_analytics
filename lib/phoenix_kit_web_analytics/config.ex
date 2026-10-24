@@ -432,7 +432,8 @@ defmodule PhoenixKitWebAnalytics.Config do
   PhoenixKit serves every page in a language other than the default one. So
   `/admin*` leaves out the admin in every language. A locale segment is
   shaped like core's: two or three lowercase letters, optionally a dash and
-  two to four more.
+  two to four more. Router templates may use `/:locale` in its place; other
+  leading parameters stay part of the path. Only one segment is read past.
 
       iex> PhoenixKitWebAnalytics.Config.excluded?("/admin/users", ["/admin*"])
       true
@@ -458,6 +459,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   # "/et/admin" -> "/admin", "/et" -> "/"; nil when the first segment isn't a
   # locale. A binary match, not a regex: OTP 28 can't keep a compiled regex in
   # an attribute. "api" and "mcp" are core's reserved segments of that shape.
+  defp without_locale("/:locale/" <> rest), do: "/" <> rest
+  defp without_locale("/:locale"), do: "/"
+
   defp without_locale("/" <> rest) do
     case String.split(rest, "/", parts: 2) do
       [segment, tail] -> if locale_segment?(segment), do: "/" <> tail

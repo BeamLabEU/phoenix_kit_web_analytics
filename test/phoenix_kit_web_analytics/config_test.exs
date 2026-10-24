@@ -37,6 +37,14 @@ defmodule PhoenixKitWebAnalytics.ConfigTest do
       refute Config.excluded?("validate", ["/admin*"])
     end
 
+    test "router locale parameters follow the same rule as request paths" do
+      assert Config.excluded?("/:locale/admin/users", ["/admin*"])
+      assert Config.excluded?("/:locale", ["/"])
+      refute Config.excluded?("/:locale/faq/admin", ["/admin*"])
+      refute Config.excluded?("/:slug/admin", ["/admin*"])
+      refute Config.excluded?("/:slug", ["/"])
+    end
+
     test "no patterns excludes nothing" do
       refute Config.excluded?("/anything", [])
     end

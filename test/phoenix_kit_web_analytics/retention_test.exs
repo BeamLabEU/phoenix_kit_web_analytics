@@ -5,6 +5,7 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Retention
+  alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
 
@@ -76,6 +77,8 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       assert :ok = Retention.rollup_day(date)
       assert rolled_sites() == ~w(empty.test mixed.test pruned.test whole.test)
+      pruned_dims = Repo.all(from(d in DailyDim, where: d.site == "pruned.test"))
+      assert pruned_dims != []
 
       # One site's hits are all marked now, another's only in part, a third's
       # raw events are gone.
@@ -88,6 +91,12 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert rolled_sites() == ~w(mixed.test pruned.test whole.test)
       assert Repo.get_by!(DailyStat, site: "mixed.test").pageviews == 1
       assert Repo.get_by!(DailyStat, site: "whole.test").pageviews == 1
+
+      assert MapSet.new(Repo.all(from(d in DailyDim, where: d.site == "pruned.test"))) ==
+               MapSet.new(pruned_dims)
+
+      assert Repo.all(from(d in DailyDim, where: d.site == "empty.test")) == []
+      assert Repo.all(from(d in DailyDim, where: d.value == "/other")) == []
     end
 
     test "drops the row of hits without a host once they're all marked" do
@@ -96,11 +105,13 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       assert :ok = Retention.rollup_day(date)
       assert rolled_sites() == [""]
+      assert Repo.aggregate(DailyDim, :count) > 0
 
       mark_bot(Event)
 
       assert :ok = Retention.rollup_day(date)
       assert rolled_sites() == []
+      assert Repo.all(DailyDim) == []
     end
 
     test "keeps the rollup of a day whose raw events were pruned" do
@@ -108,10 +119,13 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       insert_event(%{inserted_at: DateTime.new!(date, ~T[10:00:00], "Etc/UTC")})
 
       assert :ok = Retention.rollup_day(date)
+      dims = Repo.all(DailyDim)
+      assert dims != []
       Repo.delete_all(Event)
 
       assert :ok = Retention.rollup_day(date)
       assert Repo.aggregate(DailyStat, :count) == 1
+      assert MapSet.new(Repo.all(DailyDim)) == MapSet.new(dims)
     end
   end
 
