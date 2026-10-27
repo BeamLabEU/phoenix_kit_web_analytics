@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- **Core pin widened to accept core 3.x** (ceiling `< 4.0.0`; the floor is unchanged).
+
 ## 0.8.0 - 2026-10-24
 
 No migrations. On a multi-language install, PhoenixKit's admin pages in a

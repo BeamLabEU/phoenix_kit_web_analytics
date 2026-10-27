@@ -84,7 +84,7 @@ defmodule PhoenixKitWebAnalytics.MixProject do
       # admin shell, and `PhoenixKit.Migrations.Postgres.Helpers` (used by the
       # migration coordinator). 1.7.189 adds the runtime schema-prefix support
       # `PhoenixKit.SchemaPrefix` relies on.
-      pk_dep(:phoenix_kit, "~> 2.38"),
+      pk_dep(:phoenix_kit, ">= 2.38.0 and < 4.0.0"),
 
       # Admin LiveViews.
       {:phoenix_live_view, "~> 1.1"},
