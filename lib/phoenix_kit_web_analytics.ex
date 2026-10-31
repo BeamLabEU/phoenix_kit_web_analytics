@@ -197,11 +197,18 @@ defmodule PhoenixKitWebAnalytics do
         658
       ),
       subtab(
+        :admin_web_analytics_rate_limits,
+        gettext_noop("Rate limits"),
+        "hero-shield-check",
+        "web-analytics/rate-limits",
+        659
+      ),
+      subtab(
         :admin_web_analytics_settings,
         gettext_noop("Settings"),
         "hero-cog-6-tooth",
         "web-analytics/settings",
-        659
+        660
       )
     ]
   end

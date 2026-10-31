@@ -54,6 +54,8 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_consent_category` | `analytics` | The consent category the four are asked under |
   | `web_analytics_without_consent` | `drop` | A page view that may not be counted: `drop` it, or count it `anonymous` |
   | `web_analytics_hash_secret` | generated | Secret mixed into the visitor hash |
+  | `web_analytics_rate_limit` | `on` | What `PhoenixKitWebAnalytics.RateLimit` does with its rules: `on`, `log_only` (count and record, never refuse) or `off` |
+  | `web_analytics_blocked_networks_secret` | empty | Networks refused by `PhoenixKitWebAnalytics.RateLimit.Plug` with a 403 (one per line) |
 
   The five `store_*` keys and the rotation decide what is kept about *who*
   a visitor is — see `PhoenixKitWebAnalytics.Profiles`. All of them default
@@ -74,7 +76,9 @@ defmodule PhoenixKitWebAnalytics.Config do
   The setting's name keeps the word "secret" for the same reason the salt's
   does: core withholds the value of such a key from its permanent
   `setting.changed` activity entries and its change broadcast, and these are
-  the operator's own addresses.
+  the operator's own addresses. The same goes for
+  `web_analytics_blocked_networks_secret`: whom the operator refuses is
+  nobody else's business either.
   """
 
   require Logger
@@ -119,6 +123,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   @store_signals_key "web_analytics_store_signals"
   @consent_category_key "web_analytics_consent_category"
   @without_consent_key "web_analytics_without_consent"
+  @rate_limit_key "web_analytics_rate_limit"
+  # "secret" in the name keeps the addresses out of core's activity log.
+  @blocked_networks_key "web_analytics_blocked_networks_secret"
+  @rate_limit_modes [:on, :log_only, :off]
 
   @ip_modes [:off, :truncated, :full]
 
@@ -178,7 +186,9 @@ defmodule PhoenixKitWebAnalytics.Config do
     @store_network_key,
     @store_signals_key,
     @consent_category_key,
-    @without_consent_key
+    @without_consent_key,
+    @rate_limit_key,
+    @blocked_networks_key
     | Keyword.values(@consent_keys)
   ]
 
@@ -216,7 +226,9 @@ defmodule PhoenixKitWebAnalytics.Config do
           store_signals?: boolean(),
           consent: consent_modes(),
           consent_category: String.t(),
-          without_consent: :drop | :anonymous
+          without_consent: :drop | :anonymous,
+          rate_limit: :on | :log_only | :off,
+          blocked_networks: [String.t()]
         }
 
   @doc "Settings key for the module's master switch."
@@ -265,7 +277,9 @@ defmodule PhoenixKitWebAnalytics.Config do
       store_signals?: truthy?(values[@store_signals_key], false),
       consent: consent_modes(values),
       consent_category: consent_category(values[@consent_category_key]),
-      without_consent: one_of(values[@without_consent_key], @without_consent_modes, :drop)
+      without_consent: one_of(values[@without_consent_key], @without_consent_modes, :drop),
+      rate_limit: one_of(values[@rate_limit_key], @rate_limit_modes, :on),
+      blocked_networks: parse_list(values[@blocked_networks_key])
     }
   rescue
     error ->
@@ -343,6 +357,23 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "The consent categories the collection can be asked under."
   @spec consent_categories() :: [String.t()]
   def consent_categories, do: @consent_categories
+
+  @doc "What `PhoenixKitWebAnalytics.RateLimit` can do: limit, only record, or nothing."
+  @spec rate_limit_modes() :: [:on | :log_only | :off]
+  def rate_limit_modes, do: @rate_limit_modes
+
+  @doc "The blocked networks entered in Settings, as entered."
+  @spec blocked_networks_raw() :: String.t()
+  def blocked_networks_raw do
+    case Settings.get_settings_cached([@blocked_networks_key], %{}) do
+      %{@blocked_networks_key => value} when is_binary(value) -> value
+      _ -> ""
+    end
+  rescue
+    _ -> ""
+  catch
+    :exit, _ -> ""
+  end
 
   @doc "What can happen to a page view that may not be counted."
   @spec without_consent_modes() :: [:drop | :anonymous]
@@ -629,7 +660,9 @@ defmodule PhoenixKitWebAnalytics.Config do
       consent_device: @consent_keys[:device],
       consent_recording: @consent_keys[:recording],
       consent_category: @consent_category_key,
-      without_consent: @without_consent_key
+      without_consent: @without_consent_key,
+      rate_limit: @rate_limit_key,
+      blocked_networks: @blocked_networks_key
     }
   end
 
@@ -662,7 +695,11 @@ defmodule PhoenixKitWebAnalytics.Config do
       store_signals?: false,
       consent: Map.new(@consent_keys, fn {purpose, _key} -> {purpose, :always} end),
       consent_category: "analytics",
-      without_consent: :drop
+      without_consent: :drop,
+      # The rules come from the host's code and the counters from memory: a
+      # settings table that can't be read must not switch them off.
+      rate_limit: :on,
+      blocked_networks: []
     }
   end
 

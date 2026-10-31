@@ -47,6 +47,14 @@ can't, stays optional, and never writes a cookie or storage.
   address of each tracked page view (booleans + a hash, never an address)
   and the Settings page warns when every visitor looks like one internal
   address (a proxy that doesn't append `X-Forwarded-For`).
+- `rate_limit.ex` + `rate_limit/plug.ex` — opt-in rate limits on core's
+  Hammer table: rules from the host's plug options (registered on the
+  plug's first request, since plug options are built at compile time) or
+  app config, each request counted per visitor ID **and** per network,
+  `charge/3` / `check/3` for code. Exempt: internal networks, staff, local
+  development, a bypass token from app config. The
+  `web_analytics_blocked_networks_secret` setting answers 403. Fails open;
+  denials only in `Ring` + telemetry, never the DB. Never uses a bot score.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
@@ -97,7 +105,7 @@ can't, stays optional, and never writes a cookie or storage.
   remainder can't count differently.
 - `session_stats.ex` — the per-session query shared by reports and rollup.
 - `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
-  Acquisition, Technology, Events, Bots, Settings.
+  Acquisition, Technology, Events, Bots, Rate limits, Settings.
 - `bots.ex` — the Bots page's queries over `visitor_profiles`: ranked
   visitors, groups by network / subnet / address / device / User-Agent.
   The page is links only (the whole filter is in the URL).

@@ -29,7 +29,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.IpHealth
   alias PhoenixKitWebAnalytics.LiveHook
+  alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Profiles
+  alias PhoenixKitWebAnalytics.RateLimit
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.TrafficFlags
 
@@ -213,6 +215,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     )
     |> assign(:internal_networks, InternalTraffic.network_counts())
     |> assign(:internal_networks_raw, Config.internal_networks_raw())
+    |> assign(:blocked_networks_raw, Config.blocked_networks_raw())
+    |> assign(:rate_limit_rules, map_size(RateLimit.rules()))
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
@@ -322,6 +326,14 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp waits_for_yes?(config),
     do: Enum.any?(config.consent, fn {_purpose, mode} -> mode == :consent end)
 
+  defp rate_limit_options do
+    [
+      {:on, gettext("On — refuse requests over a limit")},
+      {:log_only, gettext("Log only — record them, let them through")},
+      {:off, gettext("Off")}
+    ]
+  end
+
   defp ip_options do
     [
       {:off, gettext("Not kept")},
@@ -362,6 +374,18 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     do: gettext("Internal networks (at most %{max} characters)", max: Admin.max_setting_length())
 
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
+  defp field_label(:rate_limit), do: gettext("Rate limits")
+  defp field_label(:blocked_networks), do: gettext("Blocked networks")
+
+  defp field_label(:blocked_networks_wide),
+    do:
+      gettext(
+        "Blocked networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+      )
+
+  defp field_label(:blocked_networks_long),
+    do: gettext("Blocked networks (at most %{max} characters)", max: Admin.max_setting_length())
+
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
   attr :report, :map, required: true
@@ -904,6 +928,62 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           />
           <p class="-mt-2 text-xs text-base-content/50">
             {gettext("0 stops marking staff networks. Kept in memory only.")}
+          </p>
+        </section>
+
+        <section
+          id="web-analytics-rate-limits"
+          class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4"
+        >
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("Rate limits")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
+              )}
+              <.link navigate={Paths.rate_limits()} class="link">
+                {ngettext(
+                  "%{count} rule installed",
+                  "%{count} rules installed",
+                  @rate_limit_rules
+                )}
+              </.link>
+            </p>
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">{gettext("Rate limits")}</legend>
+            <label class="select w-full sm:w-auto">
+              <select id="rate_limit" name="rate_limit">
+                <option
+                  :for={{value, label} <- rate_limit_options()}
+                  value={value}
+                  selected={@config.rate_limit == value}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <p class="label whitespace-normal">
+              {gettext(
+                "Log only counts every request and records the ones over a limit without refusing them — to see what a limit would do before it does it."
+              )}
+            </p>
+          </fieldset>
+
+          <.textarea
+            id="blocked_networks"
+            name="blocked_networks"
+            label={gettext("Blocked networks")}
+            value={@blocked_networks_raw}
+            rows="3"
+            placeholder="198.51.100.0/24"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "Refused with 403 on every path the rate-limit plug covers, while rate limits aren't off. One address or network per line, nothing wider than /8 (IPv4) or /16 (IPv6). Only what you enter here is blocked — nothing is ever added by itself. The addresses aren't written into the activity log."
+            )}
           </p>
         </section>
 
