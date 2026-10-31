@@ -722,7 +722,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
       event_type: hit[:event_type] || "pageview",
       event_name: hit[:event_name],
       site: Referrer.normalize_host(hit[:site]),
-      path: normalize_path(hit[:path]),
+      path: clean_path(hit[:path]),
       page_title: presence(hit[:page_title]),
       user_uuid: hit[:user_uuid],
       language: normalize_language(hit[:language]),
@@ -882,10 +882,14 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
+  @doc false
   # Query strings are not stored: they carry session tokens, emails, and
   # one-time links far more often than anything worth reporting. Campaign
-  # parameters are extracted into their own columns before this point.
-  defp normalize_path(path) when is_binary(path) do
+  # parameters are extracted into their own columns before this point. The
+  # one place a path is made fit to keep or show — `RateLimit` shows its
+  # refusals' paths through it too.
+  @spec clean_path(term()) :: String.t()
+  def clean_path(path) when is_binary(path) do
     path
     |> redact_tokens()
     |> String.split("?")
@@ -905,7 +909,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     end
   end
 
-  defp normalize_path(_path), do: "/"
+  def clean_path(_path), do: "/"
 
   # Core's own routes that carry a one-time secret in the path itself (a
   # password reset, an email confirmation, a magic or QR login link, a

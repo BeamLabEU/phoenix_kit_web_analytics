@@ -120,6 +120,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   require Logger
 
   alias PhoenixKit.Users.RateLimiter.Backend
+  alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.InternalTraffic
   alias PhoenixKitWebAnalytics.Profiles
@@ -660,8 +661,9 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   defp shown_network(%{network: network}, :full), do: network
   defp shown_network(%{ip: ip}, _mode), do: Profiles.stored_ip(ip, :truncated)
 
-  # `request_path` carries no query string.
-  defp path_of(%Plug.Conn{request_path: path}), do: path
+  # Without a query string (`request_path` has none) and with a one-time
+  # token in a path (a password-reset link) redacted, as a stored path is.
+  defp path_of(%Plug.Conn{request_path: path}), do: Collector.clean_path(path)
   defp path_of(_subject), do: nil
 
   defp method_of(%Plug.Conn{method: method}), do: method

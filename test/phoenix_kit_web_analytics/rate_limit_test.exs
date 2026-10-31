@@ -342,6 +342,14 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert [%{network: "203.0.113.5"}] = RateLimit.status().denials
     end
 
+    test "a one-time token in a refused path is not kept" do
+      opts = opts([[name: :t_token, paths: ["/users/*"], limit: 1]])
+      request("/users/reset-password/SFMyNTY.secret-token", opts)
+      request("/users/reset-password/SFMyNTY.secret-token", opts)
+
+      assert [%{path: "/users/reset-password/:token"}] = RateLimit.status().denials
+    end
+
     test "a denial emits telemetry" do
       ref = make_ref()
       parent = self()
