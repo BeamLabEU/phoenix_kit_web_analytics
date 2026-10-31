@@ -24,6 +24,9 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
     * **Page views** count rows with `event_type = "pageview"`. Custom events
       are never page views.
+    * **API requests** (`"api"`, from `web_analytics_track_api_paths`) are
+      in no visit and in none of the numbers here — only in
+      `api_requests/2` and the hit feed.
     * **Visitors** counts distinct `(visitor_id, UTC day)` pairs: daily unique
       visitors, added across the window. One visitor browsing on three days
       counts as three, including with weekly, monthly or never ID rotation.
@@ -284,7 +287,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
       excluded_flags: excluded_flags || Config.excluded_flags()
     }
     |> base_query()
-    |> where([e], e.event_type != "leave")
+    # A leave comes after the visitor has gone; an API request is no visit.
+    |> where([e], e.event_type not in ["leave", "api"])
     |> select([e], count(e.visitor_id, :distinct))
     |> one(0)
   end
@@ -618,7 +622,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
 
     hits =
       from(e in Event,
-        where: e.inserted_at >= ^from,
+        where: e.inserted_at >= ^from and e.event_type != "api",
         order_by: [desc: e.inserted_at],
         # Enough hits to find `limit + 1` distinct visits in any realistic mix.
         limit: ^((limit + 1) * 20),
@@ -781,8 +785,8 @@ defmodule PhoenixKitWebAnalytics.Reports do
   ## Options
 
     * `:limit` — default 50
-    * `:event_type` — `"pageview"`, `"event"`, `"interaction"` or `"leave"`
-      to show one kind only
+    * `:event_type` — `"pageview"`, `"event"`, `"interaction"`, `"leave"` or
+      `"api"` to show one kind only
   """
   @spec recent_hits(filter(), keyword()) :: [Event.t()]
   def recent_hits(filter, opts \\ []) do
@@ -793,7 +797,7 @@ defmodule PhoenixKitWebAnalytics.Reports do
       |> limit(^row_limit(opts, 50))
 
     case Keyword.get(opts, :event_type) do
-      type when type in ["pageview", "event", "interaction", "leave"] ->
+      type when type in ["pageview", "event", "interaction", "leave", "api"] ->
         where(query, [e], e.event_type == ^type)
 
       _ ->
@@ -801,6 +805,65 @@ defmodule PhoenixKitWebAnalytics.Reports do
     end
     |> all([])
   end
+
+  @doc """
+  The requests to `web_analytics_track_api_paths` in the period —
+  `%{requests: n, visitors: n, statuses: [%{label: "2xx", pageviews: n,
+  visitors: n}, …], paths: [%{label: "GET /api/search", pageviews: n,
+  visitors: n}, …]}` (`pageviews` is the request count, so the rows fit
+  `breakdown_card`). Read from raw events only: API requests are never
+  rolled up, so a period older than the retention reads as none. Visitors
+  are daily unique visitors, as everywhere else.
+
+  `:limit` caps the path rows (default 10).
+  """
+  @spec api_requests(filter(), keyword()) :: map()
+  def api_requests(filter, opts \\ []) do
+    cached({:api_requests, filter, opts}, fn ->
+      query = filter |> base_query() |> where([e], e.event_type == "api")
+
+      totals =
+        query
+        |> select([e], %{
+          requests: count(e.uuid),
+          visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
+        })
+        |> one(%{requests: 0, visitors: 0})
+
+      statuses =
+        query
+        |> group_by([e], fragment("(? / 100)", e.status))
+        |> order_by([e], fragment("(? / 100)", e.status))
+        |> select([e], %{
+          class: fragment("(? / 100)", e.status),
+          pageviews: count(e.uuid),
+          visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
+        })
+        |> all([])
+        |> Enum.map(fn row -> Map.put(row, :label, status_label(row.class)) end)
+
+      paths =
+        query
+        |> group_by([e], [e.event_name, e.path])
+        |> order_by([e], desc: count(e.uuid), asc: e.path)
+        |> limit(^row_limit(opts, 10))
+        |> select([e], %{
+          method: e.event_name,
+          path: e.path,
+          pageviews: count(e.uuid),
+          visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
+        })
+        |> all([])
+        |> Enum.map(fn row ->
+          Map.put(row, :label, String.trim("#{row.method} #{row.path}"))
+        end)
+
+      Map.merge(totals, %{statuses: statuses, paths: paths})
+    end)
+  end
+
+  defp status_label(class) when is_integer(class), do: "#{class}xx"
+  defp status_label(_class), do: "—"
 
   @doc """
   Stored rows and the oldest retained timestamp — shown on the settings page

@@ -640,6 +640,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   defp hit_icon("interaction"), do: "hero-cursor-arrow-rays"
   defp hit_icon("leave"), do: "hero-arrow-right-start-on-rectangle"
   defp hit_icon("event"), do: "hero-bolt"
+  defp hit_icon("api"), do: "hero-arrows-right-left"
   defp hit_icon(_type), do: "hero-signal"
 
   defp hit_text(%{event_type: "pageview", page_title: title}) when is_binary(title),
@@ -670,6 +671,9 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
 
   defp hit_text(%{event_type: "event", event_name: name}),
     do: gettext("Event “%{event}”", event: name)
+
+  defp hit_text(%{event_type: "api", event_name: method, status: status}),
+    do: gettext("API %{method} · %{status}", method: method || "?", status: status || "—")
 
   defp hit_text(_hit), do: gettext("Hit")
 

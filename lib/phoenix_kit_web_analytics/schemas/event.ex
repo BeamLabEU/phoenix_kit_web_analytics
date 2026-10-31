@@ -31,6 +31,11 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
       `"download"`, `target` what was clicked)
     * `"leave"` — the visitor left a page; `engaged_ms` is how long it was
       open and `scroll_depth` (client script only) how far they scrolled
+    * `"api"` — a request to one of the `web_analytics_track_api_paths`
+      (off by default): `event_name` is the HTTP method, `status` the
+      response's. Never a page view, never part of a visit: it starts and
+      joins no session (its `session_id` is its own), and no report of page
+      views, visits, bounces, entry or exit pages counts it.
 
   Tables are created by `PhoenixKitWebAnalytics.Migrations`, never by this
   schema.
@@ -43,7 +48,7 @@ defmodule PhoenixKitWebAnalytics.Schemas.Event do
 
   @type t :: %__MODULE__{}
 
-  @event_types ~w(pageview event interaction leave)
+  @event_types ~w(pageview event interaction leave api)
   @device_types ~w(desktop mobile tablet bot unknown)
   @referrer_mediums ~w(none organic social referral internal email paid)
 

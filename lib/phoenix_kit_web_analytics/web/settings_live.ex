@@ -216,6 +216,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:internal_networks, InternalTraffic.network_counts())
     |> assign(:internal_networks_raw, Config.internal_networks_raw())
     |> assign(:blocked_networks_raw, Config.blocked_networks_raw())
+    |> assign(:track_api_paths, Config.track_api_paths_raw())
     |> assign(:rate_limit_rules, map_size(RateLimit.rules()))
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
@@ -348,6 +349,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:recording_retention_days), do: gettext("Keep recordings")
   defp field_label(:alert_max_per_hour), do: gettext("Alerts per hour")
   defp field_label(:exclude_paths), do: gettext("Excluded paths")
+  defp field_label(:track_api_paths), do: gettext("API requests")
   defp field_label(:ignore_events), do: gettext("Events not to record")
   defp field_label(:event_params), do: gettext("Event values to keep")
   defp field_label(:alert_paths), do: gettext("Landing pages")
@@ -1026,6 +1028,21 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           <p class="-mt-2 text-xs text-base-content/50">
             {gettext(
               "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
+            )}
+          </p>
+
+          <.textarea
+            id="track_api_paths"
+            name="track_api_paths"
+            label={gettext("API requests")}
+            value={@track_api_paths}
+            rows="3"
+            placeholder="/api/*"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "Off while empty. Requests to these paths — one pattern per line, a trailing * matches a prefix — are recorded with their method and status, whatever they answer (2xx to 4xx), on the Events page. They are not page views and join no visit, so no other number changes. At most 60 a minute per visitor are kept."
             )}
           </p>
 

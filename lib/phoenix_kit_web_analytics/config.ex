@@ -54,6 +54,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   | `web_analytics_consent_category` | `analytics` | The consent category the four are asked under |
   | `web_analytics_without_consent` | `drop` | A page view that may not be counted: `drop` it, or count it `anonymous` |
   | `web_analytics_hash_secret` | generated | Secret mixed into the visitor hash |
+  | `web_analytics_track_api_paths` | empty | Path patterns (one per line, like the exclusions) whose requests are recorded as `"api"` events — any method, any 2xx–4xx status; empty is off |
   | `web_analytics_rate_limit` | `on` | What `PhoenixKitWebAnalytics.RateLimit` does with its rules: `on`, `log_only` (count and record, never refuse) or `off` |
   | `web_analytics_blocked_networks_secret` | empty | Networks refused by `PhoenixKitWebAnalytics.RateLimit.Plug` with a 403 (one per line) |
 
@@ -124,6 +125,7 @@ defmodule PhoenixKitWebAnalytics.Config do
   @consent_category_key "web_analytics_consent_category"
   @without_consent_key "web_analytics_without_consent"
   @rate_limit_key "web_analytics_rate_limit"
+  @api_paths_key "web_analytics_track_api_paths"
   # "secret" in the name keeps the addresses out of core's activity log.
   @blocked_networks_key "web_analytics_blocked_networks_secret"
   @rate_limit_modes [:on, :log_only, :off]
@@ -188,7 +190,8 @@ defmodule PhoenixKitWebAnalytics.Config do
     @consent_category_key,
     @without_consent_key,
     @rate_limit_key,
-    @blocked_networks_key
+    @blocked_networks_key,
+    @api_paths_key
     | Keyword.values(@consent_keys)
   ]
 
@@ -228,7 +231,8 @@ defmodule PhoenixKitWebAnalytics.Config do
           consent_category: String.t(),
           without_consent: :drop | :anonymous,
           rate_limit: :on | :log_only | :off,
-          blocked_networks: [String.t()]
+          blocked_networks: [String.t()],
+          api_paths: [String.t()]
         }
 
   @doc "Settings key for the module's master switch."
@@ -279,7 +283,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       consent_category: consent_category(values[@consent_category_key]),
       without_consent: one_of(values[@without_consent_key], @without_consent_modes, :drop),
       rate_limit: one_of(values[@rate_limit_key], @rate_limit_modes, :on),
-      blocked_networks: parse_list(values[@blocked_networks_key])
+      blocked_networks: parse_list(values[@blocked_networks_key]),
+      api_paths: parse_patterns(values[@api_paths_key])
     }
   rescue
     error ->
@@ -361,6 +366,19 @@ defmodule PhoenixKitWebAnalytics.Config do
   @doc "What `PhoenixKitWebAnalytics.RateLimit` can do: limit, only record, or nothing."
   @spec rate_limit_modes() :: [:on | :log_only | :off]
   def rate_limit_modes, do: @rate_limit_modes
+
+  @doc "The API path patterns entered in Settings, as entered."
+  @spec track_api_paths_raw() :: String.t()
+  def track_api_paths_raw do
+    case Settings.get_settings_cached([@api_paths_key], %{}) do
+      %{@api_paths_key => value} when is_binary(value) -> value
+      _ -> ""
+    end
+  rescue
+    _ -> ""
+  catch
+    :exit, _ -> ""
+  end
 
   @doc "The blocked networks entered in Settings, as entered."
   @spec blocked_networks_raw() :: String.t()
@@ -662,7 +680,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       consent_category: @consent_category_key,
       without_consent: @without_consent_key,
       rate_limit: @rate_limit_key,
-      blocked_networks: @blocked_networks_key
+      blocked_networks: @blocked_networks_key,
+      track_api_paths: @api_paths_key
     }
   end
 
@@ -699,7 +718,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       # The rules come from the host's code and the counters from memory: a
       # settings table that can't be read must not switch them off.
       rate_limit: :on,
-      blocked_networks: []
+      blocked_networks: [],
+      api_paths: []
     }
   end
 
@@ -802,6 +822,10 @@ defmodule PhoenixKitWebAnalytics.Config do
   end
 
   defp parse_exclusions(_value), do: []
+
+  # Unset is empty (nothing tracked), unlike the exclusions' default.
+  defp parse_patterns(value) when is_binary(value), do: parse_exclusions(value)
+  defp parse_patterns(_value), do: []
 
   defp parse_list(value) when is_binary(value) do
     value

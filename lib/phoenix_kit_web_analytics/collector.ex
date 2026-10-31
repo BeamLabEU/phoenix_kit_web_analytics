@@ -51,7 +51,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   Every key is optional except `:path`:
 
       %{
-        event_type: "pageview" | "event",   # default "pageview"
+        event_type: "pageview" | "event" | "api",   # default "pageview"
         event_name: "signup",               # required for "event"
         path: "/pricing",
         page_title: "Pricing",
@@ -108,6 +108,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
   import Bitwise
   import Ecto.Query
 
+  alias PhoenixKit.Utils.IpAddress
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
@@ -365,6 +366,9 @@ defmodule PhoenixKitWebAnalytics.Collector do
       nil ->
         {:error, :no_salt}
 
+      visitor_id when hit.event_type == "api" ->
+        insert_api(hit, config, ua, visitor_id, now)
+
       visitor_id ->
         site = Referrer.normalize_host(hit[:site])
         flags = hit_flags(hit, config)
@@ -396,6 +400,42 @@ defmodule PhoenixKitWebAnalytics.Collector do
         end
     end
   end
+
+  # An API request is a row of its own: no visit is looked up, started or
+  # joined (its session_id is its own, never a session start), so it takes
+  # no lock and no stitch query. What bounds it is a per-visitor and a
+  # per-network rate — counted per network too, since the visitor ID
+  # includes the User-Agent.
+  defp insert_api(hit, config, ua, visitor_id, now) do
+    if api_room?(visitor_id, hit[:ip]) do
+      flags = hit_flags(hit, config)
+
+      through_gate(visitor_id, fn ->
+        hit
+        |> base_attrs(now)
+        |> Map.merge(identity_attrs(visitor_id, UUIDv7.generate(), ua))
+        |> Map.merge(location_attrs(hit))
+        |> Map.merge(%{session_start: false, traffic_flags: flags})
+        |> then(&Event.changeset(%Event{}, &1))
+        |> repo().insert()
+      end)
+    else
+      Logger.debug("[WebAnalytics] dropped an API hit: over the per-minute rate")
+      {:error, :api_rate}
+    end
+  end
+
+  defp api_room?(visitor_id, ip) do
+    limit = api_per_minute()
+    by_visitor = BotSignals.count(:api, visitor_id)
+    by_network = BotSignals.count(:api_network, ip_network(ip))
+    by_visitor <= limit and by_network <= limit * 4
+  end
+
+  defp ip_network(ip), do: ip |> Visitor.format_ip() |> IpAddress.network()
+
+  defp api_per_minute,
+    do: Application.get_env(:phoenix_kit_web_analytics, :api_events_per_minute, 60)
 
   # What the settings keep about who the visitor is, once per visit — and
   # after the hit's transaction: a profile is never worth the event.
@@ -633,6 +673,8 @@ defmodule PhoenixKitWebAnalytics.Collector do
     query =
       from(e in Event,
         where: e.visitor_id == ^visitor_id and e.inserted_at >= ^cutoff,
+        # An API request belongs to no visit (see insert_api/5).
+        where: e.event_type != "api",
         order_by: [desc: e.inserted_at],
         limit: 1,
         select: %{

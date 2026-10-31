@@ -50,7 +50,7 @@ defmodule PhoenixKitWebAnalytics.Admin do
     rate_limit: Enum.map(Config.rate_limit_modes(), &Atom.to_string/1)
   }
   @alert_booleans [:visitors, :signups, :skip_users]
-  @lists [:exclude_paths, :ignore_events, :event_params]
+  @lists [:exclude_paths, :ignore_events, :event_params, :track_api_paths]
   @max_setting_length 1000
   @alert_lists [:paths, :events]
   @integers %{

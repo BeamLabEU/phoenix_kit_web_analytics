@@ -216,6 +216,13 @@ can't, stays optional, and never writes a cookie or storage.
   Visit totals, bounces and session seconds also use daily visit portions
   (`SessionStats`), so a session spanning midnight has the same aggregates
   raw or rolled up. The visit list and timeline still show the full visit.
+- **An `"api"` event is never a page view or part of a visit.** Requests to
+  `web_analytics_track_api_paths` (off while empty) get their own
+  `session_id`, never `session_start`, no lock, no stitch, no profile, no
+  alert; the stitch query skips them, and every visitor / visit / "right
+  now" query filters on `pageview` (or excludes `api`). A new report query
+  that counts "all events" must leave them out. Their volume is capped per
+  visitor and per network per minute (`BotSignals.count/2`).
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.

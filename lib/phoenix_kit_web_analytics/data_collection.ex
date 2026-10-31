@@ -140,7 +140,11 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
       gettext("Your account, when you are signed in"),
       config.track_interactions? && gettext("The buttons and links you use on our pages"),
       config.client_script? &&
-        gettext("Links you follow away from the site, and how far you scroll")
+        gettext("Links you follow away from the site, and how far you scroll"),
+      config.api_paths != [] &&
+        gettext(
+          "The requests your browser makes to the site's interface: which one, when, and whether it succeeded"
+        )
     ]
     |> Enum.filter(&is_binary/1)
   end

@@ -43,7 +43,7 @@ defmodule PhoenixKitWebAnalytics.PlugTest do
   end
 
   describe "call/2" do
-    test "ignores non-GET requests without reading settings" do
+    test "registers nothing for non-GET requests while tracking is off" do
       for method <- [:post, :put, :patch, :delete, :head] do
         conn = conn(method, "/") |> TrackingPlug.call(TrackingPlug.init([]))
 
