@@ -42,6 +42,11 @@ can't, stays optional, and never writes a cookie or storage.
   (`PhoenixKitWebAnalytics.visitor/1`): the collector's own recipe
   (`Visitor.agent_input/2`, `Tracking.prefetch_reason/1`, the cached salt),
   memoized in `conn.private`. Never creates the salt.
+- `ring.ex` + `ip_health.ex` — per-node in-memory ring buffers and counters
+  (one ETS table, no DB, no settings); `IpHealth` samples the client
+  address of each tracked page view (booleans + a hash, never an address)
+  and the Settings page warns when every visitor looks like one internal
+  address (a proxy that doesn't append `X-Forwarded-For`).
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.

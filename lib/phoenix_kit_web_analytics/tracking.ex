@@ -168,6 +168,14 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   # ports the two agree.
   #
   # A copy of core's ranges for a proxy — `local?/1` is private there.
+  @doc """
+  Whether `ip` is a loopback or private address — the peers whose
+  forwarded headers `client_ip/1` reads.
+  """
+  @spec local_address?(term()) :: boolean()
+  def local_address?(ip) when is_tuple(ip), do: local?(ip)
+  def local_address?(_ip), do: false
+
   defp local?({127, _, _, _}), do: true
   defp local?({10, _, _, _}), do: true
   defp local?({192, 168, _, _}), do: true

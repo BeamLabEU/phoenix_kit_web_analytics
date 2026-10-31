@@ -117,6 +117,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
   public address in front of the app: as a public peer its headers are
   ignored, and without `RemoteIp` every visitor is one of its addresses.
 
+  Whether this works on a given install is checked on the traffic itself:
+  each tracked page view is sampled in memory (`PhoenixKitWebAnalytics.IpHealth`),
+  and the Settings page warns when every visitor looks like one internal
+  address. `PhoenixKitWebAnalytics.ip_health/0` returns the same summary.
+
   `config :phoenix_kit_web_analytics, trust_x_forwarded_for: true` is
   deprecated and does nothing: the forwarded header from a private peer is
   always read.
@@ -130,6 +135,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.IpHealth
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Tracking
 
@@ -303,9 +309,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp track(conn, started_at, {bot_reason, consent}, config) do
     if html_pageview?(conn) and not skipped?(conn) do
       duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
+      ip = Tracking.client_ip(conn)
+      IpHealth.sample(conn, ip)
 
       conn
-      |> build_hit(duration_ms, bot_reason)
+      |> build_hit(ip, duration_ms, bot_reason)
       |> Map.put(:consent, consent)
       |> put_headers(conn, config)
       |> Collector.track_async()
@@ -329,7 +337,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
     end
   end
 
-  defp build_hit(conn, duration_ms, bot_reason) do
+  defp build_hit(conn, ip, duration_ms, bot_reason) do
     query_params = fetch_campaign_params(conn)
 
     %{
@@ -338,7 +346,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       site: conn.host,
       referrer: header(conn, "referer"),
       query_params: query_params,
-      ip: Tracking.client_ip(conn),
+      ip: ip,
       user_agent: header(conn, "user-agent"),
       language: header(conn, "accept-language"),
       user_uuid: Tracking.current_user_uuid(conn.assigns),

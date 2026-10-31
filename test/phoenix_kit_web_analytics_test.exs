@@ -114,7 +114,8 @@ defmodule PhoenixKitWebAnalyticsTest do
     test "children/0 supervises the write pool, presence, alerts and retention" do
       children = PhoenixKitWebAnalytics.children()
 
-      assert length(children) == 9
+      assert length(children) == 10
+      assert PhoenixKitWebAnalytics.Ring in children
       assert PhoenixKitWebAnalytics.InternalTraffic in children
       assert PhoenixKitWebAnalytics.LivePresence in children
       assert PhoenixKitWebAnalytics.ReportCache in children

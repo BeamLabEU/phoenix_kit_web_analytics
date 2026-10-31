@@ -27,6 +27,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.IpHealth
   alias PhoenixKitWebAnalytics.LiveHook
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Reports
@@ -217,6 +218,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     |> assign(:storage, Reports.storage_stats())
     |> assign(:profiles, Profiles.count())
     |> assign(:live_skips?, live_skips?())
+    |> assign(:ip_health, IpHealth.report())
     |> assign(:live_hook, LiveHook.coverage(socket.router))
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
   end
@@ -362,6 +364,75 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
 
+  attr :report, :map, required: true
+
+  # What the sample of recent page views says about the client address —
+  # a warning when every visitor looks like one address.
+  defp ip_health(%{report: %{status: :one_internal}} = assigns) do
+    ~H"""
+    <div id="web-analytics-ip-health" role="alert" class="alert alert-warning text-sm">
+      <div class="space-y-1">
+        <p class="font-medium">
+          {gettext("All your visitors look like one internal address.")}
+        </p>
+        <p>
+          {gettext(
+            "Of the last %{count} page views, %{private} came from a private or loopback address, and there were %{distinct} different addresses in all. That is a reverse proxy in front of the app that doesn't pass the visitor's address on: visits, visitors, internal networks and rate limits all count it as one visitor.",
+            count: @report.sample,
+            private: @report.private_clients,
+            distinct: @report.distinct_clients
+          )}
+        </p>
+        <p>
+          {gettext(
+            "Make the proxy append X-Forwarded-For (nginx: proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug."
+          )}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  defp ip_health(%{report: %{status: :one_address}} = assigns) do
+    ~H"""
+    <div id="web-analytics-ip-health" role="alert" class="alert alert-warning text-sm">
+      <div class="space-y-1">
+        <p class="font-medium">
+          {gettext("All your visitors look like one address.")}
+        </p>
+        <p>
+          {gettext(
+            "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 and later).",
+            count: @report.sample
+          )}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  defp ip_health(%{report: %{status: :ok}} = assigns) do
+    ~H"""
+    <p id="web-analytics-ip-health" class="px-1 text-xs text-success">
+      {gettext(
+        "Visitors' addresses look right: %{distinct} different addresses in the last %{count} page views.",
+        distinct: @report.distinct_clients,
+        count: @report.sample
+      )}
+    </p>
+    """
+  end
+
+  defp ip_health(assigns) do
+    ~H"""
+    <p id="web-analytics-ip-health" class="px-1 text-xs text-base-content/50">
+      {gettext(
+        "Not enough page views on this server yet to check that visitors' addresses are read right."
+      )}
+    </p>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -404,6 +475,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           )}
         </span>
       </div>
+
+      <.ip_health report={@ip_health} />
 
       <form id="web-analytics-settings" phx-submit="save" class="space-y-6">
         <input type="hidden" name="_form" value="settings" />
