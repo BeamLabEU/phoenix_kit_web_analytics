@@ -228,7 +228,6 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   defp api_path?(_path, %{api_paths: []}), do: false
   defp api_path?(path, %{api_paths: patterns}), do: Config.excluded?(path, patterns)
-  defp api_path?(_path, _config), do: false
 
   defp register_tracking(conn, config, opts) do
     cond do

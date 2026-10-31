@@ -21,7 +21,7 @@ defmodule PhoenixKitWebAnalytics.RequestVisitor do
     * `:network` — what to count an address by:
       `PhoenixKit.Utils.IpAddress.network/1`, an IPv4 address as it is and
       an IPv6 address as its `/64` (one household or phone holds the whole
-      block). `nil` only when the address can't be formatted.
+      block). `"unknown"` when the address can't be read.
     * `:prefetch?` — whether the request is a speculative prefetch.
 
   Never raises. When something fails the result still has the peer address
@@ -120,6 +120,6 @@ defmodule PhoenixKitWebAnalytics.RequestVisitor do
     end
   end
 
-  defp network(ip) when is_tuple(ip), do: ip |> Visitor.format_ip() |> IpAddress.network()
-  defp network(_ip), do: nil
+  # `format_ip/1` answers "unknown" for anything that isn't an address.
+  defp network(ip), do: ip |> Visitor.format_ip() |> IpAddress.network()
 end

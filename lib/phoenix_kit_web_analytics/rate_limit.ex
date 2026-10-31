@@ -489,7 +489,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   end
 
   defp local_request?(%Plug.Conn{remote_ip: peer, host: host}) do
-    loopback?(peer) and (host in @local_hosts or String.ends_with?(host || "", ".localhost"))
+    loopback?(peer) and (host in @local_hosts or String.ends_with?(host, ".localhost"))
   end
 
   defp loopback?({127, _, _, _}), do: true
