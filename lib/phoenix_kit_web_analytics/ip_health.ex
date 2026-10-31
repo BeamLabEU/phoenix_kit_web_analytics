@@ -13,8 +13,8 @@ defmodule PhoenixKitWebAnalytics.IpHealth do
   collector — the last 200 of them, on this node, in memory only: whether
   the peer was a private or loopback address, whether a forwarded header
   came with it, whether the client address the module resolved is private,
-  and a hash of that address (`:erlang.phash2/1`, only to count distinct
-  ones). No address is kept, nothing is written to the database or the
+  and a hash of that address keyed with a per-node secret (only to count
+  distinct ones). No address is kept, nothing is written to the database or the
   settings, and a restart starts over.
 
   `report/0` (and `PhoenixKitWebAnalytics.ip_health/0`) sums the sample up;
@@ -35,8 +35,9 @@ defmodule PhoenixKitWebAnalytics.IpHealth do
       header is then read by core's rule).
     * `:ok` — visitors come from many addresses.
 
-  A site with only its developer on it reads as `:one_address` too; the
-  warning says "looks like", and goes away as real traffic arrives.
+  A site with only its developer on it reads the same way — `:one_internal`
+  on `localhost`, `:one_address` once deployed; the warning says "looks
+  like", and goes away as real traffic arrives.
   """
 
   alias PhoenixKitWebAnalytics.Ring
@@ -68,7 +69,7 @@ defmodule PhoenixKitWebAnalytics.IpHealth do
       Tracking.local_address?(conn.remote_ip),
       forwarded?(conn),
       Tracking.local_address?(client_ip),
-      :erlang.phash2(client_ip)
+      :erlang.phash2({node_secret(), client_ip})
     })
   rescue
     _ -> :ok
@@ -104,6 +105,20 @@ defmodule PhoenixKitWebAnalytics.IpHealth do
 
   defp status(%{sample: n, distinct_clients: 1}) when n >= @min_single, do: :one_address
   defp status(_counts), do: :ok
+
+  # Keyed with a secret of this node's (never stored, gone on restart), so a
+  # sampled hash can't be turned back into an IPv4 address by trying them all.
+  defp node_secret do
+    case :persistent_term.get({__MODULE__, :secret}, nil) do
+      nil ->
+        secret = :crypto.strong_rand_bytes(16)
+        :persistent_term.put({__MODULE__, :secret}, secret)
+        secret
+
+      secret ->
+        secret
+    end
+  end
 
   defp forwarded?(conn) do
     Enum.any?(conn.req_headers, fn {name, _} -> name in ["x-forwarded-for", "x-real-ip"] end)

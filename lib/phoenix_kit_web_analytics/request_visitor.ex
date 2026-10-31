@@ -14,7 +14,10 @@ defmodule PhoenixKitWebAnalytics.RequestVisitor do
       User-Agent, the configured `web_analytics_visitor_rotation` and today's
       UTC date (`PhoenixKitWebAnalytics.Visitor.visitor_id/5`). A Chrome
       Speculation-Rules prefetch gets the prefetch's own ID, as its stored
-      hit does. **`nil` when the salt can't be read** — settings unreachable,
+      hit does. Two hits are stored under another ID: a page view counted
+      without consent (`anon:` + a fresh UUID, by design), and one whose
+      write runs after midnight UTC for a request made before it. **`nil`
+      when the salt can't be read** — settings unreachable,
       or the module never switched on, so no salt exists yet. This never
       creates one: nothing on a request's path writes a setting.
     * `:ip` — the client address, an `:inet` tuple.

@@ -75,6 +75,8 @@ defmodule PhoenixKitWebAnalytics.IpHealthTest do
       assert {peer?, forwarded?, private?, hash} = entry
       assert is_boolean(peer?) and is_boolean(forwarded?) and is_boolean(private?)
       assert is_integer(hash)
+      # Keyed: not the bare hash of an address, which anyone could recompute.
+      refute hash in Enum.map(1..250, &:erlang.phash2({203, 0, rem(&1, 250), 1}))
     end
   end
 
