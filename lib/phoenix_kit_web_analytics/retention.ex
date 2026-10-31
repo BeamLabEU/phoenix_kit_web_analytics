@@ -350,6 +350,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
     # the (session_id, inserted_at) index, so each batch costs its own size.
     firsts =
       from(e in Event,
+        # An API request starts no visit (Collector.insert_api/5).
+        where: e.event_type != "api",
         distinct: e.session_id,
         order_by: [asc: e.session_id, asc: e.inserted_at, asc: e.uuid],
         limit: @backfill_batch,

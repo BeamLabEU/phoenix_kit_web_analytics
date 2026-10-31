@@ -138,6 +138,8 @@ defmodule PhoenixKitWebAnalytics.Bots do
   def latest_sessions(visitor_ids) when is_list(visitor_ids) do
     from(e in Event,
       where: e.visitor_id in ^visitor_ids,
+      # An API request belongs to no visit (Collector.insert_api/5).
+      where: e.event_type != "api",
       distinct: e.visitor_id,
       order_by: [asc: e.visitor_id, desc: e.inserted_at],
       select: {e.visitor_id, e.session_id}

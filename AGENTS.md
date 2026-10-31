@@ -219,8 +219,10 @@ can't, stays optional, and never writes a cookie or storage.
 - **An `"api"` event is never a page view or part of a visit.** Requests to
   `web_analytics_track_api_paths` (off while empty) get their own
   `session_id`, never `session_start`, no lock, no stitch, no profile, no
-  alert; the stitch query skips them, and every visitor / visit / "right
-  now" query filters on `pageview` (or excludes `api`). A new report query
+  alert; the stitch query, the session-start backfill and the Bots page's
+  latest visit skip them, `LiveHook` treats an API path like an excluded
+  one, and every visitor / visit / "right now" query filters on `pageview`
+  (or excludes `api`). A new report query
   that counts "all events" must leave them out. Their volume is capped per
   visitor and per network per minute (`BotSignals.count/2`).
 - **Never store form contents.** An interaction keeps its event name and only
