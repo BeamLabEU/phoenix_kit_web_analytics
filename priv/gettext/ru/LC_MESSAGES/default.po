@@ -887,7 +887,7 @@ msgid "This visit isn't here."
 msgstr "Такого визита нет."
 
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:250
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:199
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr "Время"
@@ -990,7 +990,7 @@ msgstr "Визит"
 #: lib/phoenix_kit_web_analytics/web/components.ex:735
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:223
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:48
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:204
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Visitor"
 msgstr "Посетитель"
@@ -1799,7 +1799,7 @@ msgstr "Сохраняется один раз на посетителя, в н�
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:139
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:172
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:49
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:203
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:208
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:225
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:1252
 #, elixir-autogen, elixir-format
@@ -2712,11 +2712,6 @@ msgstr "Все посетители выглядят как один адрес.
 msgid "All your visitors look like one internal address."
 msgstr "Все посетители выглядят как один внутренний адрес."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
-#, elixir-autogen, elixir-format
-msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 and later)."
-msgstr "Все последние %{count} просмотров страниц пришли с одного и того же публичного адреса. Если это не просто ваша собственная проверка, перед приложением стоит CDN или прокси с публичным адресом, чей заголовок пересылки не читается: поставьте перед плагом отслеживания плаг, который переписывает remote_ip (например, remote_ip), или укажите прокси в config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 и новее)."
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "Make the proxy append X-Forwarded-For (nginx: proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug."
@@ -2745,7 +2740,7 @@ msgstr[0] "%{count} минута"
 msgstr[1] "%{count} минуты"
 msgstr[2] "%{count} минут"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:173
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "%{count} request from a blocked network was refused."
 msgid_plural "%{count} requests from blocked networks were refused."
@@ -2769,17 +2764,17 @@ msgstr[0] "%{count} секунда"
 msgstr[1] "%{count} секунды"
 msgstr[2] "%{count} секунд"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:111
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "A rule with no paths is only counted where the site's code charges it. A rule appears here once its plug has seen a request."
 msgstr "Правило без путей учитывается только там, где его списывает код сайта. Правило появляется здесь, как только его плаг увидел запрос."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:544
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:595
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr "Доступ запрещён"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:132
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Allowed"
 msgstr "Разрешено"
@@ -2815,17 +2810,17 @@ msgstr "Заблокированные сети (префикс короче /8 
 msgid "Blocked networks (at most %{max} characters)"
 msgstr "Заблокированные сети (не более %{max} символов)"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:106
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Each request a rule covers is counted for its visitor and for its network, and both must have room. The visitor is the analytics' visitor ID, which changes with the browser; the network (an IPv4 address, or an IPv6 /64) is what holds a client that changes its browser string."
 msgstr "Каждый запрос, на который распространяется правило, учитывается и для посетителя, и для его сети, и в обоих должно оставаться место. Посетитель — это ID посетителя из аналитики, который меняется вместе с браузером; сеть (адрес IPv4 или IPv6 /64) сдерживает клиента, который меняет строку браузера."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:181
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Latest refusals"
 msgstr "Последние отказы"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:201
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Limit hit"
 msgstr "Превышенный лимит"
@@ -2846,22 +2841,22 @@ msgid "Log only: requests over a limit are recorded below and let through. Use i
 msgstr "Только журнал: запросы сверх лимита записываются ниже и пропускаются. Используйте это для настройки лимитов."
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:53
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:138
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "Logged"
 msgstr "Записан"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:127
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Methods"
 msgstr "Методы"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:118
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "No rate limits are installed."
 msgstr "Ограничения частоты запросов не установлены."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:192
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Nothing has been refused."
 msgstr "Ничего не было отклонено."
@@ -2876,27 +2871,22 @@ msgstr "Выключено"
 msgid "On — refuse requests over a limit"
 msgstr "Включено — отклонять запросы сверх лимита"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:126
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "Paths"
 msgstr "Пути"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:129
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Per network"
 msgstr "На сеть"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:128
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Per visitor"
 msgstr "На посетителя"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:98
-#, elixir-autogen, elixir-format
-msgid "PhoenixKit's rate-limit counters are not running on this server, so nothing is limited: every request is let through."
-msgstr "Счётчики ограничения частоты PhoenixKit на этом сервере не запущены, поэтому ничего не ограничивается: каждый запрос пропускается."
-
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:582
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:651
 #, elixir-autogen, elixir-format
 msgid "Please wait %{seconds} seconds and try again."
 msgstr "Подождите %{seconds} с и попробуйте снова."
@@ -2920,13 +2910,13 @@ msgstr "Ограничения запросов выключены: ничего
 msgid "Rate limits are on: requests over a limit are refused."
 msgstr "Ограничения запросов включены: запросы сверх лимита отклоняются."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:92
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Refresh"
 msgstr "Обновить"
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:52
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:135
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Refused"
 msgstr "Отклонён"
@@ -2937,18 +2927,18 @@ msgid "Refused with 403 on every path the rate-limit plug covers, while rate lim
 msgstr "Отклоняются с кодом 403 на каждом пути, который охватывает плаг ограничения запросов, пока ограничения не выключены. Один адрес или сеть на строку, не шире /8 (IPv4) или /16 (IPv6). Блокируется только то, что вы вводите здесь, — ничего не добавляется само. Адреса не записываются в журнал действий."
 
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:177
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:205
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Request"
 msgstr "Запрос"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:125
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:200
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:130
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "Правило"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:103
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Rules"
 msgstr "Правила"
@@ -2958,7 +2948,7 @@ msgstr "Правила"
 msgid "Rules come from the RateLimit.Plug in the site's router; this page shows what this server has seen since it started. Nothing about a refusal is stored."
 msgstr "Правила берутся из RateLimit.Plug в роутере сайта; эта страница показывает, что этот сервер увидел с момента запуска. Об отказах ничего не сохраняется."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:184
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "The last %{count} requests over a limit or from a blocked network, newest first, on this server. The network is shown whole only when Settings keeps whole addresses; otherwise its /24 or /48. Paths never include a query string."
 msgstr "Последние %{count} запросов сверх лимита или из заблокированной сети, новые сверху, на этом сервере. Сеть показывается целиком, только если в настройках хранятся полные адреса; иначе её /24 или /48. Пути никогда не содержат строку запроса."
@@ -2968,22 +2958,22 @@ msgstr "Последние %{count} запросов сверх лимита и�
 msgid "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
 msgstr "Сами лимиты — это правила в коде сайта (RateLimit.Plug в роутере): каждый запрос, на который они распространяются, учитывается для посетителя и для его сети. Внутренние сети и сотрудники никогда не ограничиваются. Счётчики и отказы хранятся в памяти; о них ничего не сохраняется."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:580
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:650
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr "Слишком много запросов"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:202
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "What happened"
 msgstr "Что произошло"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:130
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Window"
 msgstr "Окно"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:147
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "charged from code"
 msgstr "списывается из кода"
@@ -3040,3 +3030,18 @@ msgstr "Статус"
 #, elixir-autogen, elixir-format
 msgid "The requests your browser makes to the site's interface: which one, when, and whether it succeeded"
 msgstr "Запросы, которые ваш браузер отправляет к интерфейсу сайта: какой, когда и успешно ли"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
+#, elixir-autogen, elixir-format
+msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies."
+msgstr "Все последние %{count} просмотров страниц пришли с одного и того же публичного адреса. Если это не просто ваша собственная проверка, перед приложением стоит CDN или прокси с публичным адресом, чей заголовок пересылки не читается: поставьте перед плагом отслеживания плаг, который переписывает remote_ip (например, remote_ip), или, начиная с ядра 2.64, укажите прокси в config :phoenix_kit, :trusted_proxies."
+
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Refreshing…"
+msgstr "Обновление…"
+
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "The rate-limit counters are not running on this server, so nothing is limited: every request is let through."
+msgstr "Счётчики ограничения частоты на этом сервере не запущены, поэтому ничего не ограничивается: каждый запрос пропускается."

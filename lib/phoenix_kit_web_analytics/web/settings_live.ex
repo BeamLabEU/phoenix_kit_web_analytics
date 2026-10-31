@@ -428,7 +428,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
         </p>
         <p>
           {gettext(
-            "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 and later).",
+            "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies.",
             count: @report.sample
           )}
         </p>

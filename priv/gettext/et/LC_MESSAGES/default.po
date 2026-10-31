@@ -885,7 +885,7 @@ msgid "This visit isn't here."
 msgstr "Seda külastust siin pole."
 
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:250
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:199
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr "Aeg"
@@ -988,7 +988,7 @@ msgstr "Külastus"
 #: lib/phoenix_kit_web_analytics/web/components.ex:735
 #: lib/phoenix_kit_web_analytics/web/live_now_live.ex:223
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:48
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:204
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:209
 #, elixir-autogen, elixir-format
 msgid "Visitor"
 msgstr "Külastaja"
@@ -1796,7 +1796,7 @@ msgstr "Säilitatakse üks kord külastaja kohta, külastuse alguses, ja eemalda
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:139
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:172
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:49
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:203
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:208
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:225
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:1252
 #, elixir-autogen, elixir-format
@@ -2706,11 +2706,6 @@ msgstr "Kõik külastajad paistavad olevat üks aadress."
 msgid "All your visitors look like one internal address."
 msgstr "Kõik külastajad paistavad olevat üks sisevõrgu aadress."
 
-#: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
-#, elixir-autogen, elixir-format
-msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 and later)."
-msgstr "Kõik viimased %{count} lehevaatamist tulid samalt avalikult aadressilt. Kui see pole lihtsalt sinu enda testimine, on rakenduse ees avaliku aadressiga CDN või puhverserver, mille edastatud päist ei loeta: pane enne jälgimisplugi plug, mis kirjutab remote_ip ümber (näiteks remote_ip), või lisa puhverserver seadesse config :phoenix_kit, :trusted_proxies (PhoenixKit 2.64 ja uuem)."
-
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:413
 #, elixir-autogen, elixir-format
 msgid "Make the proxy append X-Forwarded-For (nginx: proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug."
@@ -2738,7 +2733,7 @@ msgid_plural "%{count} minutes"
 msgstr[0] "%{count} minut"
 msgstr[1] "%{count} minutit"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:173
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "%{count} request from a blocked network was refused."
 msgid_plural "%{count} requests from blocked networks were refused."
@@ -2759,17 +2754,17 @@ msgid_plural "%{count} seconds"
 msgstr[0] "%{count} sekund"
 msgstr[1] "%{count} sekundit"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:111
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "A rule with no paths is only counted where the site's code charges it. A rule appears here once its plug has seen a request."
 msgstr "Ilma radadeta reeglit loetakse ainult seal, kus saidi kood seda arvestab. Reegel ilmub siia, kui tema plug on näinud esimest päringut."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:544
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:595
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr "Juurdepääs keelatud"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:132
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Allowed"
 msgstr "Lubatud"
@@ -2805,17 +2800,17 @@ msgstr "Blokeeritud võrgud (eesliide lühem kui /8 IPv4 või /16 IPv6 puhul hõ
 msgid "Blocked networks (at most %{max} characters)"
 msgstr "Blokeeritud võrgud (kõige rohkem %{max} märki)"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:106
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:111
 #, elixir-autogen, elixir-format
 msgid "Each request a rule covers is counted for its visitor and for its network, and both must have room. The visitor is the analytics' visitor ID, which changes with the browser; the network (an IPv4 address, or an IPv6 /64) is what holds a client that changes its browser string."
 msgstr "Iga päringut, mida reegel hõlmab, loetakse nii selle külastajale kui ka võrgule ja mõlemas peab olema ruumi. Külastaja on analüütika külastaja-ID, mis muutub koos brauseriga; võrk (IPv4-aadress või IPv6 /64) peab kinni kliendi, kes vahetab oma brauseri nime."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:181
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:186
 #, elixir-autogen, elixir-format
 msgid "Latest refusals"
 msgstr "Viimased tagasilükkamised"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:201
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "Limit hit"
 msgstr "Ületatud piir"
@@ -2836,22 +2831,22 @@ msgid "Log only: requests over a limit are recorded below and let through. Use i
 msgstr "Ainult logi: piiri ületavad päringud salvestatakse allpool ja lastakse läbi. Kasuta seda piiride häälestamiseks."
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:53
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:138
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:143
 #, elixir-autogen, elixir-format
 msgid "Logged"
 msgstr "Logitud"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:127
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Methods"
 msgstr "Meetodid"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:118
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:123
 #, elixir-autogen, elixir-format
 msgid "No rate limits are installed."
 msgstr "Päringupiiranguid pole paigaldatud."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:192
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Nothing has been refused."
 msgstr "Midagi pole tagasi lükatud."
@@ -2866,27 +2861,22 @@ msgstr "Väljas"
 msgid "On — refuse requests over a limit"
 msgstr "Sees — lükka piiri ületavad päringud tagasi"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:126
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:131
 #, elixir-autogen, elixir-format
 msgid "Paths"
 msgstr "Rajad"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:129
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Per network"
 msgstr "Võrgu kohta"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:128
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Per visitor"
 msgstr "Külastaja kohta"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:98
-#, elixir-autogen, elixir-format
-msgid "PhoenixKit's rate-limit counters are not running on this server, so nothing is limited: every request is let through."
-msgstr "PhoenixKiti päringupiirangu loendurid selles serveris ei tööta, seega midagi ei piirata: iga päring lastakse läbi."
-
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:582
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:651
 #, elixir-autogen, elixir-format
 msgid "Please wait %{seconds} seconds and try again."
 msgstr "Palun oota %{seconds} sekundit ja proovi uuesti."
@@ -2910,13 +2900,13 @@ msgstr "Päringupiirangud on väljas: midagi ei loeta ega lükata tagasi."
 msgid "Rate limits are on: requests over a limit are refused."
 msgstr "Päringupiirangud on sees: piiri ületavad päringud lükatakse tagasi."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:92
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:97
 #, elixir-autogen, elixir-format
 msgid "Refresh"
 msgstr "Värskenda"
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:52
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:135
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:140
 #, elixir-autogen, elixir-format
 msgid "Refused"
 msgstr "Tagasi lükatud"
@@ -2927,18 +2917,18 @@ msgid "Refused with 403 on every path the rate-limit plug covers, while rate lim
 msgstr "Vastatakse 403-ga igal rajal, mida päringupiirangu plug hõlmab, kuni päringupiirangud pole väljas. Üks aadress või võrk rea kohta, mitte laiem kui /8 (IPv4) või /16 (IPv6). Blokeeritakse ainult see, mille siia sisestad — midagi ei lisata kunagi iseenesest. Aadresse tegevuslogisse ei kirjutata."
 
 #: lib/phoenix_kit_web_analytics/web/events_live.ex:177
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:205
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:210
 #, elixir-autogen, elixir-format
 msgid "Request"
 msgstr "Päring"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:125
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:200
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:130
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "Rule"
 msgstr "Reegel"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:103
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Rules"
 msgstr "Reeglid"
@@ -2948,7 +2938,7 @@ msgstr "Reeglid"
 msgid "Rules come from the RateLimit.Plug in the site's router; this page shows what this server has seen since it started. Nothing about a refusal is stored."
 msgstr "Reeglid tulevad saidi ruuteris olevast RateLimit.Plugist; see leht näitab, mida see server on käivitamisest saadik näinud. Tagasilükkamiste kohta ei salvestata midagi."
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:184
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "The last %{count} requests over a limit or from a blocked network, newest first, on this server. The network is shown whole only when Settings keeps whole addresses; otherwise its /24 or /48. Paths never include a query string."
 msgstr "Viimased %{count} päringut, mis ületasid piiri või tulid blokeeritud võrgust, uusimad eespool, selles serveris. Võrk näidatakse tervikuna ainult siis, kui seaded hoiavad terveid aadresse; muidu selle /24 või /48. Rajad ei sisalda kunagi päringustringi."
@@ -2958,22 +2948,22 @@ msgstr "Viimased %{count} päringut, mis ületasid piiri või tulid blokeeritud 
 msgid "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
 msgstr "Piirangud ise on reeglid saidi koodis (RateLimit.Plug ruuteris): iga päringut, mida need hõlmavad, loetakse selle külastajale ja võrgule. Sisevõrke ja töötajaid ei piirata kunagi. Loendurid ja tagasilükkamised on mälus; nende kohta ei salvestata midagi."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:580
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:650
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr "Liiga palju päringuid"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:202
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "What happened"
 msgstr "Mis juhtus"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:130
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Window"
 msgstr "Aken"
 
-#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:147
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:152
 #, elixir-autogen, elixir-format
 msgid "charged from code"
 msgstr "arvestatakse koodist"
@@ -3030,3 +3020,18 @@ msgstr "Olek"
 #, elixir-autogen, elixir-format
 msgid "The requests your browser makes to the site's interface: which one, when, and whether it succeeded"
 msgstr "Päringud, mida su brauser saidi liidesele teeb: milline, millal ja kas see õnnestus"
+
+#: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
+#, elixir-autogen, elixir-format
+msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies."
+msgstr "Kõik viimased %{count} lehevaatamist tulid samalt avalikult aadressilt. Kui see pole lihtsalt sinu enda testimine, on rakenduse ees avaliku aadressiga CDN või puhverserver, mille edastatud päist ei loeta: pane enne jälgimisplugi plug, mis kirjutab remote_ip ümber (näiteks remote_ip), või, alates tuumast 2.64, lisa puhverserver seadesse config :phoenix_kit, :trusted_proxies."
+
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "Refreshing…"
+msgstr "Värskendan…"
+
+#: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "The rate-limit counters are not running on this server, so nothing is limited: every request is let through."
+msgstr "Päringupiirangu loendurid selles serveris ei tööta, seega midagi ei piirata: iga päring lastakse läbi."

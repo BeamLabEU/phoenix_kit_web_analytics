@@ -88,7 +88,12 @@ defmodule PhoenixKitWebAnalytics.Web.RateLimitsLive do
           <.link navigate={Paths.settings()} class="btn btn-sm btn-ghost">
             {gettext("Settings")}
           </.link>
-          <button type="button" phx-click="refresh" class="btn btn-sm btn-outline">
+          <button
+            type="button"
+            phx-click="refresh"
+            phx-disable-with={gettext("Refreshing…")}
+            class="btn btn-sm btn-outline"
+          >
             {gettext("Refresh")}
           </button>
         </div>
@@ -96,7 +101,7 @@ defmodule PhoenixKitWebAnalytics.Web.RateLimitsLive do
 
       <div :if={not @status.backend?} role="alert" class="alert alert-warning text-sm">
         {gettext(
-          "PhoenixKit's rate-limit counters are not running on this server, so nothing is limited: every request is let through."
+          "The rate-limit counters are not running on this server, so nothing is limited: every request is let through."
         )}
       </div>
 
