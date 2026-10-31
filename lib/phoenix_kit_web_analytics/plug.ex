@@ -216,7 +216,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp register_pageview(conn, config, opts, consent) do
     if trackable_path?(conn.request_path, config, opts) do
       started_at = System.monotonic_time(:microsecond)
-      bot_reason = prefetch_reason(conn)
+      bot_reason = Tracking.prefetch_reason(conn)
       register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
     else
       conn
@@ -297,24 +297,6 @@ defmodule PhoenixKitWebAnalytics.Plug do
   end
 
   defp opted_out?(_conn, _config), do: false
-
-  # Chrome/Edge mark a Speculation-Rules prefetch or prerender this way (the
-  # legacy `Purpose` header predates `Sec-Purpose`); a substring match catches
-  # both `prefetch;anonymous-client-ip` and `prefetch;prerender`. A
-  # `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) is left a page view: its
-  # click is served from the HTTP cache, so nothing else would count it.
-  defp prefetch_reason(conn) do
-    if header(conn, "sec-fetch-dest") != "empty" and
-         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
-       do: "prefetch"
-  end
-
-  defp speculative_header?(conn, name) do
-    case header(conn, name) do
-      nil -> false
-      value -> value |> String.downcase() |> String.contains?(["prefetch", "prerender"])
-    end
-  end
 
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.

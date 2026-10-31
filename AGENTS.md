@@ -38,6 +38,10 @@ can't, stays optional, and never writes a cookie or storage.
 - `tracking.ex` — the helpers the plug, hook and beacon share (client IP rule,
   UTM params and ad-click identifiers, current user, UTF-8-safe truncation).
 - `{visitor,user_agent,referrer,geo}.ex` — pure classification helpers.
+- `request_visitor.ex` — the public "who is this request" API
+  (`PhoenixKitWebAnalytics.visitor/1`): the collector's own recipe
+  (`Visitor.agent_input/2`, `Tracking.prefetch_reason/1`, the cached salt),
+  memoized in `conn.private`. Never creates the salt.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.

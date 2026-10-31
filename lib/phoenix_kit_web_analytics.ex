@@ -352,6 +352,26 @@ defmodule PhoenixKitWebAnalytics do
     |> track()
   end
 
+  @doc """
+  The visitor behind a request, as this module counts them:
+  `%{visitor_id: "…32 hex…" | nil, ip: ip_tuple, network: "203.0.113.7" | "2001:db8:1:2::/64", prefetch?: false}`.
+
+  The `visitor_id` is the one the page view of this request is stored
+  under; `nil` when the salt can't be read. Never raises. Kept from
+  `put_visitor/1` when an earlier plug called it. Computing it stores
+  nothing; storing it is the caller's responsibility — see
+  `PhoenixKitWebAnalytics.RequestVisitor`.
+  """
+  @spec visitor(Plug.Conn.t()) :: PhoenixKitWebAnalytics.RequestVisitor.t()
+  def visitor(%Plug.Conn{} = conn), do: PhoenixKitWebAnalytics.RequestVisitor.get(conn)
+
+  @doc """
+  Works out `visitor/1` once and keeps it in `conn.private`, so the rest of
+  the request reuses it.
+  """
+  @spec put_visitor(Plug.Conn.t()) :: Plug.Conn.t()
+  def put_visitor(%Plug.Conn{} = conn), do: PhoenixKitWebAnalytics.RequestVisitor.put(conn)
+
   # ── internals ──────────────────────────────────────────────────────────────
 
   # What a hit takes from the request it happened in: who the visitor is, as

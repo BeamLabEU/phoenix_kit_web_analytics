@@ -227,6 +227,41 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   defp unmap(ip), do: ip
 
   @doc """
+  `"prefetch"` for a Chrome/Edge Speculation-Rules prefetch or prerender of
+  a page (`Sec-Purpose: prefetch…`, or the legacy `Purpose: prefetch`), nil
+  otherwise. A substring match catches both `prefetch;anonymous-client-ip`
+  and `prefetch;prerender`. A `<link rel=prefetch>` (`Sec-Fetch-Dest:
+  empty`) is no speculative page load: its click is served from the HTTP
+  cache, so nothing else would count it.
+
+  The plug hands the reason to the collector as `bot:`, and
+  `PhoenixKitWebAnalytics.RequestVisitor` hashes the same request the same
+  way, so both name the same visitor.
+  """
+  @spec prefetch_reason(Plug.Conn.t()) :: String.t() | nil
+  def prefetch_reason(conn) do
+    if first_header(conn, "sec-fetch-dest") != "empty" and
+         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
+       do: "prefetch"
+  end
+
+  defp speculative_header?(conn, name) do
+    case first_header(conn, name) do
+      nil -> false
+      value -> value |> String.downcase() |> String.contains?(["prefetch", "prerender"])
+    end
+  end
+
+  @doc "The first non-empty value of a request header, or nil."
+  @spec first_header(Plug.Conn.t(), String.t()) :: String.t() | nil
+  def first_header(conn, name) do
+    case Plug.Conn.get_req_header(conn, name) do
+      [value | _] when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
   Warns, once at start, about `trust_x_forwarded_for: true`: it no longer
   does anything. A forwarded header from a private peer is always read, and
   one from a public peer (a CDN in front of the site) never is — that needs

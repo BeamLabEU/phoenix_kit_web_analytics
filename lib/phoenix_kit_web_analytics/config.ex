@@ -514,6 +514,25 @@ defmodule PhoenixKitWebAnalytics.Config do
     :exit, _ -> nil
   end
 
+  @doc """
+  The visitor salt as the settings cache holds it, or `nil` — never created
+  here, so a caller on a request's path (`PhoenixKitWebAnalytics.RequestVisitor`)
+  makes no write and takes no lock. Once the module has been switched on the
+  salt exists (`enable_system/0` creates it), and this is the value
+  `hash_salt/0` returns.
+  """
+  @spec cached_hash_salt() :: String.t() | nil
+  def cached_hash_salt do
+    case Settings.get_setting_cached(@salt_key, nil) do
+      salt when is_binary(salt) and byte_size(salt) >= 16 -> salt
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  catch
+    :exit, _ -> nil
+  end
+
   # The first salt, created once: concurrent first hits (the collector's
   # tasks, other nodes) wait on one lock and re-read inside it, so they all
   # end up with the same salt — two would give one visitor two IDs that day.

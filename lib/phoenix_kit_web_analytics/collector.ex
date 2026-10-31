@@ -598,7 +598,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
           salt ->
             Visitor.visitor_id(
               hit[:ip],
-              hashed_agent(hit),
+              Visitor.agent_input(hit[:user_agent], hit[:bot]),
               salt,
               DateTime.to_date(anchor),
               config.visitor_rotation
@@ -612,13 +612,6 @@ defmodule PhoenixKitWebAnalytics.Collector do
         "anon:" <> String.replace(UUIDv7.generate(), "-", "")
     end
   end
-
-  # A forced-bot hit hashes on its own input (same length, same salt), so a
-  # prefetch from the visitor's own browser is never the visitor.
-  defp hashed_agent(%{bot: reason} = hit) when is_binary(reason),
-    do: "bot:" <> reason <> "|" <> (hit[:user_agent] || "")
-
-  defp hashed_agent(hit), do: hit[:user_agent]
 
   # Bounded wait: a flood of hits for one visitor must not park connections
   # behind the lock. A hit that can't get it in time fails and is dropped.
