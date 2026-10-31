@@ -13,7 +13,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit.Plug do
   ## Options
 
     * `:rules` — the rules (required to limit anything)
-    * `:exempt_local` — leave a loopback peer asking for `localhost` alone
+    * `:exempt_local` — leave a loopback client asking for `localhost` alone
       (default `true`)
     * `:exempt` — `{Mod, :fun, args}`; `Mod.fun(conn, ...args)` returning
       `true` leaves the request alone

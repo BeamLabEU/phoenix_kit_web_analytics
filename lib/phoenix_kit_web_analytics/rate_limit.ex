@@ -26,7 +26,9 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   ## Rules
 
-    * `:name` — an atom, the rule's name in keys, reports and `charge/3`
+    * `:name` — an atom, the rule's name in keys, reports and `charge/3`.
+      One name, one rule: `charge/3` finds a rule by name, so two plugs
+      defining the same name differently are warned about at registration
     * `:paths` — patterns matched like `PhoenixKitWebAnalytics.Config.excluded?/2`:
       a literal path or a trailing-`*` prefix, also past a leading locale
       segment (`/et/search` for `/search`). Empty (the default): the plug
@@ -57,8 +59,10 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     * staff, by the same role rule as the analytics (`web_analytics_internal_roles`)
       — only visible to the plug when it runs after the user is loaded;
       `charge/3` from a controller sees them
-    * a loopback peer asking for `localhost` (development), unless the plug
-      is given `exempt_local: false`
+    * a loopback client asking for `localhost` (development) — the client
+      address the module resolves, so a request a local proxy forwards is
+      never "local" whatever its `Host` — unless the plug is given
+      `exempt_local: false`
     * a request carrying the bypass token in its `x-rate-limit-bypass` header:
 
           # config/runtime.exs — app config, never a setting
@@ -80,8 +84,9 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   `web_analytics_rate_limit` (Settings) is `on` by default — installing the
   plug with rules is the opt-in. `log_only` counts and records every denial
-  but lets the request through, for tuning limits on real traffic;
-  `charge/3` then answers `:ok`. `off` skips everything, the blocklist
+  but lets the request through, for tuning limits on real traffic — every
+  rule a request matches is counted, not only up to the first one over its
+  limit; `charge/3` then answers `:ok`. `off` skips everything, the blocklist
   included. The blocklist is enforced in `log_only` too: it is not a limit
   to tune.
 
@@ -94,6 +99,8 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   a small HTML page otherwise (`format: :json | :html` on the plug forces
   one). `on_deny: {Mod, :fun, args}` renders the host's own:
   `Mod.fun(conn, denial, ...args)` returns the conn, which is then halted.
+  A callback that raises, or returns a conn with no response, gets the
+  built-in refusal instead; a conn already sent is only halted.
 
   ## What is kept
 
@@ -207,12 +214,41 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   @spec ensure_registered(%{id: term(), rules: [rule()]}) :: :ok
   def ensure_registered(%{id: id, rules: rules}) do
     unless :persistent_term.get({__MODULE__, :registered, id}, false) do
-      current = :persistent_term.get(@registry_key, %{})
-      :persistent_term.put(@registry_key, Enum.reduce(rules, current, &Map.put(&2, &1.name, &1)))
-      :persistent_term.put({__MODULE__, :registered, id}, true)
+      # One registration at a time on this node: the registry is a
+      # read-modify-write, and concurrent first requests of different plugs
+      # would otherwise drop each other's rules.
+      :global.trans({{__MODULE__, :register}, self()}, fn -> register(id, rules) end, [node()])
     end
 
     :ok
+  end
+
+  defp register(id, rules) do
+    unless :persistent_term.get({__MODULE__, :registered, id}, false) do
+      current = :persistent_term.get(@registry_key, %{})
+      Enum.each(rules, &warn_redefined(&1, current))
+      :persistent_term.put(@registry_key, Enum.reduce(rules, current, &Map.put(&2, &1.name, &1)))
+      :persistent_term.put({__MODULE__, :registered, id}, true)
+    end
+  end
+
+  # Each plug enforces its own rules, but `charge/3` looks a rule up by name:
+  # two plugs that define one name differently would charge whichever
+  # registered last.
+  defp warn_redefined(%{name: name} = rule, current) do
+    case current do
+      %{^name => ^rule} ->
+        :ok
+
+      %{^name => _other} ->
+        Logger.warning(
+          "[WebAnalytics] rate-limit rule #{inspect(name)} is defined differently by two plugs; " <>
+            "charge/3 uses the one registered last. Give each rule its own name."
+        )
+
+      _ ->
+        :ok
+    end
   end
 
   @doc """
@@ -339,18 +375,26 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
       conn
   end
 
+  # `on` stops at the first rule that refuses. `log_only` lets the request
+  # through anyway, so it goes on counting every rule — otherwise a tight
+  # rule would hide what a looser one beside it would do, which is what
+  # log-only exists to show.
   defp apply_rules(conn, visitor, mode, config, opts) do
     denial =
       opts.rules
       |> Enum.filter(&matches?(&1, conn))
-      |> Enum.reduce_while(nil, fn rule, nil ->
+      |> Enum.reduce_while(nil, fn rule, first ->
         case count(rule, visitor, conn, 1, :charge) do
           :ok ->
             Ring.bump({:rate_limit, rule.name, :allowed})
-            {:cont, nil}
+            {:cont, first}
+
+          {:error, denial} when mode == :on ->
+            {:halt, denial}
 
           {:error, denial} ->
-            {:halt, denial}
+            note_denial(conn, visitor, denial, mode, config)
+            {:cont, first || denial}
         end
       end)
 
@@ -363,7 +407,6 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
         deny(conn, denial, opts)
 
       true ->
-        note_denial(conn, visitor, denial, mode, config)
         conn
     end
   end
@@ -453,8 +496,14 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   # ── exemptions ────────────────────────────────────────────────────────────
 
   # A conn the plug already judged keeps that answer.
-  defp exempt_subject?(%Plug.Conn{private: %{@state_key => %{exempt?: exempt?}}}, _config),
-    do: exempt?
+  # A conn the plug found exempt stays exempt. One it didn't may since have
+  # loaded its user (the plug ran before authentication), so staff are
+  # looked for again.
+  defp exempt_subject?(%Plug.Conn{private: %{@state_key => %{exempt?: true}}}, _config),
+    do: true
+
+  defp exempt_subject?(%Plug.Conn{private: %{@state_key => %{exempt?: false}}} = conn, config),
+    do: staff?(conn, RequestVisitor.get(conn, config).ip, config)
 
   defp exempt_subject?(%Plug.Conn{} = conn, config) do
     ip = RequestVisitor.get(conn, config).ip
@@ -464,7 +513,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   defp exempt_subject?(%{} = visitor, config), do: internal?(visitor[:ip], config)
 
   defp exempt_conn?(conn, ip, config, opts) do
-    (Map.get(opts, :exempt_local, true) and local_request?(conn)) or
+    (Map.get(opts, :exempt_local, true) and local_request?(conn, ip)) or
       internal?(ip, config) or
       staff?(conn, ip, config) or
       host_exempt?(conn, Map.get(opts, :exempt))
@@ -488,8 +537,14 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     end
   end
 
-  defp local_request?(%Plug.Conn{remote_ip: peer, host: host}) do
-    loopback?(peer) and (host in @local_hosts or String.ends_with?(host, ".localhost"))
+  # The resolved client, not the peer: behind a proxy on the same machine
+  # the peer is always loopback and the Host header is the client's to
+  # choose, so `Host: localhost` from anywhere would skip every limit. The
+  # proxy's appended X-Forwarded-For names the real client; in development
+  # there is no forwarded header and the client is the loopback peer.
+  defp local_request?(%Plug.Conn{remote_ip: peer, host: host}, client) do
+    loopback?(peer) and loopback?(client) and
+      (host in @local_hosts or String.ends_with?(host, ".localhost"))
   end
 
   defp loopback?({127, _, _, _}), do: true
@@ -538,7 +593,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     :telemetry.execute(
       [:phoenix_kit_web_analytics, :rate_limit, :block],
       %{count: 1},
-      %{mode: mode, path: conn.request_path}
+      %{mode: mode, path: path_of(conn)}
     )
 
     conn
@@ -558,34 +613,50 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   def deny(conn, denial, opts) when is_list(opts), do: deny(conn, denial, Map.new(opts))
 
-  def deny(conn, %{retry_after_ms: ms} = denial, opts) do
+  def deny(%Plug.Conn{state: state} = conn, _denial, _opts) when state in [:sent, :chunked],
+    do: Plug.Conn.halt(conn)
+
+  def deny(conn, denial, opts) do
     case Map.get(opts, :on_deny) do
-      {module, function, args} ->
-        module |> apply(function, [conn, denial | List.wrap(args)]) |> Plug.Conn.halt()
-
-      _ ->
-        seconds = max(div(ms + 999, 1000), 1)
-
-        headers = [
-          {"retry-after", Integer.to_string(seconds)},
-          {"ratelimit-limit", Integer.to_string(denial.limit)},
-          {"ratelimit-remaining", "0"},
-          {"ratelimit-reset", Integer.to_string(seconds)}
-        ]
-
-        conn
-        |> respond(
-          429,
-          opts,
-          %{"error" => "rate_limited", "retry_after" => seconds},
-          gettext("Too many requests"),
-          [
-            gettext("Please wait %{seconds} seconds and try again.", seconds: seconds)
-          ],
-          headers
-        )
-        |> Plug.Conn.halt()
+      {module, function, args} -> host_deny(conn, denial, opts, {module, function, args})
+      _ -> built_in_deny(conn, denial, opts)
     end
+  end
+
+  # The host's refusal, or the built-in one when it raises or returns a conn
+  # that answers nothing: a refused request must never go on unanswered.
+  defp host_deny(conn, denial, opts, {module, function, args}) do
+    case apply(module, function, [conn, denial | List.wrap(args)]) do
+      %Plug.Conn{state: :unset} -> built_in_deny(conn, denial, opts)
+      %Plug.Conn{} = denied -> Plug.Conn.halt(denied)
+      _other -> built_in_deny(conn, denial, opts)
+    end
+  rescue
+    error ->
+      Logger.warning("[WebAnalytics] rate-limit on_deny raised: #{Exception.message(error)}")
+      built_in_deny(conn, denial, opts)
+  end
+
+  defp built_in_deny(conn, %{retry_after_ms: ms} = denial, opts) do
+    seconds = max(div(ms + 999, 1000), 1)
+
+    headers = [
+      {"retry-after", Integer.to_string(seconds)},
+      {"ratelimit-limit", Integer.to_string(denial.limit)},
+      {"ratelimit-remaining", "0"},
+      {"ratelimit-reset", Integer.to_string(seconds)}
+    ]
+
+    conn
+    |> respond(
+      429,
+      opts,
+      %{"error" => "rate_limited", "retry_after" => seconds},
+      gettext("Too many requests"),
+      [gettext("Please wait %{seconds} seconds and try again.", seconds: seconds)],
+      headers
+    )
+    |> Plug.Conn.halt()
   end
 
   defp respond(conn, status, opts, json, title, lines, headers \\ []) do

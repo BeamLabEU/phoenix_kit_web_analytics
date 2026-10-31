@@ -287,8 +287,8 @@ API-looking request and a small HTML page otherwise (`on_deny:` renders
 your own). The internal networks, staff, `localhost` in development and a
 request carrying the bypass token are never limited; **Blocked networks**
 in Settings (`web_analytics_blocked_networks_secret`) are answered `403`.
-**Rate limits** in Settings switches between on, log only (count and record,
-never refuse — for tuning) and off. Counters are per node; refusals are kept
+**Rate limits** in Settings switches between on, log only (count every rule
+and record, never refuse — for tuning) and off. Counters are per node; refusals are kept
 in memory only (the latest 500, on the **Rate limits** page) and emitted as
 `[:phoenix_kit_web_analytics, :rate_limit, :deny]` telemetry. Anything going
 wrong lets the request through. See `PhoenixKitWebAnalytics.RateLimit`.

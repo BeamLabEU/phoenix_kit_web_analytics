@@ -126,6 +126,26 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert denied.resp_body == "t_on_deny extra"
     end
 
+    @tag capture_log: true
+    test "an on_deny that raises, or answers nothing, falls back to the built-in 429" do
+      for {fun, name} <- [{:raising_deny, :t_deny_raise}, {:silent_deny, :t_deny_silent}] do
+        opts = opts([[name: name, paths: ["/x"], limit: 1]], on_deny: {__MODULE__, fun, []})
+        request("/x", opts)
+        denied = request("/x", opts)
+
+        assert denied.halted
+        assert denied.status == 429
+        assert header(denied, "retry-after")
+      end
+    end
+
+    test "deny/3 on an already-sent conn only halts it" do
+      sent = conn(:get, "/x") |> Plug.Conn.send_resp(200, "done")
+      denial = %{rule: :t, scope: :visitor, retry_after_ms: 1000, limit: 1}
+
+      assert %{halted: true, status: 200} = RateLimit.deny(sent, denial)
+    end
+
     test "a locale prefix is the same page" do
       opts = opts([[name: :t_locale, paths: ["/search"], limit: 1]])
 
@@ -138,6 +158,10 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
     do: Plug.Conn.send_resp(conn, 418, "#{denial.rule} #{extra}")
 
   def always_exempt(_conn), do: true
+
+  defp fake_staff_scope, do: PhoenixKitWebAnalytics.LiveCase.fake_scope(roles: [:owner])
+  def raising_deny(_conn, _denial), do: raise("host bug")
+  def silent_deny(conn, _denial), do: conn
 
   describe "exemptions" do
     test "the internal networks are never limited" do
@@ -185,6 +209,13 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       proxied = opts([[name: :t_local_proxied, paths: ["/x"], limit: 1]])
       refute request("/x", proxied, ip: {127, 0, 0, 1}).halted
       assert request("/x", proxied, ip: {127, 0, 0, 1}).halted
+
+      # Nor is a forwarded client that sends `Host: localhost` itself: the
+      # proxy passes the Host through, and the peer is still loopback.
+      spoofed = opts([[name: :t_local_spoofed, paths: ["/x"], limit: 1]])
+      forwarded = [headers: [{"x-forwarded-for", "198.51.100.9"}]] ++ local
+      refute request("/x", spoofed, forwarded).halted
+      assert request("/x", spoofed, forwarded).halted
     end
 
     test "the host's exempt function" do
@@ -234,6 +265,22 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert %{allowed: 1, logged: 2, refused: 0} = Enum.find(status.rules, &(&1.name == :t_log))
       assert [%{action: :logged, path: "/x"}, %{action: :logged}] = status.denials
       refute inspect(status.denials) =~ "secret"
+    end
+
+    test "log only counts every rule, not just up to the first over its limit" do
+      enable_tracking(%{"web_analytics_rate_limit" => "log_only"})
+
+      opts =
+        opts([
+          [name: :t_log_tight, paths: ["/x"], limit: 1],
+          [name: :t_log_loose, paths: ["/x"], limit: 2]
+        ])
+
+      for _ <- 1..4, do: refute(request("/x", opts).halted)
+
+      rules = Map.new(RateLimit.status().rules, &{&1.name, &1})
+      assert %{allowed: 1, logged: 3} = rules.t_log_tight
+      assert %{allowed: 2, logged: 2} = rules.t_log_loose
     end
 
     test "off skips everything, the blocklist included" do
@@ -314,6 +361,15 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       for _ <- 1..3, do: assert(RateLimit.charge(conn, :t_charge_exempt) == :ok)
     end
 
+    test "staff loaded after the plug ran are left alone by charge/3" do
+      conn = request("/", opts([[name: :t_charge_staff, limit: 1]]))
+      staff = Plug.Conn.assign(conn, :phoenix_kit_current_scope, fake_staff_scope())
+
+      for _ <- 1..3, do: assert(RateLimit.charge(staff, :t_charge_staff) == :ok)
+      assert RateLimit.charge(conn, :t_charge_staff) == :ok
+      assert {:error, _} = RateLimit.charge(conn, :t_charge_staff)
+    end
+
     test "log only answers :ok and records" do
       enable_tracking(%{"web_analytics_rate_limit" => "log_only"})
       conn = request("/", opts([[name: :t_charge_log, limit: 1]]))
@@ -369,6 +425,56 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
 
       assert_received {^ref, %{count: 1, retry_after_ms: _},
                        %{rule: :t_telemetry, scope: :visitor, mode: :on, path: "/x"}}
+    end
+
+    test "a blocklist refusal's telemetry has no one-time token in its path" do
+      ref = make_ref()
+      parent = self()
+
+      :telemetry.attach(
+        "rate-limit-block-test",
+        [:phoenix_kit_web_analytics, :rate_limit, :block],
+        fn _event, _measurements, metadata, _ -> send(parent, {ref, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach("rate-limit-block-test") end)
+
+      enable_tracking(%{"web_analytics_blocked_networks_secret" => "198.51.100.0/24"})
+      request("/users/reset-password/SFMyNTY.secret-token", opts([]), ip: {198, 51, 100, 7})
+
+      assert_received {^ref, %{path: "/users/reset-password/:token"}}
+    end
+  end
+
+  describe "rule registration" do
+    import ExUnit.CaptureLog
+
+    test "plugs registering at the same moment all keep their rules" do
+      plugs = for n <- 1..32, do: opts([[name: :"t_race_#{n}", paths: ["/r#{n}"], limit: 1]])
+
+      plugs
+      |> Enum.map(&Task.async(fn -> RateLimit.ensure_registered(&1) end))
+      |> Enum.each(&Task.await/1)
+
+      known = RateLimit.rules()
+      for n <- 1..32, do: assert(Map.has_key?(known, :"t_race_#{n}"))
+    end
+
+    test "two plugs defining one rule name differently are warned about" do
+      a = opts([[name: :t_twice, paths: ["/a"], limit: 1]])
+      b = opts([[name: :t_twice, paths: ["/b"], limit: 5]])
+      request("/a", a)
+
+      assert capture_log(fn -> request("/b", b) end) =~ "defined differently by two plugs"
+    end
+
+    test "the same rule from a second plug is not" do
+      a = opts([[name: :t_same, paths: ["/a"], limit: 1]])
+      b = opts([[name: :t_same, paths: ["/a"], limit: 1]], exempt_local: false)
+      request("/a", a)
+
+      refute capture_log(fn -> request("/a", b) end) =~ "defined differently"
     end
   end
 end
