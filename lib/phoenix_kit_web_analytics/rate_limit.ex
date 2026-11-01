@@ -99,7 +99,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   a small HTML page otherwise (`format: :json | :html` on the plug forces
   one). `on_deny: {Mod, :fun, args}` renders the host's own:
   `Mod.fun(conn, denial, ...args)` returns the conn, which is then halted.
-  A callback that raises, or returns a conn with no response, gets the
+  A callback that raises, throws, exits or returns a conn with no response gets the
   built-in refusal instead; a conn already sent is only halted.
 
   ## What is kept
@@ -311,8 +311,8 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
       fail_open(error)
       :ok
   catch
-    :exit, reason ->
-      fail_open(reason)
+    kind, reason ->
+      fail_open({kind, reason})
       :ok
   end
 
@@ -370,8 +370,8 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
       fail_open(error)
       conn
   catch
-    :exit, reason ->
-      fail_open(reason)
+    kind, reason ->
+      fail_open({kind, reason})
       conn
   end
 
@@ -623,7 +623,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     end
   end
 
-  # The host's refusal, or the built-in one when it raises or returns a conn
+  # The host's refusal, or the built-in one when it fails or returns a conn
   # that answers nothing: a refused request must never go on unanswered.
   defp host_deny(conn, denial, opts, {module, function, args}) do
     case apply(module, function, [conn, denial | List.wrap(args)]) do
@@ -634,6 +634,10 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   rescue
     error ->
       Logger.warning("[WebAnalytics] rate-limit on_deny raised: #{Exception.message(error)}")
+      built_in_deny(conn, denial, opts)
+  catch
+    kind, _reason ->
+      Logger.warning("[WebAnalytics] rate-limit on_deny failed (#{kind})")
       built_in_deny(conn, denial, opts)
   end
 

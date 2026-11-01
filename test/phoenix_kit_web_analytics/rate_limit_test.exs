@@ -127,8 +127,13 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
     end
 
     @tag capture_log: true
-    test "an on_deny that raises, or answers nothing, falls back to the built-in 429" do
-      for {fun, name} <- [{:raising_deny, :t_deny_raise}, {:silent_deny, :t_deny_silent}] do
+    test "an on_deny that fails, or answers nothing, falls back to the built-in 429" do
+      for {fun, name} <- [
+            {:raising_deny, :t_deny_raise},
+            {:throwing_deny, :t_deny_throw},
+            {:exiting_deny, :t_deny_exit},
+            {:silent_deny, :t_deny_silent}
+          ] do
         opts = opts([[name: name, paths: ["/x"], limit: 1]], on_deny: {__MODULE__, fun, []})
         request("/x", opts)
         denied = request("/x", opts)
@@ -158,9 +163,12 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
     do: Plug.Conn.send_resp(conn, 418, "#{denial.rule} #{extra}")
 
   def always_exempt(_conn), do: true
+  def throwing_exempt(_conn), do: throw(:host_bug)
 
   defp fake_staff_scope, do: PhoenixKitWebAnalytics.LiveCase.fake_scope(roles: [:owner])
   def raising_deny(_conn, _denial), do: raise("host bug")
+  def throwing_deny(_conn, _denial), do: throw(:host_bug)
+  def exiting_deny(_conn, _denial), do: exit(:host_bug)
   def silent_deny(conn, _denial), do: conn
 
   describe "exemptions" do
@@ -225,6 +233,16 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
         )
 
       for _ <- 1..3, do: refute(request("/x", opts).halted)
+    end
+
+    @tag capture_log: true
+    test "an exemption callback that throws fails open" do
+      opts =
+        opts([[name: :t_exempt_throw, paths: ["/x"], limit: 1]],
+          exempt: {__MODULE__, :throwing_exempt, []}
+        )
+
+      refute request("/x", opts).halted
     end
   end
 

@@ -87,7 +87,7 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   @max_network 255
 
   # Headers whose value is a credential, by name or by what the name contains.
-  @secret_headers ~w(cookie authorization proxy-authorization)
+  @secret_headers ~w(cookie authorization proxy-authorization x-rate-limit-bypass)
   @secret_words ~w(auth token secret session csrf password passwd key signature)
   # `Sec-WebSocket-Key` and friends are handshake nonces, not credentials.
   @not_secret ~w(sec-websocket-key sec-websocket-accept)
@@ -595,8 +595,18 @@ defmodule PhoenixKitWebAnalytics.Profiles do
   end
 
   defp secret_header?(name) do
-    name in @secret_headers or
+    name in @secret_headers or rate_limit_bypass_header?(name) or
       (name not in @not_secret and String.contains?(name, @secret_words))
+  end
+
+  # A host can rename the bypass header to something without "token" or
+  # "key" in its name. Its value is still a credential, in both request
+  # captures and header maps passed directly to the collector.
+  defp rate_limit_bypass_header?(name) do
+    case Application.get_env(:phoenix_kit_web_analytics, :rate_limit, [])[:bypass_header] do
+      header when is_binary(header) -> name == String.downcase(header)
+      _ -> false
+    end
   end
 
   defp strip_query(url), do: url |> String.split(["?", "#"], parts: 2) |> hd()

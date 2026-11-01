@@ -220,7 +220,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
          trackable_path?(conn.request_path, config, opts) and not opted_out?(conn, config) do
       started_at = System.monotonic_time(:microsecond)
       consent = Consent.for_conn(conn, config)
-      register_before_send(conn, &track(&1, started_at, {nil, consent}, config))
+      bot_reason = Tracking.prefetch_reason(conn)
+      register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
     else
       conn
     end

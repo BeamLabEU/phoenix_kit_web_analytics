@@ -259,6 +259,7 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
         {"cookie", "_session=SECRETCOOKIE"},
         {"authorization", "Bearer SECRETBEARER"},
         {"x-api-key", "SECRETKEY"},
+        {"x-rate-limit-bypass", "SECRETBYPASS"},
         {"x-forwarded-for", "198.51.100.9"},
         {"referer", "https://example.com/reset?token=SECRETQUERY"},
         {"sec-fetch-mode", "navigate"}
@@ -292,20 +293,63 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
       headers = stored_headers()
 
       assert headers["names"] == ~w(host user-agent accept accept-language cookie authorization
-               x-api-key x-forwarded-for referer sec-fetch-mode)
+               x-api-key x-rate-limit-bypass x-forwarded-for referer sec-fetch-mode)
 
       assert headers["values"]["accept-language"] == "en-US,en;q=0.9"
       assert headers["values"]["sec-fetch-mode"] == "navigate"
       assert headers["values"]["referer"] == "https://example.com/reset"
       assert is_binary(headers["http"])
 
-      for name <- ~w(cookie authorization x-api-key x-forwarded-for),
+      for name <- ~w(cookie authorization x-api-key x-rate-limit-bypass x-forwarded-for),
           do: refute(Map.has_key?(headers["values"], name))
 
       stored = inspect(headers)
 
-      for secret <- ~w(SECRETCOOKIE SECRETBEARER SECRETKEY SECRETQUERY 198.51.100.9),
+      for secret <- ~w(SECRETCOOKIE SECRETBEARER SECRETKEY SECRETBYPASS SECRETQUERY 198.51.100.9),
           do: refute(stored =~ secret)
+    end
+
+    test "a custom rate-limit bypass header never keeps its value, including host-provided maps" do
+      previous = Application.get_env(:phoenix_kit_web_analytics, :rate_limit)
+
+      Application.put_env(:phoenix_kit_web_analytics, :rate_limit,
+        bypass_header: "x-operator-pass",
+        bypass_token: "custom-bypass-credential"
+      )
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:phoenix_kit_web_analytics, :rate_limit, previous),
+          else: Application.delete_env(:phoenix_kit_web_analytics, :rate_limit)
+      end)
+
+      enable_tracking(%{"web_analytics_store_headers" => "true"})
+
+      request()
+      |> Plug.Conn.put_req_header("x-operator-pass", "custom-bypass-credential")
+      |> respond()
+
+      headers = stored_headers()
+      assert "x-operator-pass" in headers["names"]
+      refute Map.has_key?(headers["values"], "x-operator-pass")
+      refute inspect(headers) =~ "custom-bypass-credential"
+
+      captured =
+        Profiles.capture(
+          %{
+            headers: %{
+              "names" => ["X-Operator-Pass"],
+              "values" => %{
+                "X-Operator-Pass" => "custom-bypass-credential",
+                "accept" => "text/html"
+              }
+            }
+          },
+          Config.collection_config()
+        )
+
+      assert captured.headers["names"] == ["x-operator-pass"]
+      assert captured.headers["values"] == %{"accept" => "text/html"}
     end
 
     test "keep the address headers only with the whole address" do

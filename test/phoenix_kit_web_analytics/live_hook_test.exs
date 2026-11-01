@@ -200,13 +200,30 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
     end
 
     # Under LongPoll a prerendered page can join before anyone opens it.
-    test "REGRESSION: a connect made while the page is still prerendering records nothing" do
-      socket = connected_socket(%{"_mounts" => 0, "prerendered" => true, "prerendering" => true})
+    test "REGRESSION: a page still prerendering records no activity or presence", %{conn: conn} do
+      start_supervised!(LivePresence)
 
-      assert {:cont, socket} = LiveHook.on_mount(:track_navigation, %{}, %{}, socket)
-      run_handle_params_hook(socket, "http://www.example.com/shop")
+      for prerendering <- [true, "true"] do
+        {:ok, view, _html} =
+          conn
+          |> with_client()
+          |> put_connect_params(%{
+            "prerendered" => true,
+            "prerendering" => prerendering,
+            "_live_referer" => "http://www.example.com/"
+          })
+          |> live("/shop")
 
-      assert events("pageview") == []
+        :sys.get_state(LivePresence)
+        assert LivePresence.list() == []
+
+        view |> element("#add") |> render_click()
+        render_hook(view, "go", %{"to" => "/shop/other"})
+        GenServer.stop(view.pid)
+        :sys.get_state(LivePresence)
+
+        assert events() == []
+      end
     end
 
     test "REGRESSION: the visitor's own prerender doesn't make their recovered visit a bot's" do

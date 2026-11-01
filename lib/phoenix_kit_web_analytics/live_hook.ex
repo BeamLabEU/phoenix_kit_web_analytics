@@ -290,10 +290,12 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
         ) ::
           {:cont, Phoenix.LiveView.Socket.t()}
   def on_mount(:track_navigation, _params, session, socket) do
-    if Phoenix.LiveView.connected?(socket) and not opted_out?(session) do
+    if Phoenix.LiveView.connected?(socket) and not opted_out?(session) and
+         not prerendering?(socket) do
       mount_connected(socket, session)
     else
-      # The dead render is an ordinary HTTP response — the plug has it.
+      # The plug owns the dead render; an unactivated prerender has no
+      # visitor activity to watch, including patches, interactions and exits.
       {:cont, socket}
     end
   end
@@ -626,6 +628,13 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
   defp prefetch_delivered?(socket) do
     case get_connect_params(socket) do
       %{"_mounts" => 0} = params -> prefetch_param?(params)
+      _ -> false
+    end
+  end
+
+  defp prerendering?(socket) do
+    case get_connect_params(socket) do
+      %{"prerendering" => value} when value in [true, "true"] -> true
       _ -> false
     end
   end

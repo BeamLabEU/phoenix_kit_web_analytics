@@ -104,6 +104,14 @@ defmodule PhoenixKitWebAnalytics.ApiTrackingTest do
       for n <- 1..10, do: request(:get, "/api/search", ua: "agent #{n}")
       assert length(api_events()) == 6
     end
+
+    test "prefetches are skipped for every method" do
+      for method <- [:get, :head, :post] do
+        request(method, "/api/search", headers: [{"sec-purpose", "prefetch;prerender"}])
+      end
+
+      assert api_events() == []
+    end
   end
 
   describe "never a page view or part of a visit" do
