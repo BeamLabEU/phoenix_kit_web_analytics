@@ -596,5 +596,18 @@ defmodule PhoenixKitWebAnalytics.BotsTest do
       refute older.session_id == newer.session_id
       assert Bots.latest_sessions([]) == %{}
     end
+
+    test "latest_sessions/1 skips an API request, which belongs to no visit" do
+      visit = insert_event(%{visitor_id: "v3", inserted_at: hours_ago(2)})
+
+      insert_event(%{
+        visitor_id: "v3",
+        event_type: "api",
+        event_name: "GET",
+        session_id: UUIDv7.generate()
+      })
+
+      assert Bots.latest_sessions(["v3"]) == %{"v3" => visit.session_id}
+    end
   end
 end

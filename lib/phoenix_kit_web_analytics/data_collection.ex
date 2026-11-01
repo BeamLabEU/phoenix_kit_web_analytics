@@ -21,6 +21,12 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
   is noted in the site's own session cookie, so live pages can follow it.
   That is declared in the measurement entry's `storage`; every other
   `storage` list is empty.
+
+  Rate limiting (`PhoenixKitWebAnalytics.RateLimit`) declares nothing: it
+  works the visitor ID out in memory to count requests against abuse,
+  keeps the last refusals in this node's memory only (a truncated network,
+  a visitor-ID prefix, the path), and stores nothing on the device or in
+  the database.
   """
 
   use Gettext, backend: PhoenixKitWebAnalytics.Gettext
@@ -134,7 +140,11 @@ defmodule PhoenixKitWebAnalytics.DataCollection do
       gettext("Your account, when you are signed in"),
       config.track_interactions? && gettext("The buttons and links you use on our pages"),
       config.client_script? &&
-        gettext("Links you follow away from the site, and how far you scroll")
+        gettext("Links you follow away from the site, and how far you scroll"),
+      config.api_paths != [] &&
+        gettext(
+          "The requests your browser makes to the site's interface: which one, when, and whether it succeeded"
+        )
     ]
     |> Enum.filter(&is_binary/1)
   end

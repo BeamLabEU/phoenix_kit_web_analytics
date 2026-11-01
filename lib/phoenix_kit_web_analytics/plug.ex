@@ -18,19 +18,37 @@ defmodule PhoenixKitWebAnalytics.Plug do
   ## Cost to a request
 
   The plug does three cheap things in the request process: a method/path check,
-  one ETS read for settings, and `register_before_send/2`. When the response is
+  one ETS read for settings, and `register_before_send/2`. A request other
+  than `GET` costs the settings read only to see whether its path is a
+  tracked API path. When the response is
   on its way out it builds a map and hands it to
   `PhoenixKitWebAnalytics.Collector`, which does the settings-dependent
   enrichment, the session-stitch query, and the insert **in a supervised task**.
   No database work happens while the client is waiting.
+
+  ## API requests (off by default)
+
+  Paths listed in `web_analytics_track_api_paths` (Settings, one pattern per
+  line, matched like the exclusions) are recorded as `"api"` events instead:
+  any method, any 2xx–4xx status (stored), JSON or not. They go through the
+  same consent, Do Not Track, exclusion and bot rules, but they are not page
+  views: no visit is started or joined, and no report of page views,
+  visitors, visits, bounces, entry or exit pages counts them (see
+  `PhoenixKitWebAnalytics.Reports.api_requests/2`). A speculative prefetch
+  of one is not recorded. Each visitor is held to 60 such rows a minute, and
+  each network to four times that
+  (`config :phoenix_kit_web_analytics, api_events_per_minute: n`), past which
+  they are dropped — an API-heavy client must not grow the table without
+  bound.
 
   ## What is skipped
 
   Anything that isn't a person looking at a page:
 
     * non-`GET` requests, and non-2xx responses (a redirect isn't a page view)
+      — except on the API paths below
     * responses that aren't `text/html`, so assets, JSON APIs, and file
-      downloads never appear in reports
+      downloads never appear in reports (unless an API path lists them)
     * paths matching the exclusion patterns in settings (`/admin*` by default)
     * requests sending `DNT: 1` or `Sec-GPC: 1`, when
       `web_analytics_respect_dnt` is on (it is by default)
@@ -117,6 +135,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
   public address in front of the app: as a public peer its headers are
   ignored, and without `RemoteIp` every visitor is one of its addresses.
 
+  Whether this works on a given install is checked on the traffic itself:
+  each tracked page view is sampled in memory (`PhoenixKitWebAnalytics.IpHealth`),
+  and the Settings page warns when every visitor looks like one internal
+  address. `PhoenixKitWebAnalytics.ip_health/0` returns the same summary.
+
   `config :phoenix_kit_web_analytics, trust_x_forwarded_for: true` is
   deprecated and does nothing: the forwarded header from a private peer is
   always read.
@@ -130,6 +153,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.IpHealth
   alias PhoenixKitWebAnalytics.Profiles
   alias PhoenixKitWebAnalytics.Tracking
 
@@ -143,13 +167,12 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   @impl Plug
   def call(conn, opts) do
-    # Cheapest checks first: no settings read at all for asset requests, POSTs,
-    # or anything already marked to skip.
-    if conn.method == "GET" and not skipped?(conn) and not replay_frame?(conn) and
-         not diagnostic?(conn) do
-      maybe_register(conn, opts)
-    else
-      conn
+    # Cheapest checks first: no settings read at all for anything already
+    # marked to skip.
+    cond do
+      skipped?(conn) or replay_frame?(conn) or diagnostic?(conn) -> conn
+      conn.method == "GET" -> maybe_register(conn, opts)
+      true -> maybe_register_api(conn, opts)
     end
   end
 
@@ -188,6 +211,24 @@ defmodule PhoenixKitWebAnalytics.Plug do
     |> register_staff_note(config)
   end
 
+  # A request other than GET is only ever an API hit; nothing is noted in
+  # the session for it.
+  defp maybe_register_api(conn, opts) do
+    config = Config.collection_config()
+
+    if config.enabled? and api_path?(conn.request_path, config) and
+         trackable_path?(conn.request_path, config, opts) and not opted_out?(conn, config) do
+      started_at = System.monotonic_time(:microsecond)
+      consent = Consent.for_conn(conn, config)
+      register_before_send(conn, &track(&1, started_at, {nil, consent}, config))
+    else
+      conn
+    end
+  end
+
+  defp api_path?(_path, %{api_paths: []}), do: false
+  defp api_path?(path, %{api_paths: patterns}), do: Config.excluded?(path, patterns)
+
   defp register_tracking(conn, config, opts) do
     cond do
       not config.enabled? ->
@@ -216,7 +257,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp register_pageview(conn, config, opts, consent) do
     if trackable_path?(conn.request_path, config, opts) do
       started_at = System.monotonic_time(:microsecond)
-      bot_reason = prefetch_reason(conn)
+      bot_reason = Tracking.prefetch_reason(conn)
       register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
     else
       conn
@@ -298,35 +339,14 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   defp opted_out?(_conn, _config), do: false
 
-  # Chrome/Edge mark a Speculation-Rules prefetch or prerender this way (the
-  # legacy `Purpose` header predates `Sec-Purpose`); a substring match catches
-  # both `prefetch;anonymous-client-ip` and `prefetch;prerender`. A
-  # `<link rel=prefetch>` (`Sec-Fetch-Dest: empty`) is left a page view: its
-  # click is served from the HTTP cache, so nothing else would count it.
-  defp prefetch_reason(conn) do
-    if header(conn, "sec-fetch-dest") != "empty" and
-         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
-       do: "prefetch"
-  end
-
-  defp speculative_header?(conn, name) do
-    case header(conn, name) do
-      nil -> false
-      value -> value |> String.downcase() |> String.contains?(["prefetch", "prerender"])
-    end
-  end
-
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
   defp track(conn, started_at, {bot_reason, consent}, config) do
-    if html_pageview?(conn) and not skipped?(conn) do
-      duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
-
-      conn
-      |> build_hit(duration_ms, bot_reason)
-      |> Map.put(:consent, consent)
-      |> put_headers(conn, config)
-      |> Collector.track_async()
+    cond do
+      skipped?(conn) -> :ok
+      api_path?(conn.request_path, config) -> track_api(conn, started_at, bot_reason, consent)
+      html_pageview?(conn) -> track_pageview(conn, started_at, {bot_reason, consent}, config)
+      true -> :ok
     end
 
     conn
@@ -334,6 +354,39 @@ defmodule PhoenixKitWebAnalytics.Plug do
     # Nothing in the analytics path may break a response that was otherwise
     # about to be sent successfully.
     _ -> conn
+  end
+
+  # A speculative prefetch of an API path is nobody's request.
+  defp track_api(conn, started_at, nil, consent) when conn.status in 200..499 do
+    %{
+      event_type: "api",
+      event_name: conn.method,
+      path: conn.request_path,
+      site: conn.host,
+      ip: Tracking.client_ip(conn),
+      user_agent: header(conn, "user-agent"),
+      user_uuid: Tracking.current_user_uuid(conn.assigns),
+      roles: Tracking.current_roles(conn.assigns),
+      status: conn.status,
+      duration_ms: div(System.monotonic_time(:microsecond) - started_at, 1000),
+      location: edge_location(conn),
+      consent: consent
+    }
+    |> Collector.track_async()
+  end
+
+  defp track_api(_conn, _started_at, _bot_reason, _consent), do: :ok
+
+  defp track_pageview(conn, started_at, {bot_reason, consent}, config) do
+    duration_ms = div(System.monotonic_time(:microsecond) - started_at, 1000)
+    ip = Tracking.client_ip(conn)
+    IpHealth.sample(conn, ip)
+
+    conn
+    |> build_hit(ip, duration_ms, bot_reason)
+    |> Map.put(:consent, consent)
+    |> put_headers(conn, config)
+    |> Collector.track_async()
   end
 
   defp html_pageview?(conn) do
@@ -347,7 +400,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
     end
   end
 
-  defp build_hit(conn, duration_ms, bot_reason) do
+  defp build_hit(conn, ip, duration_ms, bot_reason) do
     query_params = fetch_campaign_params(conn)
 
     %{
@@ -356,7 +409,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       site: conn.host,
       referrer: header(conn, "referer"),
       query_params: query_params,
-      ip: Tracking.client_ip(conn),
+      ip: ip,
       user_agent: header(conn, "user-agent"),
       language: header(conn, "accept-language"),
       user_uuid: Tracking.current_user_uuid(conn.assigns),

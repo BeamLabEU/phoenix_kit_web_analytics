@@ -197,11 +197,18 @@ defmodule PhoenixKitWebAnalytics do
         658
       ),
       subtab(
+        :admin_web_analytics_rate_limits,
+        gettext_noop("Rate limits"),
+        "hero-shield-check",
+        "web-analytics/rate-limits",
+        659
+      ),
+      subtab(
         :admin_web_analytics_settings,
         gettext_noop("Settings"),
         "hero-cog-6-tooth",
         "web-analytics/settings",
-        659
+        660
       )
     ]
   end
@@ -246,7 +253,8 @@ defmodule PhoenixKitWebAnalytics do
   @impl PhoenixKit.Module
   @doc """
   Background workers: the task supervisor that absorbs writes off the request
-  path, and the hourly rollup/prune pass — plus a one-off check of the
+  path, the in-memory samples and counters (`Ring`), and the hourly
+  rollup/prune pass — plus a one-off check of the
   application config, logged once as the module starts.
   """
   def children do
@@ -255,6 +263,7 @@ defmodule PhoenixKitWebAnalytics do
         id: {__MODULE__, :config_check}
       ),
       Collector.gate_spec(),
+      PhoenixKitWebAnalytics.Ring,
       PhoenixKitWebAnalytics.BotSignals,
       PhoenixKitWebAnalytics.InternalTraffic,
       Collector.task_supervisor_spec(),
@@ -351,6 +360,38 @@ defmodule PhoenixKitWebAnalytics do
     |> Map.put_new(:path, "/")
     |> track()
   end
+
+  @doc """
+  The visitor behind a request, as this module counts them:
+  `%{visitor_id: "…32 hex…" | nil, ip: ip_tuple, network: "203.0.113.7" | "2001:db8:1:2::/64", prefetch?: false}`.
+
+  The `visitor_id` is the one the page view of this request is stored
+  under; `nil` when the salt can't be read. Never raises. Kept from
+  `put_visitor/1` when an earlier plug called it. Computing it stores
+  nothing; storing it is the caller's responsibility — see
+  `PhoenixKitWebAnalytics.RequestVisitor`.
+  """
+  @spec visitor(Plug.Conn.t()) :: PhoenixKitWebAnalytics.RequestVisitor.t()
+  def visitor(%Plug.Conn{} = conn), do: PhoenixKitWebAnalytics.RequestVisitor.get(conn)
+
+  @doc """
+  Works out `visitor/1` once and keeps it in `conn.private`, so the rest of
+  the request reuses it.
+  """
+  @spec put_visitor(Plug.Conn.t()) :: Plug.Conn.t()
+  def put_visitor(%Plug.Conn{} = conn), do: PhoenixKitWebAnalytics.RequestVisitor.put(conn)
+
+  @doc """
+  Whether visitors can be told apart by address on this install — a summary
+  of the client addresses of the last 200 tracked page views on this node
+  (in memory, nothing stored): `%{status: :ok | :one_internal |
+  :one_address | :not_enough, sample: n, private_peers: n, forwarded: n,
+  private_clients: n, distinct_clients: n}`. `:one_internal` means a
+  reverse proxy that doesn't append `X-Forwarded-For` is every visitor. See
+  `PhoenixKitWebAnalytics.IpHealth`.
+  """
+  @spec ip_health() :: PhoenixKitWebAnalytics.IpHealth.report()
+  def ip_health, do: PhoenixKitWebAnalytics.IpHealth.report()
 
   # ── internals ──────────────────────────────────────────────────────────────
 

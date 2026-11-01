@@ -65,13 +65,13 @@ defmodule PhoenixKitWebAnalyticsTest do
     end
 
     test "declares a parent tab plus one subtab per report page", %{tabs: tabs} do
-      assert length(tabs) == 10
+      assert length(tabs) == 11
 
       parents = Enum.filter(tabs, &is_nil(&1.parent))
       assert [%Tab{id: :admin_web_analytics}] = parents
 
       subtabs = Enum.filter(tabs, &(&1.parent == :admin_web_analytics))
-      assert length(subtabs) == 9
+      assert length(subtabs) == 10
 
       assert Enum.all?(tabs, &(&1.gettext_backend == PhoenixKitWebAnalytics.Gettext))
     end
@@ -114,7 +114,8 @@ defmodule PhoenixKitWebAnalyticsTest do
     test "children/0 supervises the write pool, presence, alerts and retention" do
       children = PhoenixKitWebAnalytics.children()
 
-      assert length(children) == 9
+      assert length(children) == 10
+      assert PhoenixKitWebAnalytics.Ring in children
       assert PhoenixKitWebAnalytics.InternalTraffic in children
       assert PhoenixKitWebAnalytics.LivePresence in children
       assert PhoenixKitWebAnalytics.ReportCache in children
@@ -128,7 +129,7 @@ defmodule PhoenixKitWebAnalyticsTest do
       localized = Macro.to_string(PhoenixKitWebAnalytics.Routes.admin_locale_routes())
       plain = Macro.to_string(PhoenixKitWebAnalytics.Routes.admin_routes())
 
-      for page <- ~w(pages sources technology events settings) do
+      for page <- ~w(pages sources technology events rate-limits settings) do
         assert localized =~ "/admin/web-analytics/#{page}"
         assert plain =~ "/admin/web-analytics/#{page}"
       end

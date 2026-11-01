@@ -57,6 +57,10 @@ defmodule PhoenixKitWebAnalytics.Paths do
   @spec bots(map()) :: String.t()
   def bots(params) when is_map(params), do: with_query(bots(), params)
 
+  @doc "Rate limits — the installed rules, their counts and the latest refusals."
+  @spec rate_limits() :: String.t()
+  def rate_limits, do: Routes.path("#{@base}/rate-limits")
+
   @doc "Settings page for the module."
   @spec settings() :: String.t()
   def settings, do: Routes.path("#{@base}/settings")

@@ -38,6 +38,23 @@ can't, stays optional, and never writes a cookie or storage.
 - `tracking.ex` — the helpers the plug, hook and beacon share (client IP rule,
   UTM params and ad-click identifiers, current user, UTF-8-safe truncation).
 - `{visitor,user_agent,referrer,geo}.ex` — pure classification helpers.
+- `request_visitor.ex` — the public "who is this request" API
+  (`PhoenixKitWebAnalytics.visitor/1`): the collector's own recipe
+  (`Visitor.agent_input/2`, `Tracking.prefetch_reason/1`, the cached salt),
+  memoized in `conn.private`. Never creates the salt.
+- `ring.ex` + `ip_health.ex` — per-node in-memory ring buffers and counters
+  (one ETS table, no DB, no settings); `IpHealth` samples the client
+  address of each tracked page view (booleans + a hash, never an address)
+  and the Settings page warns when every visitor looks like one internal
+  address (a proxy that doesn't append `X-Forwarded-For`).
+- `rate_limit.ex` + `rate_limit/plug.ex` — opt-in rate limits on core's
+  Hammer table: rules from the host's plug options (registered on the
+  plug's first request, since plug options are built at compile time) or
+  app config, each request counted per visitor ID **and** per network,
+  `charge/3` / `check/3` for code. Exempt: internal networks, staff, local
+  development, a bypass token from app config. The
+  `web_analytics_blocked_networks_secret` setting answers 403. Fails open;
+  denials only in `Ring` + telemetry, never the DB. Never uses a bot score.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
@@ -88,7 +105,7 @@ can't, stays optional, and never writes a cookie or storage.
   remainder can't count differently.
 - `session_stats.ex` — the per-session query shared by reports and rollup.
 - `web/*_live.ex` — Overview, Right now, Sessions, a session, Pages,
-  Acquisition, Technology, Events, Bots, Settings.
+  Acquisition, Technology, Events, Bots, Rate limits, Settings.
 - `bots.ex` — the Bots page's queries over `visitor_profiles`: ranked
   visitors, groups by network / subnet / address / device / User-Agent.
   The page is links only (the whole filter is in the URL).
@@ -199,6 +216,15 @@ can't, stays optional, and never writes a cookie or storage.
   Visit totals, bounces and session seconds also use daily visit portions
   (`SessionStats`), so a session spanning midnight has the same aggregates
   raw or rolled up. The visit list and timeline still show the full visit.
+- **An `"api"` event is never a page view or part of a visit.** Requests to
+  `web_analytics_track_api_paths` (off while empty) get their own
+  `session_id`, never `session_start`, no lock, no stitch, no profile, no
+  alert; the stitch query, the session-start backfill and the Bots page's
+  latest visit skip them, `LiveHook` treats an API path like an excluded
+  one, and every visitor / visit / "right now" query filters on `pageview`
+  (or excludes `api`). A new report query
+  that counts "all events" must leave them out. Their volume is capped per
+  visitor and per network per minute (`BotSignals.count/2`).
 - **Never store form contents.** An interaction keeps its event name and only
   the short values of allow-listed params (`web_analytics_event_params`);
   `phx-change` (recognised by `_target`) isn't recorded at all.

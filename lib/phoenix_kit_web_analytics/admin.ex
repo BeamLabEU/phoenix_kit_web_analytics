@@ -46,10 +46,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
     consent_device: Enum.map(Config.consent_modes(), &Atom.to_string/1),
     consent_recording: Enum.map(Config.consent_modes(), &Atom.to_string/1),
     consent_category: Config.consent_categories(),
-    without_consent: Enum.map(Config.without_consent_modes(), &Atom.to_string/1)
+    without_consent: Enum.map(Config.without_consent_modes(), &Atom.to_string/1),
+    rate_limit: Enum.map(Config.rate_limit_modes(), &Atom.to_string/1)
   }
   @alert_booleans [:visitors, :signups, :skip_users]
-  @lists [:exclude_paths, :ignore_events, :event_params]
+  @lists [:exclude_paths, :ignore_events, :event_params, :track_api_paths]
   @max_setting_length 1000
   @alert_lists [:paths, :events]
   @integers %{
@@ -73,7 +74,9 @@ defmodule PhoenixKitWebAnalytics.Admin do
   A field is named by its setting (`:internal_networks` for a line that isn't
   a network), and the internal networks add two of their own:
   `:internal_networks_wide` (a network wider than `/8` for IPv4 or `/16` for
-  IPv6) and `:internal_networks_long` (a list over `max_setting_length/0`).
+  IPv6) and `:internal_networks_long` (a list over `max_setting_length/0`);
+  the blocked networks the same, as `:blocked_networks`,
+  `:blocked_networks_wide` and `:blocked_networks_long`.
   Writes stop at the first failure; the ones before it are saved. They are
   not one transaction on purpose: core announces each setting change (cache,
   history, broadcast) as its write returns, so wrapping them would announce
@@ -234,7 +237,10 @@ defmodule PhoenixKitWebAnalytics.Admin do
       Enum.map(@alert_lists, &{:"alert_#{&1}", Map.fetch!(alert_keys, &1), :text}) ++
       [
         {:internal_roles, keys.internal_roles, :roles},
-        {:internal_networks, keys.internal_networks, :networks},
+        {:internal_networks, keys.internal_networks,
+         {:networks, {:internal_networks_wide, :internal_networks_long}}},
+        {:blocked_networks, keys.blocked_networks,
+         {:networks, {:blocked_networks_wide, :blocked_networks_long}}},
         {:alert_max_per_hour, alert_keys.max_per_hour, {:integer, {0, 10_000}}},
         {:alert_channels, alert_keys.channels, :channels}
       ]
@@ -273,9 +279,9 @@ defmodule PhoenixKitWebAnalytics.Admin do
   # typo is shown rather than silently skipped. Kept one per line. A network
   # too wide to be the site's own, and a list too long to store, are named as
   # their own fields.
-  defp cast(:networks, nil, _params), do: :skip
+  defp cast({:networks, _field}, nil, _params), do: :skip
 
-  defp cast(:networks, value, params) when is_binary(value) do
+  defp cast({:networks, {too_wide, too_long}}, value, params) when is_binary(value) do
     entries = String.split(value, [",", "\n", "\r", "\t", " "], trim: true)
     checked = Enum.map(entries, &PhoenixKitWebAnalytics.InternalTraffic.check_cidr/1)
 
@@ -284,17 +290,17 @@ defmodule PhoenixKitWebAnalytics.Admin do
         :error
 
       Enum.any?(checked, &(&1 == {:error, :too_wide})) ->
-        {:error, :internal_networks_wide}
+        {:error, too_wide}
 
       true ->
         case cast(:text, Enum.join(entries, "\n"), params) do
-          :error -> {:error, :internal_networks_long}
+          :error -> {:error, too_long}
           other -> other
         end
     end
   end
 
-  defp cast(:networks, _value, _params), do: :error
+  defp cast({:networks, _field}, _value, _params), do: :error
 
   defp cast({:choice, _allowed}, nil, _params), do: :skip
 

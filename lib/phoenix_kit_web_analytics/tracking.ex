@@ -168,6 +168,14 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   # ports the two agree.
   #
   # A copy of core's ranges for a proxy — `local?/1` is private there.
+  @doc """
+  Whether `ip` is a loopback or private address — the peers whose
+  forwarded headers `client_ip/1` reads.
+  """
+  @spec local_address?(term()) :: boolean()
+  def local_address?(ip) when is_tuple(ip), do: local?(ip)
+  def local_address?(_ip), do: false
+
   defp local?({127, _, _, _}), do: true
   defp local?({10, _, _, _}), do: true
   defp local?({192, 168, _, _}), do: true
@@ -225,6 +233,41 @@ defmodule PhoenixKitWebAnalytics.Tracking do
     do: {div(ab, 256), rem(ab, 256), div(cd, 256), rem(cd, 256)}
 
   defp unmap(ip), do: ip
+
+  @doc """
+  `"prefetch"` for a Chrome/Edge Speculation-Rules prefetch or prerender of
+  a page (`Sec-Purpose: prefetch…`, or the legacy `Purpose: prefetch`), nil
+  otherwise. A substring match catches both `prefetch;anonymous-client-ip`
+  and `prefetch;prerender`. A `<link rel=prefetch>` (`Sec-Fetch-Dest:
+  empty`) is no speculative page load: its click is served from the HTTP
+  cache, so nothing else would count it.
+
+  The plug hands the reason to the collector as `bot:`, and
+  `PhoenixKitWebAnalytics.RequestVisitor` hashes the same request the same
+  way, so both name the same visitor.
+  """
+  @spec prefetch_reason(Plug.Conn.t()) :: String.t() | nil
+  def prefetch_reason(conn) do
+    if first_header(conn, "sec-fetch-dest") != "empty" and
+         (speculative_header?(conn, "sec-purpose") or speculative_header?(conn, "purpose")),
+       do: "prefetch"
+  end
+
+  defp speculative_header?(conn, name) do
+    case first_header(conn, name) do
+      nil -> false
+      value -> value |> String.downcase() |> String.contains?(["prefetch", "prerender"])
+    end
+  end
+
+  @doc "The first non-empty value of a request header, or nil."
+  @spec first_header(Plug.Conn.t(), String.t()) :: String.t() | nil
+  def first_header(conn, name) do
+    case Plug.Conn.get_req_header(conn, name) do
+      [value | _] when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
 
   @doc """
   Warns, once at start, about `trust_x_forwarded_for: true`: it no longer

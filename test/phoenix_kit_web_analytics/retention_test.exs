@@ -483,6 +483,14 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       Repo.update_all(Event, set: [session_start: false])
       assert Retention.backfill_session_starts() == 0
     end
+
+    test "an API request is never marked as a visit's start" do
+      api = insert_event(%{session_id: UUIDv7.generate(), event_type: "api", event_name: "POST"})
+      Repo.update_all(Event, set: [session_start: false])
+
+      assert Retention.backfill_session_starts() == 0
+      refute Repo.get!(Event, api.uuid).session_start
+    end
   end
 
   describe "rollup_day/1 counting rules" do

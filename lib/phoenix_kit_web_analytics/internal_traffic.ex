@@ -156,8 +156,21 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @spec internal_network?(:inet.ip_address() | nil, map()) :: boolean()
   def internal_network?(_ip, %{enabled?: false}), do: false
 
-  def internal_network?(ip, config) when is_tuple(ip) do
-    case parsed_networks(entries(config)) do
+  def internal_network?(ip, config) when is_tuple(ip),
+    do: listed?(ip, entries(config), :internal_networks)
+
+  def internal_network?(_ip, _config), do: false
+
+  @doc """
+  Whether `ip` is in one of `entries` (CIDR strings or bare addresses, the
+  same rules and the same width limit as the internal networks). The parsed
+  list is kept per `name` until the entries change, so a hit parses nothing;
+  an invalid entry is skipped, with one warning naming `name` and never the
+  entry.
+  """
+  @spec listed?(:inet.ip_address() | nil, list(), atom()) :: boolean()
+  def listed?(ip, entries, name) when is_tuple(ip) and is_list(entries) and is_atom(name) do
+    case parsed_networks(entries, name) do
       [] ->
         false
 
@@ -167,9 +180,11 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
           nil -> false
         end
     end
+  rescue
+    _ -> false
   end
 
-  def internal_network?(_ip, _config), do: false
+  def listed?(_ip, _entries, _name), do: false
 
   @doc "Whether `ip` is in one of the configured `internal_networks`, read from the settings."
   @spec internal_network?(:inet.ip_address() | nil) :: boolean()
@@ -192,7 +207,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   @spec network_counts() :: %{valid: non_neg_integer(), invalid: non_neg_integer()}
   def network_counts do
     entries = Config.internal_network_entries()
-    valid = length(parsed_networks(entries))
+    valid = length(parsed_networks(entries, :internal_networks))
     %{valid: valid, invalid: length(entries) - valid}
   end
 
@@ -201,35 +216,37 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   # likely someone's address. An empty list has nothing to parse and leaves
   # the term alone: a settings read that failed reads as empty, and must not
   # replace the parsed list (and warn again) on every hit.
-  defp parsed_networks([]), do: []
+  defp parsed_networks([], _name), do: []
 
-  defp parsed_networks(raw) do
-    case :persistent_term.get(@networks_key, nil) do
+  defp parsed_networks(raw, name) do
+    key = if name == :internal_networks, do: @networks_key, else: {__MODULE__, :networks, name}
+
+    case :persistent_term.get(key, nil) do
       {^raw, parsed} ->
         parsed
 
       _ ->
         parsed = Enum.flat_map(raw, &parse_cidr/1)
-        warn_invalid(length(raw) - length(parsed))
-        :persistent_term.put(@networks_key, {raw, parsed})
+        warn_invalid(name, length(raw) - length(parsed))
+        :persistent_term.put(key, {raw, parsed})
         parsed
     end
   end
 
   # An entry is skipped for one of two reasons: it isn't a network, or it is
   # one wider than the limit (see `check_cidr/1`). The line says both.
-  defp warn_invalid(0), do: :ok
+  defp warn_invalid(_name, 0), do: :ok
 
-  defp warn_invalid(1),
+  defp warn_invalid(name, 1),
     do:
       Logger.warning(
-        "[WebAnalytics] internal_networks: 1 entry skipped, not a network or wider than /8 (IPv4) or /16 (IPv6)"
+        "[WebAnalytics] #{name}: 1 entry skipped, not a network or wider than /8 (IPv4) or /16 (IPv6)"
       )
 
-  defp warn_invalid(count),
+  defp warn_invalid(name, count),
     do:
       Logger.warning(
-        "[WebAnalytics] internal_networks: #{count} entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
+        "[WebAnalytics] #{name}: #{count} entries skipped, not networks or wider than /8 (IPv4) or /16 (IPv6)"
       )
 
   @doc """

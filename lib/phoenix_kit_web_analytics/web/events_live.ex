@@ -16,12 +16,13 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
 
   import PhoenixKitWebAnalytics.Web.Components
 
+  alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Web.Filters
 
   @refresh_ms 10_000
-  @feed_types ~w(all pageview interaction leave event)
+  @feed_types ~w(all pageview interaction leave event api)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -67,6 +68,8 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
     |> assign(:events, Reports.top_events(filter, limit: 25))
     |> assign(:interactions, Reports.top_interactions(filter, limit: 25))
     |> assign(:overview, Reports.overview(filter))
+    |> assign(:api_tracked?, Config.collection_config().api_paths != [])
+    |> assign(:api, Reports.api_requests(filter, limit: 15))
     |> load_feed()
   end
 
@@ -156,6 +159,53 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
         </.breakdown_card>
       </div>
 
+      <div
+        :if={@api_tracked? or @api.requests > 0}
+        id="api-requests"
+        class="grid gap-4 lg:grid-cols-2"
+      >
+        <.breakdown_card
+          id="card-api-paths"
+          title={
+            gettext("API requests: %{count}, from %{visitors} visitors",
+              count: format_number(@api.requests),
+              visitors: format_number(@api.visitors)
+            )
+          }
+          icon="hero-arrows-right-left"
+          rows={@api.paths}
+          label_header={gettext("Request")}
+          metric_header={gettext("Times")}
+          empty_message={gettext("No API requests recorded in this period.")}
+        >
+          <:info>
+            <p>
+              {gettext(
+                "Requests to the paths listed under API requests in Settings, by method and path, without the query string. They are not page views and belong to no visit: no other report counts them. Kept as long as raw events, never rolled up."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
+        <.breakdown_card
+          id="card-api-statuses"
+          title={gettext("API responses")}
+          icon="hero-check-circle"
+          rows={@api.statuses}
+          label_header={gettext("Status")}
+          metric_header={gettext("Times")}
+          empty_message={gettext("No API requests recorded in this period.")}
+          info_align="end"
+        >
+          <:info>
+            <p>
+              {gettext(
+                "API requests by the class of their response status: 2xx answered, 3xx redirected, 4xx refused or not found. 5xx errors are not recorded."
+              )}
+            </p>
+          </:info>
+        </.breakdown_card>
+      </div>
+
       <.report_card id="live-feed" title={gettext("Live feed")} icon="hero-signal">
         <:info>
           <p>
@@ -179,7 +229,8 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
                 {gettext("Page views"), "pageview"},
                 {gettext("Interactions"), "interaction"},
                 {gettext("Exits"), "leave"},
-                {gettext("Custom events"), "event"}
+                {gettext("Custom events"), "event"},
+                {gettext("API requests"), "api"}
               ]}
               class="select-xs w-auto"
               aria-label={gettext("Hit type")}
@@ -227,6 +278,7 @@ defmodule PhoenixKitWebAnalytics.Web.EventsLive do
               </.table_default_cell>
               <.table_default_cell>
                 <.link
+                  :if={hit.event_type != "api"}
                   navigate={Paths.session(hit.session_id)}
                   class="font-mono text-[11px] text-primary hover:underline"
                   title={gettext("Open this visit")}

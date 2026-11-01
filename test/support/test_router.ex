@@ -37,6 +37,7 @@ defmodule PhoenixKitWebAnalytics.Test.Router do
       live("/technology", TechnologyLive, :index)
       live("/events", EventsLive, :index)
       live("/settings", SettingsLive, :index)
+      live("/rate-limits", RateLimitsLive, :index)
       live("/bots", BotsLive, :index)
       live("/live", LiveNowLive, :index)
       live("/sessions", SessionsLive, :index)

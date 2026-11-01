@@ -123,6 +123,24 @@ defmodule PhoenixKitWebAnalytics.Visitor do
   end
 
   @doc """
+  What a hit's User-Agent puts into its visitor hash: the User-Agent itself,
+  or, for a hit with a forced bot verdict (`bot: "prefetch"`, see
+  `PhoenixKitWebAnalytics.Collector`), the reason folded in — same salt,
+  same length, but never the ID of the person whose browser sent it.
+
+      iex> PhoenixKitWebAnalytics.Visitor.agent_input("UA", nil)
+      "UA"
+
+      iex> PhoenixKitWebAnalytics.Visitor.agent_input("UA", "prefetch")
+      "bot:prefetch|UA"
+  """
+  @spec agent_input(String.t() | nil, String.t() | nil) :: String.t() | nil
+  def agent_input(user_agent, bot) when is_binary(bot),
+    do: "bot:" <> bot <> "|" <> (user_agent || "")
+
+  def agent_input(user_agent, _bot), do: user_agent
+
+  @doc """
   Formats an IP for hashing.
 
   Anything unrecognised becomes `"unknown"` rather than raising — a request

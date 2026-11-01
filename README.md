@@ -51,6 +51,7 @@ scroll depth, and exits from pages without a LiveView.
 | Scroll depth; exits from non-LiveView pages | Browser scroll and page-hide listeners | client script |
 | Custom events | `PhoenixKitWebAnalytics.track_event/2` on the server; `phoenixKitAnalytics(name, props)` in the browser | — / client script |
 | Device measurements and a device hash (optional, off by default) | Screen, time zone, languages, processor, graphics card, fonts, canvas and audio rendering — once per page load, only when asked | client script + **Keep device measurements** |
+| API requests (optional, off by default) | Requests to the paths in **API requests** (Settings): method, path, status — never page views, never part of a visit | the plug + `web_analytics_track_api_paths` |
 | Session recordings (optional, off by default) | Pointer movement, clicks, hovers and scrolling per page view — coordinates and element positions only, never text, typing or form values; replayed on the visit page | client script + **Record visits** |
 
 Signed-in users are attributed by their account on every hit, so a person's
@@ -68,8 +69,9 @@ Under **Web Analytics** in the PhoenixKit sidebar:
 | Pages | Every path with views, time on page and exits; a path opens the overview filtered to it; slowest pages by server response time |
 | Acquisition | Channels (direct / search / social / referral / email / paid), referring sites, UTM campaigns |
 | Technology | Browsers, operating systems, devices, languages, countries |
-| Events | What visitors do (interactions), custom events, and a live feed of every hit |
+| Events | What visitors do (interactions), custom events, API requests (when tracked), and a live feed of every hit |
 | Bots | Visitors by how much they look automated and why; grouped by network, subnet, address, device or User-Agent; the likely bots of a grouping as a list to block by |
+| Rate limits | The installed rate-limit rules, what each allowed and refused on this server, and the latest refusals |
 | Settings | Collection rules, bot detection, retention, interaction and client-script switches, session recordings, alerts, stored-data stats, installation checklist |
 
 Charts are core's server-rendered SVG components — no charting library, no
@@ -215,6 +217,81 @@ Any element can be named for click tracking with `data-analytics="name"`.
 For pages served from a full-page CDN cache that never reaches your app,
 `<.pixel path={@path} cache_buster={@request_id} />` records the view with a
 1×1 image (switch **Accept the beacon and pixel** on).
+
+## API requests
+
+Only HTML page views count by default. To see how a site's own API is used
+— a search endpoint, a JSON feed — list its paths under **API requests** in
+Settings (`web_analytics_track_api_paths`, one pattern per line, a trailing
+`*` matches a prefix, also past a leading locale). Each request to them is
+stored as an `"api"` event: any method, any 2xx–4xx status (5xx are not),
+path without its query string, under the same consent, Do Not Track,
+exclusion and bot rules as a page view.
+
+They are not page views and belong to no visit: page views, visitors,
+visits, bounce rate, entry and exit pages and the "right now" count are the
+same with the setting on or off. The Events page shows them (busiest
+requests, response classes, and in the hit feed); `Reports.api_requests/2`
+returns the same. They are never rolled up, so they go with the raw events.
+At most 60 a minute per visitor and 240 per network are kept
+(`api_events_per_minute`); the rest is dropped.
+
+## The visitor in your own code
+
+`PhoenixKitWebAnalytics.visitor(conn)` returns who the module counts the
+request as — the visitor ID its page view is stored under, the client
+address and its network:
+
+```elixir
+%{visitor_id: "3f2a…", ip: {203, 0, 113, 7}, network: "203.0.113.7", prefetch?: false} =
+  PhoenixKitWebAnalytics.visitor(conn)
+```
+
+`put_visitor/1` works it out once and keeps it in `conn.private` for the
+rest of the request. `visitor_id` is `nil` when the salt can't be read (the
+module never switched on); it never raises. Working it out stores nothing;
+if your code stores it, that is your data to answer for — see
+`PhoenixKitWebAnalytics.RequestVisitor`.
+
+## Rate limiting
+
+Opt-in, by rules in your router, counted per visitor **and** per network
+(the visitor ID includes the User-Agent, so a client that changes it per
+request is held by its network) on PhoenixKit's Hammer counters:
+
+```elixir
+pipeline :public do
+  plug :browser_things
+  plug PhoenixKitWebAnalytics.Plug
+  plug PhoenixKitWebAnalytics.RateLimit.Plug,
+    rules: [
+      [name: :search, paths: ["/search", "/api/search*"], methods: ["GET"], limit: 60],
+      [name: :site, paths: ["/catalog*"], limit: 300, window_ms: 60_000, network_limit: 1_200],
+      # No paths: only charged from code.
+      [name: :ai_search, limit: 20]
+    ]
+end
+```
+
+```elixir
+# Charge expensive work only when it happens — e.g. on a cache miss:
+with :ok <- PhoenixKitWebAnalytics.RateLimit.charge(conn, :ai_search) do
+  embed(query)
+else
+  {:error, denial} -> PhoenixKitWebAnalytics.RateLimit.deny(conn, denial)
+end
+```
+
+A refusal is `429` with `retry-after` and `ratelimit-*` headers, JSON for an
+API-looking request and a small HTML page otherwise (`on_deny:` renders
+your own). The internal networks, staff, `localhost` in development and a
+request carrying the bypass token are never limited; **Blocked networks**
+in Settings (`web_analytics_blocked_networks_secret`) are answered `403`.
+**Rate limits** in Settings switches between on, log only (count every rule
+and record, never refuse — for tuning) and off. Counters are per node; refusals are kept
+in memory only (the latest 500, on the **Rate limits** page) and emitted as
+`[:phoenix_kit_web_analytics, :rate_limit, :deny]` telemetry. Anything going
+wrong lets the request through. See `PhoenixKitWebAnalytics.RateLimit`.
 
 ## Querying the data yourself
 
@@ -648,6 +725,9 @@ Settings (editable from the admin Settings page, no redeploy):
 | `web_analytics_consent_recording` | `always` | The same, for session recordings |
 | `web_analytics_consent_category` | `analytics` | The consent category the four rules follow: `analytics`, `marketing`, `preferences` |
 | `web_analytics_without_consent` | `drop` | A page view that may not be counted: `drop` it, or count it `anonymous` (no visitor) |
+| `web_analytics_track_api_paths` | empty | Path patterns whose requests are recorded as API requests (empty = off) |
+| `web_analytics_rate_limit` | `on` | What the rate-limit plug does with its rules: `on`, `log_only`, `off` |
+| `web_analytics_blocked_networks_secret` | empty | Networks the rate-limit plug answers `403`, one per line (nothing wider than `/8` / `/16`) |
 | `web_analytics_alert_signups` | `true` | Alert on new accounts |
 | `web_analytics_alert_visitors` | `false` | Alert on new visits (filtered by the keys below) |
 | `web_analytics_alert_channels` | all | Channels a visitor alert fires for |
@@ -685,6 +765,16 @@ config :phoenix_kit_web_analytics, bot_pageviews_per_minute: 30
 # hidden before it counts as a second tab (ms).
 config :phoenix_kit_web_analytics, presence_reconnect_grace_ms: 10_000
 config :phoenix_kit_web_analytics, presence_supersede_ms: 30_000
+
+# API requests kept per visitor a minute (four times that per network).
+config :phoenix_kit_web_analytics, api_events_per_minute: 60
+
+# Rate limiting: rules known without a plug (for charge/3), and the bypass
+# token (16+ bytes) a request sends in the header to skip every limit.
+config :phoenix_kit_web_analytics, :rate_limit,
+  rules: [[name: :ai_search, limit: 20, window_ms: 60_000]],
+  bypass_token: System.get_env("RATE_LIMIT_BYPASS"),
+  bypass_header: "x-rate-limit-bypass"
 ```
 
 `trust_x_forwarded_for` is deprecated and does nothing (a warning is logged
@@ -725,7 +815,15 @@ A proxy or CDN with a **public** address in front of the app (a CDN
 forwarding to the origin) is a public peer: its headers are ignored and
 every visitor counts as one of its edge addresses. Rewrite `remote_ip` with
 a `RemoteIp` plug — see [Behind a CDN and a load
-balancer](#behind-a-cdn-and-a-load-balancer).
+balancer](#behind-a-cdn-and-a-load-balancer) — or, on PhoenixKit 2.64 and
+later, list it in `config :phoenix_kit, :trusted_proxies`.
+
+**Checked on your traffic.** The plug samples the client address of the last
+200 page views in memory (never the address itself — whether it was private,
+whether a forwarded header came, and a hash to count distinct ones). When
+every visitor looks like one internal address, or one public address, the
+Settings page says so and what to change; `PhoenixKitWebAnalytics.ip_health/0`
+returns the same summary for a health check of your own.
 
 ### Behind a reverse proxy that appends the port (e.g. Caddy `{remote}`)
 

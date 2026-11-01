@@ -353,6 +353,19 @@ defmodule PhoenixKitWebAnalytics.LiveHookTest do
       assert events("leave") == []
     end
 
+    test "a path listed under API requests records no interactions and isn't open",
+         %{conn: conn} do
+      start_supervised!(LivePresence)
+      enable_tracking(%{"web_analytics_track_api_paths" => "/shop*"})
+      {:ok, view, _html} = conn |> with_client() |> live("/shop")
+      :sys.get_state(LivePresence)
+
+      view |> element("#add") |> render_click()
+
+      assert events("interaction") == []
+      assert LivePresence.list() == []
+    end
+
     test "an automated visitor isn't listed as open unless bots are recorded", %{conn: conn} do
       start_supervised!(LivePresence)
       enable_tracking()

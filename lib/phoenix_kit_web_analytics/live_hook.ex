@@ -509,8 +509,15 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
 
   defp trackable_path?(path) do
     config = Config.collection_config()
-    config.enabled? and not Config.excluded?(path, config.exclusions)
+
+    config.enabled? and not Config.excluded?(path, config.exclusions) and
+      not api_path?(path, config)
   end
+
+  # A path listed under API requests is never a page view, live or not: the
+  # plug records its request as an "api" event, so its socket adds nothing.
+  defp api_path?(_path, %{api_paths: []}), do: false
+  defp api_path?(path, %{api_paths: patterns}), do: Config.excluded?(path, patterns)
 
   # What "Right now" lists, and so what a leave is recorded for, follows the
   # same rules as a page view: tracking on, the path not excluded, and no
@@ -519,6 +526,7 @@ defmodule PhoenixKitWebAnalytics.LiveHook do
     config = Config.collection_config()
 
     config.enabled? and not Config.excluded?(path, config.exclusions) and
+      not api_path?(path, config) and
       (config.track_bots? or not UserAgent.bot?(client && client[:user_agent])) and
       measured?(client)
   end

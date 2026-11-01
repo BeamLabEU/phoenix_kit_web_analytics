@@ -27,8 +27,11 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Consent
   alias PhoenixKitWebAnalytics.InternalTraffic
+  alias PhoenixKitWebAnalytics.IpHealth
   alias PhoenixKitWebAnalytics.LiveHook
+  alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Profiles
+  alias PhoenixKitWebAnalytics.RateLimit
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.TrafficFlags
 
@@ -212,11 +215,15 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     )
     |> assign(:internal_networks, InternalTraffic.network_counts())
     |> assign(:internal_networks_raw, Config.internal_networks_raw())
+    |> assign(:blocked_networks_raw, Config.blocked_networks_raw())
+    |> assign(:track_api_paths, Config.track_api_paths_raw())
+    |> assign(:rate_limit_rules, map_size(RateLimit.rules()))
     |> assign(:retention_days, Config.retention_days())
     |> assign(:recording_retention_days, Config.recording_retention_days())
     |> assign(:storage, Reports.storage_stats())
     |> assign(:profiles, Profiles.count())
     |> assign(:live_skips?, live_skips?())
+    |> assign(:ip_health, IpHealth.report())
     |> assign(:live_hook, LiveHook.coverage(socket.router))
     |> assign(:notification_settings_path, Routes.path("/admin/notifications/settings"))
   end
@@ -320,6 +327,14 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp waits_for_yes?(config),
     do: Enum.any?(config.consent, fn {_purpose, mode} -> mode == :consent end)
 
+  defp rate_limit_options do
+    [
+      {:on, gettext("On — refuse requests over a limit")},
+      {:log_only, gettext("Log only — record them, let them through")},
+      {:off, gettext("Off")}
+    ]
+  end
+
   defp ip_options do
     [
       {:off, gettext("Not kept")},
@@ -334,6 +349,7 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
   defp field_label(:recording_retention_days), do: gettext("Keep recordings")
   defp field_label(:alert_max_per_hour), do: gettext("Alerts per hour")
   defp field_label(:exclude_paths), do: gettext("Excluded paths")
+  defp field_label(:track_api_paths), do: gettext("API requests")
   defp field_label(:ignore_events), do: gettext("Events not to record")
   defp field_label(:event_params), do: gettext("Event values to keep")
   defp field_label(:alert_paths), do: gettext("Landing pages")
@@ -360,7 +376,88 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     do: gettext("Internal networks (at most %{max} characters)", max: Admin.max_setting_length())
 
   defp field_label(:admin_network_hours), do: gettext("Staff network, hours")
+  defp field_label(:rate_limit), do: gettext("Rate limits")
+  defp field_label(:blocked_networks), do: gettext("Blocked networks")
+
+  defp field_label(:blocked_networks_wide),
+    do:
+      gettext(
+        "Blocked networks (a prefix shorter than /8 for IPv4 or /16 for IPv6 covers too much)"
+      )
+
+  defp field_label(:blocked_networks_long),
+    do: gettext("Blocked networks (at most %{max} characters)", max: Admin.max_setting_length())
+
   defp field_label(field), do: field |> Atom.to_string() |> String.replace("_", " ")
+
+  attr :report, :map, required: true
+
+  # What the sample of recent page views says about the client address —
+  # a warning when every visitor looks like one address.
+  defp ip_health(%{report: %{status: :one_internal}} = assigns) do
+    ~H"""
+    <div id="web-analytics-ip-health" role="alert" class="alert alert-warning text-sm">
+      <div class="space-y-1">
+        <p class="font-medium">
+          {gettext("All your visitors look like one internal address.")}
+        </p>
+        <p>
+          {gettext(
+            "Of the last %{count} page views, %{private} came from a private or loopback address, and there were %{distinct} different addresses in all. That is a reverse proxy in front of the app that doesn't pass the visitor's address on: visits, visitors, internal networks and rate limits all count it as one visitor.",
+            count: @report.sample,
+            private: @report.private_clients,
+            distinct: @report.distinct_clients
+          )}
+        </p>
+        <p>
+          {gettext(
+            "Make the proxy append X-Forwarded-For (nginx: proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for). Behind a chain — a CDN in front of a load balancer — put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug."
+          )}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  defp ip_health(%{report: %{status: :one_address}} = assigns) do
+    ~H"""
+    <div id="web-analytics-ip-health" role="alert" class="alert alert-warning text-sm">
+      <div class="space-y-1">
+        <p class="font-medium">
+          {gettext("All your visitors look like one address.")}
+        </p>
+        <p>
+          {gettext(
+            "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies.",
+            count: @report.sample
+          )}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  defp ip_health(%{report: %{status: :ok}} = assigns) do
+    ~H"""
+    <p id="web-analytics-ip-health" class="px-1 text-xs text-success">
+      {gettext(
+        "Visitors' addresses look right: %{distinct} different addresses in the last %{count} page views.",
+        distinct: @report.distinct_clients,
+        count: @report.sample
+      )}
+    </p>
+    """
+  end
+
+  defp ip_health(assigns) do
+    ~H"""
+    <p id="web-analytics-ip-health" class="px-1 text-xs text-base-content/50">
+      {gettext(
+        "Not enough page views on this server yet to check that visitors' addresses are read right."
+      )}
+    </p>
+    """
+  end
 
   @impl true
   def render(assigns) do
@@ -404,6 +501,8 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           )}
         </span>
       </div>
+
+      <.ip_health report={@ip_health} />
 
       <form id="web-analytics-settings" phx-submit="save" class="space-y-6">
         <input type="hidden" name="_form" value="settings" />
@@ -834,6 +933,62 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           </p>
         </section>
 
+        <section
+          id="web-analytics-rate-limits"
+          class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4"
+        >
+          <div>
+            <h2 class="text-sm font-semibold">{gettext("Rate limits")}</h2>
+            <p class="text-xs text-base-content/50">
+              {gettext(
+                "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
+              )}
+              <.link navigate={Paths.rate_limits()} class="link">
+                {ngettext(
+                  "%{count} rule installed",
+                  "%{count} rules installed",
+                  @rate_limit_rules
+                )}
+              </.link>
+            </p>
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">{gettext("Rate limits")}</legend>
+            <label class="select w-full sm:w-auto">
+              <select id="rate_limit" name="rate_limit">
+                <option
+                  :for={{value, label} <- rate_limit_options()}
+                  value={value}
+                  selected={@config.rate_limit == value}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <p class="label whitespace-normal">
+              {gettext(
+                "Log only counts every request and records the ones over a limit without refusing them — to see what a limit would do before it does it."
+              )}
+            </p>
+          </fieldset>
+
+          <.textarea
+            id="blocked_networks"
+            name="blocked_networks"
+            label={gettext("Blocked networks")}
+            value={@blocked_networks_raw}
+            rows="3"
+            placeholder="198.51.100.0/24"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "Refused with 403 on every path the rate-limit plug covers, while rate limits aren't off. One address or network per line, nothing wider than /8 (IPv4) or /16 (IPv6). Only what you enter here is blocked — nothing is ever added by itself. The addresses aren't written into the activity log."
+            )}
+          </p>
+        </section>
+
         <section class="space-y-4 rounded-xl border border-base-300 bg-base-100 p-4">
           <div>
             <h2 class="text-sm font-semibold">{gettext("What visitors do")}</h2>
@@ -873,6 +1028,21 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
           <p class="-mt-2 text-xs text-base-content/50">
             {gettext(
               "Comma-separated. Values of the listed parameter names (short ones only) are kept with an interaction, e.g. which tab was opened."
+            )}
+          </p>
+
+          <.textarea
+            id="track_api_paths"
+            name="track_api_paths"
+            label={gettext("API requests")}
+            value={@track_api_paths}
+            rows="3"
+            placeholder="/api/*"
+            class="textarea w-full font-mono text-xs"
+          />
+          <p class="-mt-2 text-xs text-base-content/50">
+            {gettext(
+              "Off while empty. Requests to these paths — one pattern per line, a trailing * matches a prefix — are recorded with their method and status, whatever they answer (2xx to 4xx), on the Events page. They are not page views and join no visit, so no other number changes. At most 60 a minute per visitor are kept."
             )}
           </p>
 
