@@ -815,8 +815,8 @@ A proxy or CDN with a **public** address in front of the app (a CDN
 forwarding to the origin) is a public peer: its headers are ignored and
 every visitor counts as one of its edge addresses. Rewrite `remote_ip` with
 a `RemoteIp` plug — see [Behind a CDN and a load
-balancer](#behind-a-cdn-and-a-load-balancer) — or, on PhoenixKit 2.64 and
-later, list it in `config :phoenix_kit, :trusted_proxies`.
+balancer](#behind-a-cdn-and-a-load-balancer) — or list it in
+`config :phoenix_kit, :trusted_proxies`.
 
 **Checked on your traffic.** The plug samples the client address of the last
 200 page views in memory (never the address itself — whether it was private,

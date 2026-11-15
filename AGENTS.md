@@ -171,7 +171,7 @@ can't, stays optional, and never writes a cookie or storage.
   Every settings write is a permanent activity entry, so the setting's name
   must keep the word `secret`: core withholds the value of such a key from
   the `setting.changed` entry and from the change broadcast (checked on every
-  core release from 2.38.0, the floor, to 2.62.2), and the same rule keeps
+  core release from 2.38.0 to 2.62.2), and the same rule keeps
   the salt out of the log. Never rename it, and never put its value in a log
   line or an activity entry. Staff networks (`InternalTraffic`) live in ETS
   only; what reaches a row is the `traffic_flags` bits. The list rides in

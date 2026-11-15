@@ -478,8 +478,7 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   end
 
   defp display_name(user) do
-    if Code.ensure_loaded?(User) and function_exported?(User, :display_name, 1) and
-         is_struct(user, User) do
+    if is_struct(user, User) do
       User.display_name(user)
     else
       gettext("a new user")
@@ -536,9 +535,7 @@ defmodule PhoenixKitWebAnalytics.Alerts do
   end
 
   defp subscribe_to_users do
-    if Code.ensure_loaded?(Events) and function_exported?(Events, :subscribe_to_users, 0) do
-      Events.subscribe_to_users()
-    end
+    Events.subscribe_to_users()
   rescue
     error -> Logger.warning("[WebAnalytics] could not subscribe to new users: #{inspect(error)}")
   end

@@ -82,9 +82,9 @@ defmodule PhoenixKitWebAnalytics.MixProject do
     [
       # PhoenixKit provides the Module behaviour, Settings API, RepoHelper, the
       # admin shell, and `PhoenixKit.Migrations.Postgres.Helpers` (used by the
-      # migration coordinator). 1.7.189 adds the runtime schema-prefix support
-      # `PhoenixKit.SchemaPrefix` relies on.
-      pk_dep(:phoenix_kit, ">= 2.38.0 and < 4.0.0"),
+      # migration coordinator). Floor 3.5.0 (the ecosystem-wide minimum),
+      # ceiling open through every core 3.x.
+      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
 
       # Admin LiveViews.
       {:phoenix_live_view, "~> 1.1"},

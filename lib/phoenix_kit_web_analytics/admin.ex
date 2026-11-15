@@ -375,13 +375,11 @@ defmodule PhoenixKitWebAnalytics.Admin do
   # ── activity ──────────────────────────────────────────────────────────────
 
   defp log(action, opts, metadata) do
-    if Code.ensure_loaded?(PhoenixKit.Activity) do
-      PhoenixKit.Activity.log(@module_key, action,
-        actor_uuid: Keyword.get(opts, :actor_uuid),
-        resource_type: "web_analytics_settings",
-        metadata: metadata
-      )
-    end
+    PhoenixKit.Activity.log(@module_key, action,
+      actor_uuid: Keyword.get(opts, :actor_uuid),
+      resource_type: "web_analytics_settings",
+      metadata: metadata
+    )
 
     :ok
   rescue

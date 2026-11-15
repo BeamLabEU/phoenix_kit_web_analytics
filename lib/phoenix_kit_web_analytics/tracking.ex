@@ -324,9 +324,7 @@ defmodule PhoenixKitWebAnalytics.Tracking do
   @spec current_roles(map()) :: [String.t()] | nil
   def current_roles(%{phoenix_kit_current_scope: %Scope{user: %{uuid: uuid}} = scope})
       when is_binary(uuid) do
-    if Code.ensure_loaded?(Scope) and function_exported?(Scope, :held_roles, 1),
-      do: Scope.held_roles(scope),
-      else: Scope.user_roles(scope)
+    Scope.held_roles(scope)
   rescue
     _ -> nil
   end

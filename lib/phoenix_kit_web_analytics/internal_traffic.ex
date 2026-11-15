@@ -51,6 +51,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
 
   require Logger
 
+  alias PhoenixKit.Admin.Events
   alias PhoenixKit.PubSub.Manager
   alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Auth.UserToken
@@ -640,10 +641,7 @@ defmodule PhoenixKitWebAnalytics.InternalTraffic do
   defp subscribe do
     Manager.subscribe(@topic)
 
-    events = PhoenixKit.Admin.Events
-
-    if Code.ensure_loaded?(events) and function_exported?(events, :subscribe_to_sessions, 0),
-      do: events.subscribe_to_sessions()
+    Events.subscribe_to_sessions()
   rescue
     error ->
       Logger.warning("[WebAnalytics] could not subscribe to staff sign-ins: #{inspect(error)}")
