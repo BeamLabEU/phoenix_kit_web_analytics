@@ -86,6 +86,38 @@ defmodule PhoenixKitWebAnalytics.ConfigTest do
   end
 end
 
+defmodule PhoenixKitWebAnalytics.ConfigFailureTest do
+  @moduledoc """
+  What `collection_config/0` answers when the settings read fails.
+
+  Sync: it writes `internal_networks` in the application env.
+  """
+
+  use ExUnit.Case, async: false
+
+  alias PhoenixKitWebAnalytics.Config
+
+  test "app-config networks still exempt and the blocklist stays empty" do
+    Application.put_env(:phoenix_kit_web_analytics, :internal_networks, ["203.0.113.0/24"])
+    on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+    config = Config.config_without_settings()
+
+    assert config.internal_networks == ["203.0.113.0/24"]
+    assert config.rate_limit == :on
+    refute config.enabled?
+    assert config.blocked_networks == []
+    assert config.api_paths == []
+  end
+
+  test "a non-list in app config contributes no networks" do
+    Application.put_env(:phoenix_kit_web_analytics, :internal_networks, "203.0.113.0/24")
+    on_exit(fn -> Application.delete_env(:phoenix_kit_web_analytics, :internal_networks) end)
+
+    assert Config.config_without_settings().internal_networks == []
+  end
+end
+
 defmodule PhoenixKitWebAnalytics.ConfigSettingsTest do
   @moduledoc "Config read against real settings rows."
 

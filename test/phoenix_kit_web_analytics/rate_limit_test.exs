@@ -352,6 +352,15 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert {:error, _} = RateLimit.charge(conn, :t_cost, 2)
     end
 
+    test "a cost that does not fit leaves the visitor's remaining room" do
+      conn = request("/", opts([[name: :t_cost_fit, limit: 5]]))
+
+      assert RateLimit.charge(conn, :t_cost_fit, 4) == :ok
+      assert {:error, %{scope: :visitor}} = RateLimit.charge(conn, :t_cost_fit, 2)
+      assert RateLimit.check(conn, :t_cost_fit, 1) == :ok
+      assert RateLimit.charge(conn, :t_cost_fit, 1) == :ok
+    end
+
     test "rules from app config are known without a plug; an unknown rule is :ok" do
       Application.put_env(:phoenix_kit_web_analytics, :rate_limit,
         rules: [[name: :t_configured, limit: 1]]
@@ -392,8 +401,9 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
         rules: [[name: :t_bad, limit: 0], [name: :t_good, limit: 1]]
       )
 
-      # The failure warning is rate-limited per node; start this test fresh.
+      # Both warnings are rate-limited per node; start this test fresh.
       :persistent_term.erase({RateLimit, :failed_open_at})
+      :persistent_term.erase({RateLimit, :skipped_rule_at})
 
       log =
         ExUnit.CaptureLog.capture_log(fn ->
@@ -405,6 +415,10 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert RateLimit.charge(conn, :t_good) == :ok
       assert {:error, _} = RateLimit.charge(conn, :t_good)
       assert log =~ "t_bad"
+      assert log =~ "skipped"
+      refute log =~ "allowing the request"
+      # The skipped rule must not use up the fail-open warning's silence.
+      assert :persistent_term.get({RateLimit, :failed_open_at}, nil) == nil
     end
 
     test "an exempt request stays exempt for charge/3" do

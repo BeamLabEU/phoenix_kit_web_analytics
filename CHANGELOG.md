@@ -57,7 +57,15 @@ No migrations. Requires PhoenixKit core 3.5.0 or later.
   limit; it is now counted by its network alone.
 - A malformed rule in `config :phoenix_kit_web_analytics, :rate_limit,
   rules:` made every configured rule unknown to `charge/3`, silently; it now
-  skips only itself, with a warning.
+  skips only itself, with its own warning. That warning no longer says the
+  request was allowed, and it no longer silences a real counter failure.
+- A settings read that fails kept rate limits on but dropped the networks
+  in `config :phoenix_kit_web_analytics, internal_networks:`, so an office
+  listed only there could be limited. Those networks still exempt. The
+  blocklist, which lives only in settings, stays empty.
+- `charge/3` spent a visitor's remaining allowance on a cost that did not
+  fit, so a smaller charge in the same window was then refused. Both
+  buckets are checked before either is charged.
 
 ## 0.9.0 - 2026-10-27
 

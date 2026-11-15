@@ -248,6 +248,8 @@ defmodule PhoenixKitWebAnalytics.Config do
 
   Returns defaults (with `enabled?: false`) if settings are unavailable, so a
   caller can treat the result as authoritative without a rescue of its own.
+  Networks declared in app config are still included, because that list is
+  host code. The blocklist lives only in settings, so an outage leaves it empty.
   """
   @spec collection_config() :: collection_config()
   def collection_config do
@@ -293,6 +295,12 @@ defmodule PhoenixKitWebAnalytics.Config do
   catch
     :exit, _ -> disabled_config()
   end
+
+  @doc false
+  # The map `collection_config/0` returns when the read above fails. Public
+  # so that answer can be asserted without taking the settings table down.
+  @spec config_without_settings() :: collection_config()
+  def config_without_settings, do: disabled_config()
 
   @doc "Whether tracking is switched on."
   @spec enabled?() :: boolean()
@@ -704,7 +712,9 @@ defmodule PhoenixKitWebAnalytics.Config do
       event_params: [],
       excluded_flags: PhoenixKitWebAnalytics.TrafficFlags.all(),
       internal_roles: system_staff_roles(),
-      internal_networks: [],
+      # App-config networks are host code, not a settings row, so they still
+      # exempt when the table can't be read. The setting's own list is absent.
+      internal_networks: network_entries(nil),
       admin_network_hours: 0,
       visitor_rotation: :daily,
       store_ip: :off,
@@ -716,7 +726,8 @@ defmodule PhoenixKitWebAnalytics.Config do
       consent_category: "analytics",
       without_consent: :drop,
       # The rules come from the host's code and the counters from memory: a
-      # settings table that can't be read must not switch them off.
+      # settings table that can't be read must not switch them off. The
+      # blocklist lives only in settings, so an outage fails open on it.
       rate_limit: :on,
       blocked_networks: [],
       api_paths: []

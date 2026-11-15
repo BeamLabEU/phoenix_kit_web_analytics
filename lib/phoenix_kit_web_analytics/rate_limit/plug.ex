@@ -39,8 +39,10 @@ defmodule PhoenixKitWebAnalytics.RateLimit.Plug do
   def init(opts) do
     rules = opts |> Keyword.get(:rules, []) |> Enum.map(&RateLimit.normalize_rule/1)
 
+    # The rules themselves, not a hash of them: two different lists must not
+    # share one registration for the life of the node. Equal lists still do.
     %{
-      id: :erlang.phash2(rules),
+      id: rules,
       rules: rules,
       exempt_local: Keyword.get(opts, :exempt_local, true),
       exempt: mfa(opts, :exempt),

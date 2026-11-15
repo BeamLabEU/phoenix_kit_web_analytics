@@ -137,6 +137,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   @registry_key {__MODULE__, :rules}
   @warned_key {__MODULE__, :failed_open_at}
+  @skipped_rule_key {__MODULE__, :skipped_rule_at}
   @secret_key {__MODULE__, :node_secret}
   @state_key :phoenix_kit_web_analytics_rate_limit
   @denials :rate_limit_denials
@@ -272,14 +273,15 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     _ -> :persistent_term.get(@registry_key, %{})
   end
 
-  # A malformed rule in app config is skipped on its own, with a warning:
-  # it must neither take the well-formed ones beside it down with it nor
-  # leave `charge/3` answering `:ok` without a word.
+  # A malformed rule in app config is skipped on its own. The warning is
+  # not the fail-open one: the other rules still apply, so the log must not
+  # say the request was allowed, and it must not use up that warning's
+  # ten-minute silence.
   defp configured_rule(rule) do
     [normalize_rule(rule)]
   rescue
     error ->
-      fail_open(error)
+      warn_skipped_rule(error)
       []
   end
 
@@ -437,9 +439,12 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   # ── counting ──────────────────────────────────────────────────────────────
 
-  # The network's room is looked at first and charged last, as core's API
-  # does: a request the visitor's own bucket refuses doesn't use up what the
-  # visitor's neighbours behind the same address have left.
+  # Both buckets are looked at before either is charged, and the network
+  # is charged last, as core's API does. A refusal — the network is already
+  # full, or this cost does not fit in the visitor's remaining room — must
+  # not spend what a smaller charge, or a neighbour behind the same address,
+  # could still use. Hammer's `hit` increments and then decides, so the
+  # check is a read.
   defp count(rule, visitor, subject, cost, how) do
     vkey = visitor_key(rule, visitor, subject)
     nkey = "wa:rl:#{rule.name}:n:" <> (visitor.network || "unknown")
@@ -449,10 +454,11 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
       Backend.get(nkey, window) + cost > rule.network_limit ->
         denied(rule, :network, window_left(window), rule.network_limit)
 
+      vkey && Backend.get(vkey, window) + cost > rule.limit ->
+        denied(rule, :visitor, window_left(window), rule.limit)
+
       how == :peek ->
-        if vkey && Backend.get(vkey, window) + cost > rule.limit,
-          do: denied(rule, :visitor, window_left(window), rule.limit),
-          else: :ok
+        :ok
 
       true ->
         with {:visitor, {:allow, _}} <- {:visitor, hit_visitor(vkey, window, rule.limit, cost)},
@@ -806,6 +812,25 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
     is_pid(Process.whereis(Backend)) or :ets.whereis(Backend) != :undefined
   rescue
     _ -> false
+  end
+
+  defp warn_skipped_rule(reason) do
+    now = System.monotonic_time(:millisecond)
+    message = describe(reason)
+
+    case :persistent_term.get(@skipped_rule_key, nil) do
+      last when is_integer(last) and now - last < @warn_every_ms ->
+        :ok
+
+      _ ->
+        :persistent_term.put(@skipped_rule_key, now)
+
+        Logger.warning(
+          "[WebAnalytics] rate-limit rule skipped (the others still apply): #{message}"
+        )
+    end
+  rescue
+    _ -> :ok
   end
 
   defp fail_open(reason) do
