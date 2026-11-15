@@ -91,3 +91,76 @@ admin strings that named the kit were reworded; Refresh got
 database connection and fails when the local Postgres is at its connection
 limit (other suites held 93–99 of 100 while this ran); it passed in a
 full run with the retention change in place.
+
+---
+
+# Pre-release review — everything since v0.9.0 (2026-11-15)
+
+A second Claude pass, before the next release, over all of `v0.9.0..db5be41`:
+this PR, the follow-up fixes in `33f6538`, the core-floor raise to 3.5.0
+(`7a2639a`) and the three lock refreshes. Each fix has a test that fails
+without it.
+
+## BUG - MEDIUM — a visitor map without an ID shared one bucket per network (fixed)
+
+`charge/3` given `visitor/1`'s map with `visitor_id: nil` (no salt yet:
+the module never switched on, or settings unreachable) keyed its visitor
+bucket `"net:" <> network`, so everyone behind one address was held to
+one person's `:limit`, not `:network_limit`. A map has no User-Agent to
+hash the way the conn path does, so it now has no visitor bucket and is
+counted by its network alone. `check/3` follows.
+
+## BUG - MEDIUM — the release gate failed on a stale lock entry (fixed)
+
+`db5be41` left `ex_aws_ec2` in `mix.lock`; `mix precommit`'s
+`deps.unlock --check-unused` refused it. Unlocked.
+
+## IMPROVEMENT - MEDIUM — one bad rule in app config hid all of them (fixed)
+
+`rules/0` normalized the configured rules in one `Map.new/2` under a
+`rescue`, so one malformed entry made every configured rule unknown —
+`charge/3` then answered `:ok` for all of them with no log line. Each rule
+is now normalized on its own; a bad one is skipped with the rate-limited
+fail-open warning.
+
+## IMPROVEMENT - MEDIUM — no guard on the core pin (added)
+
+The floor raise had no conformance test here (the commit message mentions
+one; it was not in this repo). Added `test/core_pin_conformance_test.exs`,
+after `phoenix_kit_customer_support`'s.
+
+## NITPICK — fixed
+
+- The Settings "one address" warning and `IpHealth`'s moduledoc said
+  `trusted_proxies` works "from core 2.64"; with the floor at 3.5 the
+  qualifier is gone (string and en/et/ru/uk translations updated).
+- `deny/3` only halts a conn that is `:file` or `:upgraded` too, as it
+  already did for `:sent` / `:chunked`, instead of trying to send a second
+  response.
+- README: API-request tracking only sees requests that go through the
+  tracking plug, so the plug has to be in the API routes' pipeline as well.
+- `CHANGELOG.md` gained an `Unreleased` entry covering everything since
+  0.9.0; the version number is left to the release.
+
+## Checked, not changed
+
+- API rows stay out of every visit-shaped read: the stitch query, session
+  backfill, Bots' latest visit, the visits list, the right-now count,
+  `Dimensions` (every restriction names its event types) and rollup
+  totals. A day of API-only rows rolls up to a zero `daily_stats` row for
+  its site, which reads as nothing.
+- `RequestVisitor` and the collector compute the same ID: the same salt
+  value, `agent_input/2`, and non-empty-header rule for the User-Agent.
+- The default `network_limit` (4× `limit`) is per IPv4 address, which
+  holds a carrier-grade NAT to four people's worth of requests. It is
+  documented and adjustable per rule; worth knowing before a tight limit
+  goes on a mobile-heavy site.
+- The core-floor commit's direct calls (`Scope.held_roles/1`,
+  `Events.subscribe_to_sessions/0` / `subscribe_to_users/0`,
+  `User.display_name/1`, `PhoenixKit.Activity.log/3`) all exist in core
+  3.6.0, which the lock resolves.
+
+## Gate
+
+`mix precommit` clean (dialyzer: the same 4 ignored warnings).
+`mix test`: 1,007 tests + 29 doctests, 0 failures, integration included.

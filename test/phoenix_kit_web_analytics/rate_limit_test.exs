@@ -372,6 +372,41 @@ defmodule PhoenixKitWebAnalytics.RateLimitTest do
       assert {:error, _} = RateLimit.charge(visitor, :t_map)
     end
 
+    test "a visitor map without an ID is counted by its network alone" do
+      # No salt: neither a User-Agent nor a visitor ID to tell its people
+      # apart, so a shared "visitor" bucket would hold a whole office to one
+      # person's limit.
+      visitor = %{visitor_id: nil, ip: {203, 0, 113, 77}, network: "203.0.113.77"}
+
+      Application.put_env(:phoenix_kit_web_analytics, :rate_limit,
+        rules: [[name: :t_map_no_id, limit: 1, network_limit: 3]]
+      )
+
+      for _ <- 1..3, do: assert(RateLimit.charge(visitor, :t_map_no_id) == :ok)
+      assert {:error, %{scope: :network}} = RateLimit.check(visitor, :t_map_no_id)
+      assert {:error, %{scope: :network, limit: 3}} = RateLimit.charge(visitor, :t_map_no_id)
+    end
+
+    test "a malformed rule in app config skips only itself" do
+      Application.put_env(:phoenix_kit_web_analytics, :rate_limit,
+        rules: [[name: :t_bad, limit: 0], [name: :t_good, limit: 1]]
+      )
+
+      # The failure warning is rate-limited per node; start this test fresh.
+      :persistent_term.erase({RateLimit, :failed_open_at})
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Map.has_key?(RateLimit.rules(), :t_good)
+          refute Map.has_key?(RateLimit.rules(), :t_bad)
+        end)
+
+      conn = conn(:get, "/") |> Map.put(:remote_ip, {203, 0, 113, 78})
+      assert RateLimit.charge(conn, :t_good) == :ok
+      assert {:error, _} = RateLimit.charge(conn, :t_good)
+      assert log =~ "t_bad"
+    end
+
     test "an exempt request stays exempt for charge/3" do
       enable_tracking(%{"web_analytics_internal_networks_secret" => "203.0.113.0/24"})
       conn = request("/", opts([[name: :t_charge_exempt, limit: 1]]))

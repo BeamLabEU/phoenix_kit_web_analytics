@@ -30,7 +30,7 @@ defmodule PhoenixKitWebAnalytics.IpHealth do
       public address: a CDN or a proxy with a public address in front of the
       app, whose headers are not read. Put a plug that rewrites `remote_ip`
       — [`remote_ip`](https://hex.pm/packages/remote_ip) — before the
-      tracking plug, or, on PhoenixKit 2.64 and later, list the proxy in
+      tracking plug, or list the proxy in
       `config :phoenix_kit, :trusted_proxies` (a public peer's forwarded
       header is then read by core's rule).
     * `:ok` — visitors come from many addresses.

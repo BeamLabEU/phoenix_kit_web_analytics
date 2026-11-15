@@ -260,13 +260,27 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   def rules do
     configured =
       case Application.get_env(:phoenix_kit_web_analytics, :rate_limit, [])[:rules] do
-        rules when is_list(rules) -> Map.new(rules, &{&1[:name], normalize_rule(&1)})
-        _ -> %{}
+        rules when is_list(rules) ->
+          rules |> Enum.flat_map(&configured_rule/1) |> Map.new(&{&1.name, &1})
+
+        _ ->
+          %{}
       end
 
     Map.merge(configured, :persistent_term.get(@registry_key, %{}))
   rescue
     _ -> :persistent_term.get(@registry_key, %{})
+  end
+
+  # A malformed rule in app config is skipped on its own, with a warning:
+  # it must neither take the well-formed ones beside it down with it nor
+  # leave `charge/3` answering `:ok` without a word.
+  defp configured_rule(rule) do
+    [normalize_rule(rule)]
+  rescue
+    error ->
+      fail_open(error)
+      []
   end
 
   # ── charging from code ────────────────────────────────────────────────────
@@ -281,7 +295,8 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   `subject` is the conn — or `PhoenixKitWebAnalytics.visitor/1`'s map, kept
   from a request, where there is no conn (a LiveView); only the internal
-  networks exempt a map.
+  networks exempt a map. A map whose `:visitor_id` is `nil` (no salt yet)
+  is counted by its network alone.
   """
   @spec charge(Plug.Conn.t() | map(), atom(), pos_integer()) :: :ok | {:error, denial()}
   def charge(subject, name, cost \\ 1) when is_integer(cost) and cost > 0,
@@ -426,7 +441,7 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   # does: a request the visitor's own bucket refuses doesn't use up what the
   # visitor's neighbours behind the same address have left.
   defp count(rule, visitor, subject, cost, how) do
-    vkey = "wa:rl:#{rule.name}:v:" <> visitor_key(visitor, subject)
+    vkey = visitor_key(rule, visitor, subject)
     nkey = "wa:rl:#{rule.name}:n:" <> (visitor.network || "unknown")
     window = rule.window_ms
 
@@ -435,12 +450,12 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
         denied(rule, :network, window_left(window), rule.network_limit)
 
       how == :peek ->
-        if Backend.get(vkey, window) + cost > rule.limit,
+        if vkey && Backend.get(vkey, window) + cost > rule.limit,
           do: denied(rule, :visitor, window_left(window), rule.limit),
           else: :ok
 
       true ->
-        with {:visitor, {:allow, _}} <- {:visitor, Backend.hit(vkey, window, rule.limit, cost)},
+        with {:visitor, {:allow, _}} <- {:visitor, hit_visitor(vkey, window, rule.limit, cost)},
              {:network, {:allow, _}} <-
                {:network, Backend.hit(nkey, window, rule.network_limit, cost)} do
           :ok
@@ -457,18 +472,28 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
   defp window_left(window), do: window - rem(System.system_time(:millisecond), window)
 
   # The analytics' visitor ID; without a salt, the same inputs hashed with a
-  # secret of this node's (never stored, gone on restart).
-  defp visitor_key(%{visitor_id: id}, _subject) when is_binary(id), do: id
+  # secret of this node's (never stored, gone on restart). A visitor map
+  # without an ID has no User-Agent to hash, so it has no visitor bucket at
+  # all and only its network is counted: sharing one "visitor" bucket per
+  # network would hold everyone behind an office NAT to one person's limit.
+  defp visitor_key(rule, %{visitor_id: id}, _subject) when is_binary(id),
+    do: "wa:rl:#{rule.name}:v:" <> id
 
-  defp visitor_key(visitor, %Plug.Conn{} = conn) do
+  defp visitor_key(rule, visitor, %Plug.Conn{} = conn) do
     ua = Tracking.first_header(conn, "user-agent") || ""
 
-    :crypto.hash(:sha256, [node_secret(), "|", inspect(visitor.ip), "|", ua])
-    |> Base.encode16(case: :lower)
-    |> binary_part(0, 32)
+    hash =
+      :crypto.hash(:sha256, [node_secret(), "|", inspect(visitor.ip), "|", ua])
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 32)
+
+    "wa:rl:#{rule.name}:v:" <> hash
   end
 
-  defp visitor_key(visitor, _subject), do: "net:" <> (visitor.network || "unknown")
+  defp visitor_key(_rule, _visitor, _subject), do: nil
+
+  defp hit_visitor(nil, _window, _limit, _cost), do: {:allow, 0}
+  defp hit_visitor(key, window, limit, cost), do: Backend.hit(key, window, limit, cost)
 
   defp node_secret do
     case :persistent_term.get(@secret_key, nil) do
@@ -613,8 +638,9 @@ defmodule PhoenixKitWebAnalytics.RateLimit do
 
   def deny(conn, denial, opts) when is_list(opts), do: deny(conn, denial, Map.new(opts))
 
-  def deny(%Plug.Conn{state: state} = conn, _denial, _opts) when state in [:sent, :chunked],
-    do: Plug.Conn.halt(conn)
+  def deny(%Plug.Conn{state: state} = conn, _denial, _opts)
+      when state in [:sent, :chunked, :file, :upgraded],
+      do: Plug.Conn.halt(conn)
 
   def deny(conn, denial, opts) do
     case Map.get(opts, :on_deny) do

@@ -3,6 +3,62 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+No migrations. Requires PhoenixKit core 3.5.0 or later.
+
+### Added
+
+- **The visitor in your own code.** `PhoenixKitWebAnalytics.visitor/1`
+  returns the request's visitor as the module counts it — `%{visitor_id, ip,
+  network, prefetch?}`, the same ID the request's page view is stored under
+  — and `put_visitor/1` keeps it in `conn.private` for the rest of the
+  request. It never creates the salt and stores nothing (`RequestVisitor`).
+- **Rate limits (opt-in).** `PhoenixKitWebAnalytics.RateLimit.Plug` with
+  rules in the router, counted per visitor **and** per network on core's
+  Hammer counters, and `RateLimit.charge/3` / `check/3` for work that is
+  expensive only sometimes. Internal networks, staff, local development and
+  a bypass token from app config are never limited. A `429` with
+  `retry-after` and `ratelimit-*` headers, JSON or HTML, or the host's own
+  `on_deny:`. Settings: `web_analytics_rate_limit` (`on` / `log_only` /
+  `off`) and `web_analytics_blocked_networks_secret` (answered `403`). A new
+  **Rate limits** admin page shows the rules, this node's counts and the
+  latest refusals — all in memory, nothing in the database. Telemetry:
+  `[:phoenix_kit_web_analytics, :rate_limit, :deny | :block]`.
+- **API requests (off by default).** Paths listed in
+  `web_analytics_track_api_paths` are recorded as `"api"` events — method,
+  path, 2xx–4xx status — and shown on the Events page
+  (`Reports.api_requests/2`). They are never page views and never part of
+  a visit: no visitor, visit, bounce, entry/exit or "right now" number
+  changes. Capped at 60 a minute per visitor and 240 per network
+  (`api_events_per_minute`). The tracking plug must be in the API routes'
+  pipeline.
+- **A client-address check.** The plug samples the last 200 page views in
+  memory (booleans and a keyed hash, never an address), and Settings warns
+  when every visitor looks like one internal address — a reverse proxy
+  that doesn't append `X-Forwarded-For` — or one public one.
+  `PhoenixKitWebAnalytics.ip_health/0`.
+
+### Changed
+
+- Core pin raised to `>= 3.5.0 and < 4.0.0`, the ecosystem-wide minimum;
+  the feature detection for older cores is gone.
+- An unactivated Speculation-Rules prerender records nothing on its
+  LiveView socket (no presence, interaction, patch or leave) until a
+  connect after activation.
+- With header storage on, the rate-limit bypass header's value (default
+  `x-rate-limit-bypass`, or the configured `bypass_header`) is never kept.
+- Locked dependencies refreshed (`phoenix_kit` 3.6.0).
+
+### Fixed
+
+- `RateLimit.charge/3` with a visitor map whose `visitor_id` is `nil` (no
+  salt yet) counted every visitor of a network against one per-visitor
+  limit; it is now counted by its network alone.
+- A malformed rule in `config :phoenix_kit_web_analytics, :rate_limit,
+  rules:` made every configured rule unknown to `charge/3`, silently; it now
+  skips only itself, with a warning.
+
 ## 0.9.0 - 2026-10-27
 
 ### Changed

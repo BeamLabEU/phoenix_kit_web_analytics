@@ -1074,7 +1074,7 @@ msgstr "Eile"
 msgid "a direct visit"
 msgstr "otsekülastus"
 
-#: lib/phoenix_kit_web_analytics/alerts.ex:485
+#: lib/phoenix_kit_web_analytics/alerts.ex:484
 #, elixir-autogen, elixir-format
 msgid "a new user"
 msgstr "uus kasutaja"
@@ -2759,7 +2759,7 @@ msgstr[1] "%{count} sekundit"
 msgid "A rule with no paths is only counted where the site's code charges it. A rule appears here once its plug has seen a request."
 msgstr "Ilma radadeta reeglit loetakse ainult seal, kus saidi kood seda arvestab. Reegel ilmub siia, kui tema plug on näinud esimest päringut."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:595
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:625
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr "Juurdepääs keelatud"
@@ -2876,7 +2876,7 @@ msgstr "Võrgu kohta"
 msgid "Per visitor"
 msgstr "Külastaja kohta"
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:651
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:686
 #, elixir-autogen, elixir-format
 msgid "Please wait %{seconds} seconds and try again."
 msgstr "Palun oota %{seconds} sekundit ja proovi uuesti."
@@ -2948,7 +2948,7 @@ msgstr "Viimased %{count} päringut, mis ületasid piiri või tulid blokeeritud 
 msgid "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
 msgstr "Piirangud ise on reeglid saidi koodis (RateLimit.Plug ruuteris): iga päringut, mida need hõlmavad, loetakse selle külastajale ja võrgule. Sisevõrke ja töötajaid ei piirata kunagi. Loendurid ja tagasilükkamised on mälus; nende kohta ei salvestata midagi."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:650
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:685
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr "Liiga palju päringuid"
@@ -3023,8 +3023,8 @@ msgstr "Päringud, mida su brauser saidi liidesele teeb: milline, millal ja kas 
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
 #, elixir-autogen, elixir-format
-msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies."
-msgstr "Kõik viimased %{count} lehevaatamist tulid samalt avalikult aadressilt. Kui see pole lihtsalt sinu enda testimine, on rakenduse ees avaliku aadressiga CDN või puhverserver, mille edastatud päist ei loeta: pane enne jälgimisplugi plug, mis kirjutab remote_ip ümber (näiteks remote_ip), või, alates tuumast 2.64, lisa puhverserver seadesse config :phoenix_kit, :trusted_proxies."
+msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies."
+msgstr "Kõik viimased %{count} lehevaatamist tulid samalt avalikult aadressilt. Kui see pole lihtsalt sinu enda testimine, on rakenduse ees avaliku aadressiga CDN või puhverserver, mille edastatud päist ei loeta: pane enne jälgimisplugi plug, mis kirjutab remote_ip ümber (näiteks remote_ip), või lisa puhverserver seadesse config :phoenix_kit, :trusted_proxies."
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:94
 #, elixir-autogen, elixir-format

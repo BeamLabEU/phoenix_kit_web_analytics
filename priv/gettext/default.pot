@@ -1073,7 +1073,7 @@ msgstr ""
 msgid "a direct visit"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/alerts.ex:485
+#: lib/phoenix_kit_web_analytics/alerts.ex:484
 #, elixir-autogen, elixir-format
 msgid "a new user"
 msgstr ""
@@ -2758,7 +2758,7 @@ msgstr[1] ""
 msgid "A rule with no paths is only counted where the site's code charges it. A rule appears here once its plug has seen a request."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:595
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:625
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr ""
@@ -2875,7 +2875,7 @@ msgstr ""
 msgid "Per visitor"
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:651
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:686
 #, elixir-autogen, elixir-format
 msgid "Please wait %{seconds} seconds and try again."
 msgstr ""
@@ -2947,7 +2947,7 @@ msgstr ""
 msgid "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
 msgstr ""
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:650
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:685
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr ""
@@ -3022,7 +3022,7 @@ msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
 #, elixir-autogen, elixir-format
-msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies."
+msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies."
 msgstr ""
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:94

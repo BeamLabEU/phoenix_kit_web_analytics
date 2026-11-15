@@ -1076,7 +1076,7 @@ msgstr "Вчера"
 msgid "a direct visit"
 msgstr "прямой заход"
 
-#: lib/phoenix_kit_web_analytics/alerts.ex:485
+#: lib/phoenix_kit_web_analytics/alerts.ex:484
 #, elixir-autogen, elixir-format
 msgid "a new user"
 msgstr "новый пользователь"
@@ -2769,7 +2769,7 @@ msgstr[2] "%{count} секунд"
 msgid "A rule with no paths is only counted where the site's code charges it. A rule appears here once its plug has seen a request."
 msgstr "Правило без путей учитывается только там, где его списывает код сайта. Правило появляется здесь, как только его плаг увидел запрос."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:595
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:625
 #, elixir-autogen, elixir-format
 msgid "Access denied"
 msgstr "Доступ запрещён"
@@ -2886,7 +2886,7 @@ msgstr "На сеть"
 msgid "Per visitor"
 msgstr "На посетителя"
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:651
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:686
 #, elixir-autogen, elixir-format
 msgid "Please wait %{seconds} seconds and try again."
 msgstr "Подождите %{seconds} с и попробуйте снова."
@@ -2958,7 +2958,7 @@ msgstr "Последние %{count} запросов сверх лимита и�
 msgid "The limits themselves are rules in the site's code (RateLimit.Plug in the router): each request they cover is counted for its visitor and for its network. The internal networks and staff are never limited. Counters and refusals live in memory; nothing about them is stored."
 msgstr "Сами лимиты — это правила в коде сайта (RateLimit.Plug в роутере): каждый запрос, на который они распространяются, учитывается для посетителя и для его сети. Внутренние сети и сотрудники никогда не ограничиваются. Счётчики и отказы хранятся в памяти; о них ничего не сохраняется."
 
-#: lib/phoenix_kit_web_analytics/rate_limit.ex:650
+#: lib/phoenix_kit_web_analytics/rate_limit.ex:685
 #, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr "Слишком много запросов"
@@ -3033,8 +3033,8 @@ msgstr "Запросы, которые ваш браузер отправляе�
 
 #: lib/phoenix_kit_web_analytics/web/settings_live.ex:430
 #, elixir-autogen, elixir-format
-msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or, from core 2.64, list the proxy in config :phoenix_kit, :trusted_proxies."
-msgstr "Все последние %{count} просмотров страниц пришли с одного и того же публичного адреса. Если это не просто ваша собственная проверка, перед приложением стоит CDN или прокси с публичным адресом, чей заголовок пересылки не читается: поставьте перед плагом отслеживания плаг, который переписывает remote_ip (например, remote_ip), или, начиная с ядра 2.64, укажите прокси в config :phoenix_kit, :trusted_proxies."
+msgid "Every one of the last %{count} page views came from the same public address. If that isn't just you testing, a CDN or a proxy with a public address is in front of the app and its forwarded header isn't read: put a plug that rewrites remote_ip, such as remote_ip, before the tracking plug, or list the proxy in config :phoenix_kit, :trusted_proxies."
+msgstr "Все последние %{count} просмотров страниц пришли с одного и того же публичного адреса. Если это не просто ваша собственная проверка, перед приложением стоит CDN или прокси с публичным адресом, чей заголовок пересылки не читается: поставьте перед плагом отслеживания плаг, который переписывает remote_ip (например, remote_ip), или укажите прокси в config :phoenix_kit, :trusted_proxies."
 
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:94
 #, elixir-autogen, elixir-format

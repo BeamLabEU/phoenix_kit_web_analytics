@@ -228,6 +228,19 @@ stored as an `"api"` event: any method, any 2xx–4xx status (5xx are not),
 path without its query string, under the same consent, Do Not Track,
 exclusion and bot rules as a page view.
 
+The tracking plug only sees the requests of the pipelines it is in. API
+routes usually go through their own pipeline, so add it there as well:
+
+```elixir
+pipeline :api do
+  plug :accepts, ["json"]
+  plug PhoenixKitWebAnalytics.Plug
+end
+```
+
+In a pipeline without a session it notes nothing in one; it never starts
+a session.
+
 They are not page views and belong to no visit: page views, visitors,
 visits, bounce rate, entry and exit pages and the "right now" count are the
 same with the setting on or off. The Events page shows them (busiest
