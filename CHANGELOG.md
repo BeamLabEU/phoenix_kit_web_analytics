@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.10.0 - 2026-11-15
 
 No migrations. Requires PhoenixKit core 3.5.0 or later.
 
