@@ -1030,10 +1030,13 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   @doc """
   Percentage change from `previous` to `current`, or `nil` when there is no
   meaningful comparison (no previous data, or no previous period at all).
+
+  A previous value of zero has no percentage change, whether it is the integer
+  `0` of a count or the float `0.0` of a rate such as `bounce_rate`.
   """
   @spec delta(number() | nil, number() | nil) :: float() | nil
   def delta(_current, nil), do: nil
-  def delta(_current, 0), do: nil
+  def delta(_current, previous) when previous == 0, do: nil
   def delta(nil, _previous), do: nil
 
   def delta(current, previous) when is_number(current) and is_number(previous),
