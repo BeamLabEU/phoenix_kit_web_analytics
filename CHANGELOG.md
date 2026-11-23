@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.10.1 - 2026-11-23
+
+No migrations. Requires PhoenixKit core 3.5.0 or later.
+
+### Fixed
+
+- **The Overview dashboard no longer crashes when the previous period's
+  bounce rate is 0.0.** A previous period whose visits all reached a second
+  page reports `0.0` — a float — and `Components.delta/2` treated only the
+  integer `0` as "no comparison", so the bounce card's delta divided by `0.0`
+  and raised `ArithmeticError` while rendering.
+
+### Changed
+
+- **The bounce-rate card's period-over-period change is shown in percentage
+  points** (`+4.0 pp`, not `+10%`), and a previous period at `0.0%` counts as
+  a real baseline: `0.0% → 42.5%` now shows `+42.5 pp` instead of no badge
+  (`Components.delta_pp/2`, the tile's `delta_unit={:pp}`).
+- Locked dependencies refreshed (`phoenix_kit` 3.7.0, `phoenix` 1.8.17,
+  `phoenix_live_view` 1.2.15, `postgrex` 0.23.0, `bandit` 1.15.0,
+  `hammer` 7.6.0); `mix hex.audit` reports no advisories on the new lock.
+
 ## 0.10.0 - 2026-11-15
 
 No migrations. Requires PhoenixKit core 3.5.0 or later.
