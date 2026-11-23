@@ -154,8 +154,9 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
           id="stat-bounce"
           label={gettext("Bounce rate")}
           value={format_percent(@overview.bounce_rate)}
-          delta={delta(@overview.bounce_rate, @previous && @previous.bounce_rate)}
+          delta={delta_pp(@overview.bounce_rate, @previous && @previous.bounce_rate)}
           delta_good={:down}
+          delta_unit={:pp}
           info_align="end"
         >
           <:info>

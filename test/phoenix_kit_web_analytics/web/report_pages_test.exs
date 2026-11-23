@@ -61,6 +61,30 @@ defmodule PhoenixKitWebAnalytics.Web.ReportPagesTest do
       assert html =~ "Bounce rate"
     end
 
+    test "renders when the previous period's bounce rate was 0.0", %{conn: conn} do
+      # Previous window (the 7 days before the current one): one visit that
+      # went on to a second page, so its bounce rate is exactly 0.0 — the
+      # float zero that used to crash the delta calculation on render.
+      session = UUIDv7.generate()
+      old = days_ago(10)
+
+      insert_event(%{session_id: session, visitor_id: "old", path: "/", inserted_at: old})
+
+      insert_event(%{
+        session_id: session,
+        visitor_id: "old",
+        path: "/about",
+        inserted_at: DateTime.add(old, 30, :second)
+      })
+
+      # Current window: one single-page visit, bounce rate 100.0.
+      insert_event(%{visitor_id: "new", path: "/"})
+
+      assert {:ok, _view, html} = live(conn, @base)
+      assert html =~ "Bounce rate"
+      assert html =~ "100.0%"
+    end
+
     test "warns when tracking is switched off", %{conn: conn} do
       {:ok, _view, html} = live(conn, @base)
 

@@ -267,6 +267,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   attr :value, :string, required: true
   attr :delta, :float, default: nil
   attr :delta_good, :atom, default: :up, values: [:up, :down]
+  attr :delta_unit, :atom, default: :percent, values: [:percent, :pp]
   attr :info_align, :string, default: "start", values: ["start", "end"]
   slot :info
 
@@ -282,7 +283,7 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
       <div class="mt-1 flex items-baseline gap-2">
         <span class="text-2xl font-semibold tabular-nums">{@value}</span>
         <span :if={@delta} class={["text-xs font-medium", delta_class(@delta, @delta_good)]}>
-          {format_delta(@delta)}
+          {format_delta(@delta, @delta_unit)}
         </span>
       </div>
     </div>
@@ -1044,6 +1045,21 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
 
   def delta(_current, _previous), do: nil
 
+  @doc """
+  Percentage-point change from `previous` to `current` — the comparison for a
+  rate shown as a percentage, where a relative change would mislead (40% → 44%
+  is +4 pp, not +10%). Unlike `delta/2`, a previous of zero is a real
+  baseline here, not a missing one, so `0.0 → 42.5%` reports `+42.5`.
+  """
+  @spec delta_pp(number() | nil, number() | nil) :: float() | nil
+  def delta_pp(nil, _previous), do: nil
+  def delta_pp(_current, nil), do: nil
+
+  def delta_pp(current, previous) when is_number(current) and is_number(previous),
+    do: (current - previous) / 1
+
+  def delta_pp(_current, _previous), do: nil
+
   # ── internals ──────────────────────────────────────────────────────────────
 
   defp max_value([], _metric), do: 0
@@ -1069,8 +1085,13 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
   defp tick_label(%DateTime{} = bucket, _), do: Calendar.strftime(bucket, "%d.%m")
   defp tick_label(other, _bucket), do: to_string(other)
 
-  defp format_delta(delta) when delta > 0, do: "+#{Float.round(delta, 1)}%"
-  defp format_delta(delta), do: "#{Float.round(delta / 1, 1)}%"
+  defp format_delta(delta, :percent) when delta > 0, do: "+#{Float.round(delta, 1)}%"
+  defp format_delta(delta, :percent), do: "#{Float.round(delta / 1, 1)}%"
+
+  defp format_delta(delta, :pp) when delta > 0,
+    do: "+" <> gettext("%{value} pp", value: Float.round(delta, 1))
+
+  defp format_delta(delta, :pp), do: gettext("%{value} pp", value: Float.round(delta / 1, 1))
 
   defp delta_class(delta, good) do
     improving? = (good == :up and delta >= 0) or (good == :down and delta <= 0)

@@ -25,4 +25,23 @@ defmodule PhoenixKitWebAnalytics.Web.ComponentsDeltaTest do
       assert Components.delta(0.0, 0.0) == nil
     end
   end
+
+  describe "delta_pp/2" do
+    test "percentage-point change between two rates" do
+      assert Components.delta_pp(44.0, 40.0) == 4.0
+      assert Components.delta_pp(40.0, 44.0) == -4.0
+      assert Components.delta_pp(25.0, 50.0) == -25.0
+    end
+
+    test "a previous rate of zero is a real baseline, not a missing one" do
+      assert Components.delta_pp(42.5, 0.0) == 42.5
+      assert Components.delta_pp(0.0, 0.0) == 0.0
+    end
+
+    test "no comparison without either value" do
+      assert Components.delta_pp(nil, 40.0) == nil
+      assert Components.delta_pp(44.0, nil) == nil
+      assert Components.delta_pp(nil, nil) == nil
+    end
+  end
 end
