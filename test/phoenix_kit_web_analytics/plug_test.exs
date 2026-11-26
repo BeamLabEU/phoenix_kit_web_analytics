@@ -536,6 +536,27 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert [%Event{event_type: "api"}] = Repo.all(Event)
     end
 
+    test "api: false in the endpoint leaves the API paths to the pipeline's copy" do
+      enable_tracking(%{"web_analytics_track_api_paths" => "/api/*"})
+
+      :post
+      |> conn("/api/orders")
+      |> Plug.Conn.put_req_header("user-agent", @chrome)
+      |> through([[api: false], []])
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(201, "{}")
+
+      assert [%Event{event_type: "api"}] = Repo.all(Event)
+    end
+
+    test "a path outside the endpoint's include_paths is the pipeline's copy to count" do
+      for path <- ["/", "/blog/post"] do
+        path |> request() |> through([[include_paths: ["/blog/*"]], []]) |> send_html()
+      end
+
+      assert ["/", "/blog/post"] = Event |> Repo.all() |> Enum.map(& &1.path) |> Enum.sort()
+    end
+
     test "an unknown :api value is refused at compile time" do
       assert_raise ArgumentError, fn -> TrackingPlug.init(api: :yes) end
     end

@@ -141,9 +141,12 @@ defmodule PhoenixKitWebAnalytics.Plug do
   out, but the visitor hash and the internal-network check rely on the
   address being the visitor's by then — see "Client IP" below.
 
-  Both copies may stay: the first to see a request (the endpoint's) decides
-  whether and how it is counted, and marks the conn, so the pipeline's copy
-  never counts it again. The pipeline's copy still writes the session notes
+  Both copies may stay: the first to see a request it covers (the
+  endpoint's) decides whether and how it is counted, and marks the conn, so
+  the pipeline's copy never counts it again. A request outside a copy's
+  `:include_paths`, or an API path under `api: false`, isn't its to decide:
+  it passes untouched to the next copy. A path a copy excludes is decided —
+  no later copy counts it. The pipeline's copy still writes the session notes
   (Do Not Track, the consent answer) the LiveView hook reads, since the
   endpoint runs before the session is fetched. A host that adds nothing to
   its endpoint behaves exactly as before.
@@ -262,9 +265,20 @@ defmodule PhoenixKitWebAnalytics.Plug do
       skipped?(conn) or replay_frame?(conn) or diagnostic?(conn) -> conn
       seen?(conn) and conn.method == "GET" -> notes_only(conn, opts)
       seen?(conn) -> conn
+      outside_scope?(conn, opts) -> conn
       conn.method == "GET" -> conn |> mark_seen() |> maybe_register(opts)
       true -> conn |> mark_seen() |> maybe_register_api(opts)
     end
+  end
+
+  # A request this copy isn't for — outside its `include_paths:`, or one of
+  # the settings' API paths with `api: false` — is left to the next copy
+  # (or none) untouched, rather than decided here. Exclusions are decisions:
+  # an excluded path is marked seen and counted by no copy.
+  defp outside_scope?(conn, opts) do
+    not included?(conn.request_path, Keyword.get(opts, :include_paths)) or
+      (Keyword.get(opts, :api) == false and
+         api_path?(conn.request_path, Config.collection_config()))
   end
 
   defp notes_only(conn, opts) do

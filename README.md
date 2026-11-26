@@ -38,9 +38,11 @@ plug MyAppWeb.Router
 Used this way it also leaves out LiveDashboard and the mailbox under `/dev`,
 live reload, `/health`, `/healthz`, `/livez`, `/readyz` and `/ping`
 (`default_excludes: false` to count them). The pipeline plug can stay: the
-first copy to see a request decides for it and marks the conn, so a page is
-never counted twice, and the pipeline's copy still writes the session notes
-the LiveView hook reads.
+first copy to see a request it covers decides for it and marks the conn, so a
+page is never counted twice, and the pipeline's copy still writes the session
+notes the LiveView hook reads. A path outside the endpoint's `include_paths`,
+or an API path under `api: false`, is left to the pipeline's copy; a path the
+endpoint excludes is counted by neither.
 
 An optional client script (shipped with the module, switched off until you
 enable it) adds only what a server cannot see: outbound and download clicks,
