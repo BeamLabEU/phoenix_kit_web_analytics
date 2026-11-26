@@ -426,4 +426,38 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       refute event.is_bot
     end
   end
+
+  describe "the client script's quiet flag" do
+    defp quiet?(conn),
+      do: conn |> Plug.Conn.get_resp_header("server-timing") |> Enum.join() =~ "pk-analytics"
+
+    test "a page says the script has nothing to ask while recording and measurements are off" do
+      assert "/pricing" |> request() |> respond() |> quiet?()
+    end
+
+    test "is left off while recording or device measurements can be on" do
+      enable_tracking(%{"web_analytics_recording" => "true"})
+      refute "/pricing" |> request() |> respond() |> quiet?()
+
+      enable_tracking(%{
+        "web_analytics_recording" => "false",
+        "web_analytics_client_script" => "true",
+        "web_analytics_store_signals" => "true"
+      })
+
+      refute "/pricing" |> request() |> respond() |> quiet?()
+    end
+
+    test "joins a Server-Timing header already set" do
+      conn =
+        "/pricing"
+        |> request()
+        |> Plug.Conn.put_resp_header("server-timing", "db;dur=12")
+        |> respond()
+
+      assert Plug.Conn.get_resp_header(conn, "server-timing") == [
+               ~s(db;dur=12, pk-analytics;desc="quiet")
+             ]
+    end
+  end
 end

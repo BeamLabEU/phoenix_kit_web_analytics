@@ -209,6 +209,40 @@ defmodule PhoenixKitWebAnalytics.Plug do
     conn
     |> register_tracking(config, opts)
     |> register_staff_note(config)
+    |> note_quiet_client(config)
+  end
+
+  @server_timing "pk-analytics;desc=\"quiet\""
+
+  @doc """
+  Whether the client script has nothing to ask the server on a page: no
+  session recording, and no device measurements to take. The script then
+  skips its `GET …/recording` — see `note_quiet_client/2`.
+  """
+  @spec quiet_client?(map()) :: boolean()
+  def quiet_client?(config) do
+    not (config.enabled? and
+           (config.recording? or (config.client_script? and config.store_signals?)))
+  end
+
+  # The client script asks `GET …/recording` once a page whether to record
+  # it and whether to measure the device. When neither can be yes, the page's
+  # own response says so in a `Server-Timing` entry, which the script reads
+  # from the page's navigation timing — no extra request, and nothing added
+  # to the page itself. A page without it (another pipeline, a cached copy
+  # from before) asks as it always did.
+  defp note_quiet_client(conn, config) do
+    if quiet_client?(config) do
+      value =
+        case get_resp_header(conn, "server-timing") do
+          [] -> @server_timing
+          existing -> Enum.join(existing ++ [@server_timing], ", ")
+        end
+
+      put_resp_header(conn, "server-timing", value)
+    else
+      conn
+    end
   end
 
   # A request other than GET is only ever an API hit; nothing is noted in
