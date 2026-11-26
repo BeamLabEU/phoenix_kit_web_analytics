@@ -163,8 +163,9 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   the User-Agent doesn't look automated.
 
   Never the raw header: only one token of it, at most #{40} characters of
-  `[A-Za-z0-9._-]`, and never a URL or an address (`+http://…`,
-  `contact@…`), which some crawlers put beside their name. When no token
+  `[A-Za-z0-9._-]`, and never a URL, an address or a number (`+http://…`,
+  `contact@…`, `crawler.example.com`, `10.0.0.7`), which some crawlers put
+  beside their name. When no token
   carries the marker, the marker itself (`"bare"` for a header that is only
   `Mozilla/5.0`).
 
@@ -219,7 +220,17 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
       |> String.replace(~r/[^A-Za-z0-9._-]/, "")
       |> String.slice(0, @max_bot_name)
 
-    if name == "", do: nil, else: name
+    if name == "" or identifying?(name), do: nil, else: name
+  end
+
+  # A crawler's name has no host, address or long number in it; a token that
+  # does is left out (the marker names the bot instead): "ads.example.com",
+  # "192.168.7.42bot", a phone number. Two dots make a host ("Mail.RU_Bot"
+  # has one), digits around a dot an address, five digits a number.
+  defp identifying?(name) do
+    String.length(name) - String.length(String.replace(name, ".", "")) >= 2 or
+      Regex.match?(~r/\d\.\d/, name) or
+      Regex.match?(~r/(?:\d\D?){5}/, name)
   end
 
   # A User-Agent that is only the product token — "Mozilla/5.0", no platform

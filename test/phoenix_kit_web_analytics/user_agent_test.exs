@@ -226,6 +226,17 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       assert UserAgent.bot_name("MyCrawler (admin@crawl.example)") == "MyCrawler"
     end
 
+    test "never a host, an IP address or a long number" do
+      assert UserAgent.bot_name("ads.example.com/bot") == "bot"
+      assert UserAgent.bot_name("192.168.7.42bot/2.1") == "bot"
+      assert UserAgent.bot_name("call 555-867-5309x12bot/1") == "bot"
+      assert UserAgent.bot_name("Bot12345678/1.0") == "bot"
+      # Real crawler names with a dot or a few digits are kept.
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; Mail.RU_Bot/2.0)") == "Mail.RU_Bot"
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; MJ12bot/v1.4.8)") == "MJ12bot"
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; 360Spider)") == "360Spider"
+    end
+
     test "is short and plain" do
       name = UserAgent.bot_name("Super<script>" <> String.duplicate("x", 100) <> "bot/1.0")
       assert String.length(name) <= 40
