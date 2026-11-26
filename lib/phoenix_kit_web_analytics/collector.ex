@@ -308,9 +308,24 @@ defmodule PhoenixKitWebAnalytics.Collector do
       log_bot_drop(hit, fn -> "user_agent:#{UserAgent.bot_marker(hit[:user_agent])}" end)
       {:error, :bot}
     else
-      insert_event(hit, config, ua)
+      hit |> name_bot(ua) |> insert_event(config, ua)
     end
   end
+
+  # Which bot a declared one is — a short product token (`"Googlebot"`),
+  # never the header — so the Bots page and the rollup can say who crawled.
+  defp name_bot(hit, %{bot?: true}) do
+    case UserAgent.bot_name(hit[:user_agent]) do
+      nil -> name_bot(hit, nil)
+      name -> Map.put(hit, :metadata, Map.put(hit[:metadata] || %{}, "bot_name", name))
+    end
+  end
+
+  # Only the User-Agent names a bot: a custom event's props can't.
+  defp name_bot(%{metadata: %{"bot_name" => _} = metadata} = hit, _ua),
+    do: %{hit | metadata: Map.delete(metadata, "bot_name")}
+
+  defp name_bot(hit, _ua), do: hit
 
   # What `hit[:consent]` (see `PhoenixKitWebAnalytics.Consent`) leaves of a
   # hit: itself, when visits may be counted; nothing, when they may not —

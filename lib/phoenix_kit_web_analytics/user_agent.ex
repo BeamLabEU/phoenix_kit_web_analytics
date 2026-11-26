@@ -156,7 +156,71 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   def bot_marker(_user_agent), do: nil
 
+  @doc """
+  A short name for the bot behind an automated User-Agent — the product
+  token that carries the matched marker, without its version (`"Googlebot"`,
+  `"GPTBot"`, `"AhrefsBot"`, `"curl"`, `"HeadlessChrome"`) — or `nil` when
+  the User-Agent doesn't look automated.
+
+  Never the raw header: only one token of it, at most #{40} characters of
+  `[A-Za-z0-9._-]`, and never a URL or an address (`+http://…`,
+  `contact@…`), which some crawlers put beside their name. When no token
+  carries the marker, the marker itself (`"bare"` for a header that is only
+  `Mozilla/5.0`).
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_name("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+      "Googlebot"
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_name("curl/8.4.0")
+      "curl"
+  """
+  @spec bot_name(String.t() | nil) :: String.t() | nil
+  def bot_name(user_agent) when is_binary(user_agent) do
+    case bot_marker(user_agent) do
+      nil -> nil
+      "k6/" -> "k6"
+      "bare" -> "bare"
+      marker -> named_token(user_agent, marker) || marker
+    end
+  end
+
+  def bot_name(_user_agent), do: nil
+
   # ── internals ─────────────────────────────────────────────────────────────
+
+  @max_bot_name 40
+
+  # The first product token that carries `marker`, minus its version and
+  # anything outside a name's characters. URLs and e-mail addresses are
+  # skipped: "+http://www.google.com/bot.html" carries "bot" too.
+  defp named_token(user_agent, marker) do
+    user_agent
+    |> String.split(~r/[\s;(),\[\]{}"'<>]+/, trim: true)
+    |> Enum.reject(&link_or_address?/1)
+    |> Enum.find_value(fn token ->
+      if String.contains?(String.downcase(token), marker), do: clean_name(token)
+    end)
+  end
+
+  defp link_or_address?(token) do
+    downcased = String.downcase(token)
+
+    String.contains?(downcased, ["://", "@", "www."]) or
+      String.starts_with?(downcased, ["+", "http", "mailto:"])
+  end
+
+  defp clean_name(token) do
+    name =
+      token
+      # "Googlebot/2.1" → "Googlebot"; "java/1.8" → "java". A marker that
+      # ends in "/" ("java/") keeps the part before it.
+      |> String.split("/", parts: 2)
+      |> hd()
+      |> String.replace(~r/[^A-Za-z0-9._-]/, "")
+      |> String.slice(0, @max_bot_name)
+
+    if name == "", do: nil, else: name
+  end
 
   # A User-Agent that is only the product token — "Mozilla/5.0", no platform
   # in brackets — is a script's default, never a browser's. A binary match,
