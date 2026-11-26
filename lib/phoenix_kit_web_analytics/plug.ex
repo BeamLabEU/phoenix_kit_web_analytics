@@ -114,7 +114,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   To count pages no router pipeline covers (controllers of another scope,
   pages served before the router), the plug can sit once in the host's
-  `endpoint.ex` instead of — or as well as — the `:browser` pipeline.
+  `endpoint.ex` as well as the `:browser` pipeline (instead of it only on a
+  site without LiveView pages — see below).
   `mix phoenix_kit.update` never puts it there; it is the host's choice:
 
       # lib/my_app_web/endpoint.ex — after remote-IP handling, before the router
@@ -148,8 +149,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
   it passes untouched to the next copy. A path a copy excludes is decided —
   no later copy counts it. The pipeline's copy still writes the session notes
   (Do Not Track, the consent answer) the LiveView hook reads, since the
-  endpoint runs before the session is fetched. A host that adds nothing to
-  its endpoint behaves exactly as before.
+  endpoint runs before the session is fetched. **Keep the pipeline's copy
+  on any site with LiveView pages:** without it no copy writes those notes,
+  and the hook would count a Do Not Track visitor, or one who declined
+  consent, on their LiveView navigations. A host that adds nothing to its
+  endpoint behaves exactly as before.
 
   ## Client IP
 

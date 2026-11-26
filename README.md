@@ -21,7 +21,7 @@ live_session :public,
 end
 ```
 
-Pages no router pipeline covers can be counted from the endpoint instead
+Pages no router pipeline covers can be counted from the endpoint too
 (opt-in; `mix phoenix_kit.update` never adds it). Put it **after** whatever
 rewrites `remote_ip`, before the router:
 
@@ -42,7 +42,10 @@ first copy to see a request it covers decides for it and marks the conn, so a
 page is never counted twice, and the pipeline's copy still writes the session
 notes the LiveView hook reads. A path outside the endpoint's `include_paths`,
 or an API path under `api: false`, is left to the pipeline's copy; a path the
-endpoint excludes is counted by neither.
+endpoint excludes is counted by neither. **Keep the pipeline plug on a site
+with LiveView pages**: the endpoint runs before the session is fetched, so
+without the pipeline's copy nothing notes Do Not Track or the consent answer
+for the LiveView hook, which would then count those visitors' navigations.
 
 An optional client script (shipped with the module, switched off until you
 enable it) adds only what a server cannot see: outbound and download clicks,
