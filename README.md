@@ -81,7 +81,7 @@ JavaScript in the admin either.
 
 ```elixir
 # mix.exs
-{:phoenix_kit_web_analytics, "~> 0.2"}
+{:phoenix_kit_web_analytics, "~> 0.10"}
 ```
 
 ```bash
@@ -362,6 +362,11 @@ included), and bots. All configurable in Settings. Tidewave's development
 re-fetch of a page (an `x-tidewave-diagnostic` header) is never a page view.
 A browser's speculative prefetch is stored, but as a bot's (see [Bots](#bots)).
 
+Because only 2xx HTML responses are recorded, a scanner probing paths your
+app doesn't have (`/wp-login.php`, `/.env`) leaves nothing here, even with
+**Record bot traffic** on: those 404s show only in your proxy's or
+endpoint's access log. An empty report is not evidence you aren't probed.
+
 ### Bots
 
 A bot that names itself (Googlebot, link previews, uptime monitors, `curl`,
@@ -419,7 +424,10 @@ their reasons, and groups them by what several share — network, subnet,
 address, device, User-Agent. A group opens its visitors; the address-shaped
 groupings offer their likely bots as a plain list to paste into a firewall
 or a CDN rule. Declared bots only appear with **Record bot traffic** on —
-otherwise they are dropped before anything is kept.
+otherwise they are dropped before anything is kept. Each dropped hit logs one
+`debug`-level line naming the rule (`user_agent:<marker>`, `rate`,
+`webdriver`) and the path, so a headless-browser test that leaves no rows
+can be explained with `config :logger, level: :debug`.
 
 ### Your own traffic
 
