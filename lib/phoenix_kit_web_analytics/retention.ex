@@ -253,7 +253,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
         |> Enum.map(&dim_row(&1, date, dimension, now))
       end)
 
-    bots = if bots?, do: day_bots(from, to, date, now), else: []
+    bots = if bots?, do: day_bots(from, to, date, now), else: :keep
 
     # One transaction per day: a day is replaced whole or not at all, so a
     # failure can't leave it looking rolled up while its raw rows become
@@ -270,12 +270,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
         insert_chunked(DailyDim, dims)
 
-        if bots? do
-          from(b in DailyBot, where: b.date == ^date and b.site in ^sites)
-          |> repo().delete_all()
-
-          insert_chunked(DailyBot, bots)
-        end
+        replace_bots(date, sites, bots)
       end)
 
     case result do
@@ -337,6 +332,13 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
     (repo().all(Dimensions.bots(day)) ++ repo().all(Dimensions.bots_total(day)))
     |> Enum.map(&bot_row(&1, date, now))
+  end
+
+  defp replace_bots(_date, _sites, :keep), do: :ok
+
+  defp replace_bots(date, sites, rows) do
+    from(b in DailyBot, where: b.date == ^date and b.site in ^sites) |> repo().delete_all()
+    insert_chunked(DailyBot, rows)
   end
 
   defp insert_chunked(schema, rows) do
@@ -530,7 +532,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
   # pass deletes at most so many rows, so the day can be half gone), and a
   # day whose raw events now count fewer page views, events or exits than its
   # stored totals has lost some (pruned under a shorter retention since
-  # raised, or a visitor forgotten). Rolling it again from what is left would
+  # raised). Rolling it again from what is left would
   # replace its totals with a fraction of them. This happens when the
   # watermark is reset — a schema step that adds a rollup does, so that the
   # days still in raw events get the new rows.
