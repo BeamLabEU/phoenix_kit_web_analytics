@@ -433,6 +433,25 @@ defmodule PhoenixKitWebAnalytics.Config do
   def session_timeout_minutes, do: collection_config().session_timeout_minutes
 
   @doc """
+  The client script's ceiling a minute per visitor for clicks, scroll
+  reports and exits sent to the public event endpoint — `config
+  :phoenix_kit_web_analytics, client_hits_per_minute: n`, 60 by default;
+  `0` or `false` turns it off. Each address may send
+  `client_hits_address_factor/0` times as many.
+  """
+  @spec client_hits_per_minute() :: non_neg_integer() | false
+  def client_hits_per_minute do
+    case Application.get_env(:phoenix_kit_web_analytics, :client_hits_per_minute, 60) do
+      limit when is_integer(limit) and limit > 0 -> limit
+      _off -> false
+    end
+  end
+
+  @doc "How many visitors' worth of client-script hits one address may send a minute."
+  @spec client_hits_address_factor() :: pos_integer()
+  def client_hits_address_factor, do: 6
+
+  @doc """
   Days of raw events to keep. `0` disables pruning entirely (rollups are still
   written).
   """
