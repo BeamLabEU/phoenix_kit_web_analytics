@@ -208,9 +208,16 @@ From the browser, with the client script enabled (or the `<.beacon />`
 component — `import PhoenixKitWebAnalytics.Web.Beacon` in the layout that
 renders it):
 
-```heex
-<button onclick="phoenixKitAnalytics('signup', {plan: 'pro'})">Sign up</button>
+```js
+document.getElementById("signup").addEventListener("click", function () {
+  phoenixKitAnalytics("signup", {plan: "pro"});
+});
 ```
+
+(An inline `onclick="phoenixKitAnalytics('signup')"` works only while the
+site's Content-Security-Policy allows inline event handlers; a policy with a
+nonce blocks them. The `<.beacon />` tag itself carries the page's nonce: see
+the component's documentation, also for pages served from a cache.)
 
 Any element can be named for click tracking with `data-analytics="name"`.
 

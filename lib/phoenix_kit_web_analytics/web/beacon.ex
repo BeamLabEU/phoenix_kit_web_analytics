@@ -20,7 +20,16 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
 
       <.beacon />
 
-      <button onclick="phoenixKitAnalytics('signup', {plan: 'pro'})">Sign up</button>
+      <button id="signup">Sign up</button>
+
+      // in your own JavaScript
+      document.getElementById("signup").addEventListener("click", function () {
+        phoenixKitAnalytics("signup", {plan: "pro"});
+      });
+
+  (An inline `onclick="phoenixKitAnalytics('signup')"` works too, but only
+  while the site's Content-Security-Policy allows inline event handlers: a
+  policy with a nonce blocks them, and no nonce can be put on an attribute.)
 
   What ships to the client is one function assigned to `window`. There is no
   bundle, no framework, no cookie written, nothing fetched on load, and no
@@ -52,11 +61,25 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
   and flags ride on `data-` attributes (properly escaped by HEEx) and the
   snippet reads them off `document.currentScript` — which also keeps the script
   body a static string, so a strict CSP can hash it.
+
+  ## Content-Security-Policy
+
+  Under a policy that allows inline scripts by nonce (`script-src 'self'
+  'nonce-…'`) the tag carries the page's nonce without being told: it is read
+  from PhoenixKit core (`config :phoenix_kit, csp_nonce_assign_key:`, on a
+  core that has `PhoenixKitWeb.CSP`) when the tag is rendered. `nonce="…"`
+  passes one by hand and wins over it.
+
+  A nonce belongs to one response. On a page that is cached and served to
+  everyone (the case the beacon is for), render `<.beacon nonce={false} />`
+  so no request's nonce is stored with the page, and allow the script by its
+  hash: the body is the same on every page.
   """
 
   use Phoenix.Component
 
   alias PhoenixKitWebAnalytics.Paths
+  alias PhoenixKitWebAnalytics.Web.CSP
 
   @doc """
   Renders the inline tracking snippet.
@@ -65,10 +88,12 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
 
     * `:auto_pageview` — also report client-side route changes (default
       `false`; leave it off unless a JS router owns navigation)
-    * `:nonce` — CSP nonce for the `<script>` tag, if the host sets one
+    * `:nonce` — CSP nonce for the `<script>` tag. Left out, the nonce
+      PhoenixKit core holds for the page is used, if there is one; `false`
+      renders the tag with none (a cached page)
   """
   attr :auto_pageview, :boolean, default: false
-  attr :nonce, :string, default: nil
+  attr :nonce, :any, default: nil
 
   @spec beacon(map()) :: Phoenix.LiveView.Rendered.t()
   def beacon(assigns) do
@@ -76,7 +101,7 @@ defmodule PhoenixKitWebAnalytics.Web.Beacon do
 
     ~H"""
     <script
-      nonce={@nonce}
+      nonce={CSP.nonce(:script, @nonce)}
       data-phoenix-kit-analytics={@endpoint}
       data-auto-pageview={to_string(@auto_pageview)}
     >

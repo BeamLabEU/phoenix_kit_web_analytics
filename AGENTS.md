@@ -244,6 +244,17 @@ can't, stays optional, and never writes a cookie or storage.
 - **Client JavaScript ships through `js_sources/0`**, never an inline
   `<script>` (the legacy `<.beacon />` component is the one exception, kept
   for hosts already using it).
+- **Content-Security-Policy:** the pages must work under a host nonce policy
+  (`script-src 'self' 'nonce-…'`). An inline `<script>`/`<style>` takes
+  `PhoenixKitWebAnalytics.Web.CSP.nonce/1` (core's `PhoenixKitWeb.CSP`,
+  feature-detected: older cores have none); `<.beacon />` is the only one and
+  uses `nonce/2`, so a `nonce` attribute wins and `nonce={false}` renders none
+  (a cached page must never hold a request's nonce). No inline event handler
+  (`onclick=`) and no `javascript:` URL: a hook or a delegated listener in
+  `phoenix_kit_web_analytics.js`, or a `phx-` binding. The bundle creates no
+  `<style>`/`<script>`. The replay player frames the site's own pages, so a
+  host policy needs `frame-src 'self'`. Lint:
+  `test/phoenix_kit_web_analytics/web/csp_inline_tags_test.exs`.
 - **A hit reported after its page (a leave) carries `session_anchor`**, so it
   joins the session its page view started.
 - **Alert text never includes an email address or visitor input.**

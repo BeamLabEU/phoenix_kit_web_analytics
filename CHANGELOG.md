@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- **`<.beacon />` carries the page's Content-Security-Policy nonce by
+  itself.** Under a host policy that allows inline scripts by nonce
+  (`script-src 'self' 'nonce-…'`) the tag reads the nonce PhoenixKit core
+  holds for the page (`config :phoenix_kit, csp_nonce_assign_key:`, on a core
+  that has `PhoenixKitWeb.CSP`; on an older core nothing changes). A `nonce`
+  passed by hand still wins, and `nonce={false}` renders the tag with none,
+  for a page that is cached and served to everyone: a nonce belongs to one
+  response, so allow the script by its hash there.
+- The documented way to call `phoenixKitAnalytics(…)` from a page is a
+  listener in the site's own JavaScript; an inline `onclick` is blocked by a
+  nonce policy.
+
+### Added
+
+- `csp_inline_tags_test.exs` fails on an inline `<script>`/`<style>` without
+  the nonce and on any inline event handler in `lib/` or the module's JS. The
+  module had none besides the beacon.
+
 ## 0.10.1 - 2026-11-23
 
 No migrations. Requires PhoenixKit core 3.5.0 or later.
