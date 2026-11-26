@@ -259,11 +259,14 @@ defmodule PhoenixKitWebAnalytics.Reports do
   What the bot rules took out of the window's reports — so the judgement can
   be checked instead of trusted.
 
-  Returns `%{visits: n, pageviews: n, rules: [...], bots: [...]}`:
+  Returns `%{visits: n, pageviews: n, rules: [...], bots: [...]}`, where
+  `visits` counts each automated visit once (per UTC day) even when two
+  rules judged it:
 
     * `rules` — per rule (`"user_agent"`, `"no_js"`, `"webdriver"`,
       `"rate"`, `"prefetch"`), the visits, page views and hits it judged
-      automated, most visits first;
+      automated, most visits first — a visit two rules judged is under
+      both, so the rules can add up to more than `visits`;
     * `bots` — per bot name a declared bot gave (`"Googlebot"`), the same
       numbers; behavioural verdicts on a browser's User-Agent have no name
       and are not in this list.
@@ -277,11 +280,11 @@ defmodule PhoenixKitWebAnalytics.Reports do
   @spec automated(filter()) :: map()
   def automated(filter) do
     cached({:automated, filter}, fn ->
-      rows = RollupReader.bots(filter)
+      {totals, rows} = filter |> RollupReader.bots() |> Enum.split_with(&(&1.reason == "*"))
 
       %{
-        visits: rows |> Enum.map(& &1.visits) |> Enum.sum(),
-        pageviews: rows |> Enum.map(& &1.pageviews) |> Enum.sum(),
+        visits: totals |> Enum.map(& &1.visits) |> Enum.sum(),
+        pageviews: totals |> Enum.map(& &1.pageviews) |> Enum.sum(),
         rules: sum_by(rows, & &1.reason, :reason),
         bots: rows |> Enum.reject(&(&1.bot_name == "")) |> sum_by(& &1.bot_name, :bot_name),
         track_bots?: Config.collection_config().track_bots?

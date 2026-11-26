@@ -326,13 +326,16 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   # Bot traffic gets rows of its own, per rule and bot name, so how much of
   # it came outlives the raw events too.
+  # The `"*"` row per site counts the day's automated visits over every rule
+  # at once, so a visit two rules judged is one visit in the totals.
   defp day_bots(from, to, date, now) do
-    from(e in Event,
-      where: e.inserted_at >= ^from and e.inserted_at < ^to,
-      where: e.traffic_flags == 0
-    )
-    |> Dimensions.bots()
-    |> repo().all()
+    day =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: e.traffic_flags == 0
+      )
+
+    (repo().all(Dimensions.bots(day)) ++ repo().all(Dimensions.bots_total(day)))
     |> Enum.map(&bot_row(&1, date, now))
   end
 

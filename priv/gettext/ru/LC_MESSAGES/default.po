@@ -134,7 +134,7 @@ msgid "Average"
 msgstr "Среднее"
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:858
-#: lib/phoenix_kit_web_analytics/web/components.ex:1046
+#: lib/phoenix_kit_web_analytics/web/components.ex:1051
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:223
 #: lib/phoenix_kit_web_analytics/web/technology_live.ex:166
 #, elixir-autogen, elixir-format
@@ -976,8 +976,8 @@ msgid "Viewed “%{title}”"
 msgstr "Просмотрел «%{title}»"
 
 #: lib/phoenix_kit_web_analytics/web/components.ex:423
-#: lib/phoenix_kit_web_analytics/web/components.ex:1031
-#: lib/phoenix_kit_web_analytics/web/components.ex:1048
+#: lib/phoenix_kit_web_analytics/web/components.ex:1036
+#: lib/phoenix_kit_web_analytics/web/components.ex:1053
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:117
 #: lib/phoenix_kit_web_analytics/web/pages_live.ex:199
 #, elixir-autogen, elixir-format
@@ -1302,8 +1302,8 @@ msgid "Visit timeout, minutes"
 msgstr "Тайм-аут визита, минут"
 
 #: lib/phoenix_kit_web_analytics.ex:159
-#: lib/phoenix_kit_web_analytics/web/components.ex:1030
-#: lib/phoenix_kit_web_analytics/web/components.ex:1047
+#: lib/phoenix_kit_web_analytics/web/components.ex:1035
+#: lib/phoenix_kit_web_analytics/web/components.ex:1052
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:136
 #: lib/phoenix_kit_web_analytics/web/dashboard_live.ex:330
 #: lib/phoenix_kit_web_analytics/web/session_live.ex:139
@@ -1949,12 +1949,12 @@ msgstr "Списком"
 msgid "Bot score"
 msgstr "Оценка бота"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1083
+#: lib/phoenix_kit_web_analytics/web/components.ex:1088
 #, elixir-autogen, elixir-format
 msgid "Browser under automation"
 msgstr "Браузер под управлением автоматики"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1087
+#: lib/phoenix_kit_web_analytics/web/components.ex:1092
 #, elixir-autogen, elixir-format
 msgid "Device and User-Agent disagree"
 msgstr "Устройство и User-Agent расходятся"
@@ -1974,12 +1974,12 @@ msgstr "Разные хеши устройств среди них — у той
 msgid "Everyone"
 msgstr "Все"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1089
+#: lib/phoenix_kit_web_analytics/web/components.ex:1094
 #, elixir-autogen, elixir-format
 msgid "Graphics drawn in software"
 msgstr "Графика отрисована программно"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1093
+#: lib/phoenix_kit_web_analytics/web/components.ex:1098
 #, elixir-autogen, elixir-format
 msgid "HTTP/1.0"
 msgstr "HTTP/1.0"
@@ -1989,7 +1989,7 @@ msgstr "HTTP/1.0"
 msgid "Highest score"
 msgstr "Наивысшая оценка"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1088
+#: lib/phoenix_kit_web_analytics/web/components.ex:1093
 #, elixir-autogen, elixir-format
 msgid "Hosting provider's network"
 msgstr "Сеть хостинг-провайдера"
@@ -2010,7 +2010,7 @@ msgstr "Последний визит"
 msgid "Latest visit"
 msgstr "Последний визит"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1076
+#: lib/phoenix_kit_web_analytics/web/components.ex:1081
 #, elixir-autogen, elixir-format
 msgid "Likely a bot"
 msgstr "Вероятно, бот"
@@ -2048,42 +2048,42 @@ msgstr "Требует сохранения владельца сети и ге�
 msgid "Networks"
 msgstr "Сети"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1086
+#: lib/phoenix_kit_web_analytics/web/components.ex:1091
 #, elixir-autogen, elixir-format
 msgid "Never ran JavaScript"
 msgstr "JavaScript ни разу не выполнялся"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1099
+#: lib/phoenix_kit_web_analytics/web/components.ex:1104
 #, elixir-autogen, elixir-format
 msgid "No Accept header"
 msgstr "Нет заголовка Accept"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1096
+#: lib/phoenix_kit_web_analytics/web/components.ex:1101
 #, elixir-autogen, elixir-format
 msgid "No Accept-Language header"
 msgstr "Нет заголовка Accept-Language"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1097
+#: lib/phoenix_kit_web_analytics/web/components.ex:1102
 #, elixir-autogen, elixir-format
 msgid "No Sec-Fetch headers"
 msgstr "Нет заголовков Sec-Fetch"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1084
+#: lib/phoenix_kit_web_analytics/web/components.ex:1089
 #, elixir-autogen, elixir-format
 msgid "No User-Agent"
 msgstr "Нет User-Agent"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1091
+#: lib/phoenix_kit_web_analytics/web/components.ex:1096
 #, elixir-autogen, elixir-format
 msgid "No browser language"
 msgstr "Не задан язык браузера"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1098
+#: lib/phoenix_kit_web_analytics/web/components.ex:1103
 #, elixir-autogen, elixir-format
 msgid "No client-hint headers"
 msgstr "Нет заголовков Client Hints"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1090
+#: lib/phoenix_kit_web_analytics/web/components.ex:1095
 #, elixir-autogen, elixir-format
 msgid "No screen or window size"
 msgstr "Нет размера экрана или окна"
@@ -2103,22 +2103,22 @@ msgstr "О посетителях пока ничего не сохраняет�
 msgid "Nothing to group by."
 msgstr "Не по чему группировать."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1078
+#: lib/phoenix_kit_web_analytics/web/components.ex:1083
 #, elixir-autogen, elixir-format
 msgid "Nothing unusual"
 msgstr "Ничего необычного"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1085
+#: lib/phoenix_kit_web_analytics/web/components.ex:1090
 #, elixir-autogen, elixir-format
 msgid "Pages faster than a person reads"
 msgstr "Страницы быстрее, чем читает человек"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1092
+#: lib/phoenix_kit_web_analytics/web/components.ex:1097
 #, elixir-autogen, elixir-format
 msgid "Phone User-Agent from a server"
 msgstr "User-Agent телефона с сервера"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1095
+#: lib/phoenix_kit_web_analytics/web/components.ex:1100
 #, elixir-autogen, elixir-format
 msgid "Phone without a touch screen"
 msgstr "Телефон без сенсорного экрана"
@@ -2128,8 +2128,8 @@ msgstr "Телефон без сенсорного экрана"
 msgid "Remove this filter"
 msgstr "Убрать этот фильтр"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1070
-#: lib/phoenix_kit_web_analytics/web/components.ex:1082
+#: lib/phoenix_kit_web_analytics/web/components.ex:1075
+#: lib/phoenix_kit_web_analytics/web/components.ex:1087
 #, elixir-autogen, elixir-format
 msgid "Says it is a bot"
 msgstr "Называет себя ботом"
@@ -2151,7 +2151,7 @@ msgid "Subnets"
 msgstr "Подсети"
 
 #: lib/phoenix_kit_web_analytics/web/bots_live.ex:330
-#: lib/phoenix_kit_web_analytics/web/components.ex:1077
+#: lib/phoenix_kit_web_analytics/web/components.ex:1082
 #, elixir-autogen, elixir-format
 msgid "Suspicious"
 msgstr "Подозрительные"
@@ -2631,7 +2631,7 @@ msgstr[0] "Адреса из %{count} сети, указанной ниже ил
 msgstr[1] "Адреса из %{count} сетей, указанных ниже или в конфигурации приложения (internal_networks)."
 msgstr[2] "Адреса из %{count} сетей, указанных ниже или в конфигурации приложения (internal_networks)."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1094
+#: lib/phoenix_kit_web_analytics/web/components.ex:1099
 #, elixir-autogen, elixir-format
 msgid "Browser years out of date"
 msgstr "Браузер устарел на годы"
@@ -2940,7 +2940,7 @@ msgstr "Отклоняются с кодом 403 на каждом пути, к�
 msgid "Request"
 msgstr "Запрос"
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1029
+#: lib/phoenix_kit_web_analytics/web/components.ex:1034
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:130
 #: lib/phoenix_kit_web_analytics/web/rate_limits_live.ex:205
 #, elixir-autogen, elixir-format
@@ -3055,13 +3055,13 @@ msgstr "Обновление…"
 msgid "The rate-limit counters are not running on this server, so nothing is limited: every request is let through."
 msgstr "Счётчики ограничения частоты на этом сервере не запущены, поэтому ничего не ограничивается: каждый запрос пропускается."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1224
-#: lib/phoenix_kit_web_analytics/web/components.ex:1226
+#: lib/phoenix_kit_web_analytics/web/components.ex:1229
+#: lib/phoenix_kit_web_analytics/web/components.ex:1231
 #, elixir-autogen, elixir-format
 msgid "%{value} pp"
 msgstr "%{value} п.п."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1005
+#: lib/phoenix_kit_web_analytics/web/components.ex:1010
 #, elixir-autogen, elixir-format
 msgid "%{count} visit"
 msgid_plural "%{count} visits"
@@ -3077,12 +3077,12 @@ msgstr[0] "%{count} визит, признанный автоматически�
 msgstr[1] "%{count} визита, признанных автоматическими, не входят в эти цифры."
 msgstr[2] "%{count} визитов, признанных автоматическими, не входят в эти цифры."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1014
+#: lib/phoenix_kit_web_analytics/web/components.ex:1019
 #, elixir-autogen, elixir-format
 msgid "Bots that say so in their User-Agent are dropped before they are stored, so they are not counted here. Switch on “Record bot traffic” in Settings to count and name them."
 msgstr "Боты, которые называют себя ботами в User-Agent, отбрасываются до сохранения, поэтому здесь не учитываются. Включите «Записывать трафик ботов» в настройках, чтобы считать и называть их."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1071
+#: lib/phoenix_kit_web_analytics/web/components.ex:1076
 #, elixir-autogen, elixir-format
 msgid "Browser prefetch, not yet a visit"
 msgstr "Предзагрузка браузером, ещё не визит"
@@ -3121,7 +3121,7 @@ msgstr "Признано автоматическим"
 msgid "No bot named itself in this period. Bots are stored only while “Record bot traffic” is on in Settings."
 msgstr "За этот период ни один бот не назвал себя. Боты сохраняются, только пока в настройках включено «Записывать трафик ботов»."
 
-#: lib/phoenix_kit_web_analytics/web/components.ex:1021
+#: lib/phoenix_kit_web_analytics/web/components.ex:1026
 #, elixir-autogen, elixir-format
 msgid "Nothing was judged automated in this period."
 msgstr "За этот период ничего не признано автоматическим."
@@ -3140,3 +3140,8 @@ msgstr "Визиты, которые правила для ботов исклю
 #, elixir-autogen, elixir-format
 msgid "“Never ran JavaScript” can be wrong about a person who left before the page connected, or who blocks JavaScript: compare it with your real traffic before trusting it."
 msgstr "«JavaScript ни разу не выполнялся» может ошибаться насчёт человека, который ушёл до подключения страницы или блокирует JavaScript: сравните с реальным трафиком, прежде чем доверять."
+
+#: lib/phoenix_kit_web_analytics/web/components.ex:1003
+#, elixir-autogen, elixir-format
+msgid "The total counts each visit once. A visit two rules judged is under both rules, so the rules can add up to more than the total."
+msgstr "В итоге каждый визит считается один раз. Визит, который отметили два правила, учтён в обоих, поэтому сумма по правилам может быть больше итога."

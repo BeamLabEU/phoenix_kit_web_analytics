@@ -118,6 +118,16 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
         |> Enum.map(&Map.take(&1, [:date, :site, :reason, :bot_name, :hits, :pageviews, :visits]))
 
       assert rows == [
+               # The day over every rule at once.
+               %{
+                 date: date,
+                 site: "example.com",
+                 reason: "*",
+                 bot_name: "",
+                 hits: 3,
+                 pageviews: 3,
+                 visits: 2
+               },
                %{
                  date: date,
                  site: "example.com",
@@ -140,7 +150,7 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
 
       # Re-rolling replaces the day whole.
       assert :ok = Retention.rollup_day(date)
-      assert Repo.aggregate(DailyBot, :count) == 2
+      assert Repo.aggregate(DailyBot, :count) == 3
     end
 
     test "bot history survives the raw events, and adds up with the raw remainder" do
@@ -157,7 +167,7 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
       insert_event(%{is_bot: true, metadata: %{"bot" => "rate"}, inserted_at: old})
 
       Retention.rollup_pending_days()
-      assert Repo.aggregate(DailyBot, :count) == 2
+      assert Repo.aggregate(DailyBot, :count) == 3
       # The raw rows of the rolled-up day go, as retention would prune them.
       Repo.delete_all(from(e in Event, where: e.inserted_at < ^day_at(4, ~T[00:00:00])))
 
@@ -175,6 +185,42 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
              ]
 
       assert result.track_bots?
+    end
+
+    test "a visit two rules judged is one visit in the total, rolled up or raw" do
+      enable_tracking(%{"web_analytics_track_bots" => "true"})
+
+      two_rules = fn at ->
+        session = Ecto.UUID.generate()
+
+        insert_event(%{
+          is_bot: true,
+          session_id: session,
+          metadata: %{"bot" => "rate"},
+          inserted_at: at
+        })
+
+        insert_event(%{
+          is_bot: true,
+          session_id: session,
+          metadata: %{"bot" => "no_js"},
+          inserted_at: DateTime.add(at, 1, :second)
+        })
+      end
+
+      # Raw: today.
+      two_rules.(DateTime.add(DateTime.utc_now(), -2, :second))
+      raw = Reports.automated(Reports.filter(period: "today"))
+      assert raw.visits == 1
+      assert raw.pageviews == 2
+      assert Enum.map(raw.rules, &{&1.reason, &1.visits}) == [{"no_js", 1}, {"rate", 1}]
+
+      # Rolled up: a finished day.
+      two_rules.(day_at(5))
+      Retention.rollup_pending_days()
+      Repo.delete_all(from(e in Event, where: e.inserted_at < ^day_at(4, ~T[00:00:00])))
+
+      assert Reports.automated(Reports.filter(period: "30d")).visits == 2
     end
 
     test "an hourly period reads raw, and the Bots switch doesn't change the answer" do

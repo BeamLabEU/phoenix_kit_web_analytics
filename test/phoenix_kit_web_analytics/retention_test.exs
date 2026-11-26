@@ -208,7 +208,7 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       Retention.rollup_pending_days()
 
-      assert DailyBot |> Repo.all() |> Enum.map(& &1.date) == [date_ago(3)]
+      assert DailyBot |> Repo.all() |> Enum.map(& &1.date) |> Enum.uniq() == [date_ago(3)]
     end
 
     test "a day already rolled up is not processed twice" do

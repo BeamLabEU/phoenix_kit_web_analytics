@@ -15,6 +15,9 @@ defmodule PhoenixKitWebAnalytics.Schemas.DailyBot do
     * `bot_name` — the short name a declared bot gives
       (`PhoenixKitWebAnalytics.UserAgent.bot_name/1`), `""` when there is
       none (a behavioural verdict on a browser's User-Agent).
+    * `reason` `"*"` (with no bot name) is the day's total over every rule
+      at once (`PhoenixKitWebAnalytics.Dimensions.bots_total/1`): a visit
+      two rules judged is one visit there.
     * `visits` and `visitors` count distinct visits and visitors per UTC day,
       so days add up the way `DailyStat`'s do.
 

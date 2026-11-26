@@ -244,7 +244,9 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   @doc """
   Automated traffic over the filter's window, per rule and bot name:
   `%{reason, bot_name, hits, pageviews, visits, visitors}` rows (sums as
-  integers), the busiest first. Finished days come from `DailyBot`, so bot
+  integers), the busiest first, and one `reason: "*"` row over every rule
+  at once (`Dimensions.bots_total/1`), where a visit two rules judged counts
+  once. Finished days come from `DailyBot`, so bot
   history outlives the raw events; the rest is read raw with the same
   aggregation (`Dimensions.bots/1`). The filter's `bots` switch doesn't
   matter here — this is the bot traffic either way.
@@ -306,7 +308,9 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   end
 
   defp bot_raw_part(filter) do
-    aggregated = filter |> Map.put(:bots, true) |> events() |> Dimensions.bots()
+    events = filter |> Map.put(:bots, true) |> events()
+    total = Dimensions.bots_total(events)
+    aggregated = events |> Dimensions.bots() |> union_all(^total)
 
     from(r in subquery(aggregated),
       select: %{

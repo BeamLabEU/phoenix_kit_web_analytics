@@ -999,6 +999,11 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
                 "“Never ran JavaScript” can be wrong about a person who left before the page connected, or who blocks JavaScript: compare it with your real traffic before trusting it."
               )}
             </p>
+            <p>
+              {gettext(
+                "The total counts each visit once. A visit two rules judged is under both rules, so the rules can add up to more than the total."
+              )}
+            </p>
           </.info_tip>
         </h2>
         <span id={"#{@id}-visits"} class="text-sm tabular-nums">
