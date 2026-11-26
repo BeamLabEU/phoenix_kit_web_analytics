@@ -314,18 +314,29 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   # Which bot a declared one is — a short product token (`"Googlebot"`),
   # never the header — so the Bots page and the rollup can say who crawled.
-  defp name_bot(hit, %{bot?: true}) do
+  #
+  # Only the server says which rule judged a hit and which bot it is: a
+  # custom event's props (or a host's metadata) can't put a `"bot"` reason or
+  # a `"bot_name"` on a row — `flag_attrs/2` sets the reason later, from the
+  # verdict.
+  defp name_bot(hit, ua) do
+    case hit[:metadata] do
+      metadata when is_map(metadata) ->
+        put_bot_name(%{hit | metadata: Map.drop(metadata, ["bot", "bot_name"])}, ua)
+
+      _ ->
+        put_bot_name(hit, ua)
+    end
+  end
+
+  defp put_bot_name(hit, %{bot?: true}) do
     case UserAgent.bot_name(hit[:user_agent]) do
-      nil -> name_bot(hit, nil)
+      nil -> hit
       name -> Map.put(hit, :metadata, Map.put(hit[:metadata] || %{}, "bot_name", name))
     end
   end
 
-  # Only the User-Agent names a bot: a custom event's props can't.
-  defp name_bot(%{metadata: %{"bot_name" => _} = metadata} = hit, _ua),
-    do: %{hit | metadata: Map.delete(metadata, "bot_name")}
-
-  defp name_bot(hit, _ua), do: hit
+  defp put_bot_name(hit, _ua), do: hit
 
   # What `hit[:consent]` (see `PhoenixKitWebAnalytics.Consent`) leaves of a
   # hit: itself, when visits may be counted; nothing, when they may not —

@@ -61,6 +61,26 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
       refute event.is_bot
       refute Map.has_key?(event.metadata, "bot_name")
     end
+
+    test "a declared bot's props can't choose the rule its row is counted under" do
+      enable_tracking(%{"web_analytics_track_bots" => "true"})
+
+      assert {:ok, event} =
+               Collector.track(
+                 hit(%{
+                   user_agent: @googlebot,
+                   event_type: "event",
+                   event_name: "x",
+                   metadata: %{"bot" => "no_js", "bot_name" => "Fake", "plan" => "pro"}
+                 })
+               )
+
+      assert event.metadata == %{"bot_name" => "Googlebot", "plan" => "pro"}
+
+      automated = Reports.automated(Reports.filter(period: "today"))
+      assert Enum.map(automated.rules, & &1.reason) == ["user_agent"]
+      assert Enum.map(automated.bots, & &1.bot_name) == ["Googlebot"]
+    end
   end
 
   describe "the daily rollup keeps bots" do
