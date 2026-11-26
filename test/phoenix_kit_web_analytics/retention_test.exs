@@ -159,6 +159,24 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert through == Date.add(Date.utc_today(), -1)
     end
 
+    test "a reset watermark leaves a rolled-up day past the retention horizon as it is" do
+      enable_tracking(%{"web_analytics_retention_days" => "10"})
+      old = date_ago(20)
+
+      # Rolled up long ago from 100 views; pruning has left one of them.
+      Repo.insert!(%DailyStat{date: old, site: "example.com", pageviews: 100, visitors: 40})
+      insert_event(%{inserted_at: days_ago(20)})
+      # A day inside the horizon is rolled up again as usual.
+      insert_event(%{inserted_at: days_ago(3)})
+
+      Retention.rollup_pending_days()
+
+      assert Repo.get_by!(DailyStat, date: old).pageviews == 100
+      assert Repo.get_by!(DailyStat, date: date_ago(3)).pageviews == 1
+      assert {:ok, through} = Retention.rolled_through()
+      assert through == Date.add(Date.utc_today(), -1)
+    end
+
     test "a day already rolled up is not processed twice" do
       insert_event(%{inserted_at: days_ago(2)})
 

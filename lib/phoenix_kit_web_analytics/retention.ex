@@ -501,7 +501,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
   defp roll_forward(dates) do
     {count, last_rolled} =
       Enum.reduce_while(dates, {0, nil}, fn date, {count, _last} = acc ->
-        case rollup_day(date) do
+        case roll_unless_pruning(date) do
+          :kept -> {:cont, {count, date}}
           :ok -> {:cont, {if(day_has_rows?(date), do: count + 1, else: count), date}}
           _ -> {:halt, acc}
         end
@@ -509,6 +510,26 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
     # The tuple's last date is the one before a failure when it halted.
     if last_rolled && advance_watermark(last_rolled) != :ok, do: 0, else: count
+  end
+
+  # A day past the retention horizon that is already rolled up is kept as it
+  # is: its raw events are being pruned (a pass deletes at most so many rows,
+  # so the day can be half gone), and rolling it again from what is left
+  # would replace its totals with a fraction of them. This happens when the
+  # watermark is reset — a schema step that adds a rollup does, so that the
+  # days still in raw events get the new rows.
+  defp roll_unless_pruning(date) do
+    if pruning?(date) and day_has_rows?(date), do: :kept, else: rollup_day(date)
+  end
+
+  defp pruning?(date) do
+    case Config.retention_days() do
+      days when is_integer(days) and days > 0 ->
+        Date.compare(date, Date.add(Date.utc_today(), -days)) == :lt
+
+      _ ->
+        false
+    end
   end
 
   # Re-roll the recent completed days this pass didn't just roll, while
