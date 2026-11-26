@@ -459,6 +459,49 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
                ~s(db;dur=12, pk-analytics;desc="quiet")
              ]
     end
+
+    test "joins one the controller sets after the plug, too" do
+      conn =
+        "/pricing"
+        |> request()
+        |> TrackingPlug.call(TrackingPlug.init([]))
+        |> Plug.Conn.put_resp_header("server-timing", "app;dur=3")
+        |> Plug.Conn.put_resp_content_type("text/html")
+        |> Plug.Conn.send_resp(200, "<html></html>")
+
+      assert Plug.Conn.get_resp_header(conn, "server-timing") == [
+               ~s(app;dur=3, pk-analytics;desc="quiet")
+             ]
+    end
+
+    test "is left off a page a shared cache may keep" do
+      for {header, value} <- [
+            {"cache-control", "public, max-age=300"},
+            {"cache-control", "max-age=0, s-maxage=600"},
+            {"surrogate-control", "max-age=600"},
+            {"cdn-cache-control", "max-age=600"}
+          ] do
+        conn =
+          "/pricing"
+          |> request()
+          |> TrackingPlug.call(TrackingPlug.init([]))
+          |> Plug.Conn.put_resp_header(header, value)
+          |> Plug.Conn.put_resp_content_type("text/html")
+          |> Plug.Conn.send_resp(200, "<html></html>")
+
+        refute quiet?(conn), "#{header}: #{value}"
+      end
+
+      conn =
+        "/pricing"
+        |> request()
+        |> TrackingPlug.call(TrackingPlug.init([]))
+        |> Plug.Conn.put_resp_header("cache-control", "max-age=0, private, must-revalidate")
+        |> Plug.Conn.put_resp_content_type("text/html")
+        |> Plug.Conn.send_resp(200, "<html></html>")
+
+      assert quiet?(conn)
+    end
   end
 
   describe "in the endpoint" do

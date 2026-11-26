@@ -194,7 +194,12 @@ limited, so put a rate limit in front of the endpoint if you accept them.
 The script asks the server once per page whether to record it or measure the
 device — unless the page's own response carries the plug's
 `Server-Timing: pk-analytics;desc="quiet"` entry (neither is switched on),
-when it asks nothing.
+when it asks nothing. The entry is left off a response a shared cache may keep
+(`Cache-Control: public` or `s-maxage`, a `Surrogate-Control` /
+`CDN-Cache-Control` header), so a cached page never stops recording that was
+switched on after it was stored. A CDN told to cache HTML whatever its headers
+say can still serve a stale "quiet" until the copy expires: purge it after
+switching recording or device measurements on.
 
 ## Alerts
 

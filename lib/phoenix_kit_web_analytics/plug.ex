@@ -329,7 +329,6 @@ defmodule PhoenixKitWebAnalytics.Plug do
     conn
     |> register_tracking(config, opts)
     |> register_staff_note(config)
-    |> note_quiet_client(config)
   end
 
   @server_timing "pk-analytics;desc=\"quiet\""
@@ -351,8 +350,16 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # from the page's navigation timing — no extra request, and nothing added
   # to the page itself. A page without it (another pipeline, a cached copy
   # from before) asks as it always did.
+  #
+  # Added as the response goes out, so a `Server-Timing` the controller set
+  # is joined rather than replaced, and left off a response a shared cache
+  # (a CDN, a proxy) may keep: a stored copy would go on saying "quiet" after
+  # recording is switched on, for as long as it is served.
+  #
+  # Only on a page this plug counts: excluded paths, opted-out visitors and a
+  # switched-off module send the page as it was.
   defp note_quiet_client(conn, config) do
-    if quiet_client?(config) do
+    if quiet_client?(config) and not shared_cacheable?(conn) do
       value =
         case get_resp_header(conn, "server-timing") do
           [] -> @server_timing
@@ -363,6 +370,16 @@ defmodule PhoenixKitWebAnalytics.Plug do
     else
       conn
     end
+  end
+
+  @surrogate_headers ~w(surrogate-control cdn-cache-control cloudflare-cdn-cache-control)
+
+  defp shared_cacheable?(conn) do
+    cache_control =
+      conn |> get_resp_header("cache-control") |> Enum.join(",") |> String.downcase()
+
+    String.contains?(cache_control, ["public", "s-maxage"]) or
+      Enum.any?(@surrogate_headers, &(get_resp_header(conn, &1) != []))
   end
 
   # A request other than GET is only ever an API hit; nothing is noted in
@@ -413,7 +430,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
     if Keyword.get(opts, :count?, true) and trackable_path?(conn.request_path, config, opts) do
       started_at = System.monotonic_time(:microsecond)
       bot_reason = Tracking.prefetch_reason(conn)
-      register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
+
+      register_before_send(conn, fn conn ->
+        conn |> track(started_at, {bot_reason, consent}, config) |> note_quiet_client(config)
+      end)
     else
       conn
     end
