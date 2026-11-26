@@ -266,9 +266,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
     # A later copy still writes the session notes (opt-out, consent), which
     # need the session an endpoint-level plug runs before.
     cond do
-      skipped?(conn) or replay_frame?(conn) or diagnostic?(conn) -> conn
-      seen?(conn) and conn.method == "GET" -> notes_only(conn, opts)
-      seen?(conn) -> conn
+      passed_over?(conn) -> conn
+      seen?(conn) -> if conn.method == "GET", do: notes_only(conn, opts), else: conn
       outside_scope?(conn, opts) -> conn
       conn.method == "GET" -> conn |> mark_seen() |> maybe_register(opts)
       true -> conn |> mark_seen() |> maybe_register_api(opts)
@@ -288,6 +287,8 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp notes_only(conn, opts) do
     register_tracking(conn, collection_config(opts), Keyword.put(opts, :count?, false))
   end
+
+  defp passed_over?(conn), do: skipped?(conn) or replay_frame?(conn) or diagnostic?(conn)
 
   defp seen?(conn), do: conn.private[@seen_key] == true
   defp mark_seen(conn), do: put_private(conn, @seen_key, true)
