@@ -23,6 +23,10 @@ can't, stays optional, and never writes a cookie or storage.
 - `plug.ex` — page views. In the request process: a method/path check, one
   cached settings read, `register_before_send/2`. Notes DNT/GPC in the session
   for the hook.
+  Opt-in endpoint form (`include_paths:` / `exclude_paths:` / `api:`, plus
+  default excludes for dashboards and health checks); a conn private flag
+  makes the first copy to see a request the only one that counts it (a later
+  copy still writes the session notes).
   A Chrome Speculation-Rules prefetch/prerender (`Sec-Purpose`/`Purpose`) is
   handed to the collector with `bot: "prefetch"`.
 - `live_hook.ex` — LiveView: page views for live navigation (`_live_referer` +

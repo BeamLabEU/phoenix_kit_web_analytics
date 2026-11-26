@@ -460,4 +460,84 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
              ]
     end
   end
+
+  describe "in the endpoint" do
+    defp through(conn, plugs) do
+      Enum.reduce(plugs, conn, fn opts, conn ->
+        TrackingPlug.call(conn, TrackingPlug.init(opts))
+      end)
+    end
+
+    defp send_html(conn) do
+      conn
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "<html></html>")
+    end
+
+    test "an endpoint plug and a pipeline plug count a page once" do
+      "/pricing"
+      |> request()
+      |> through([[include_paths: ["/*"]], []])
+      |> send_html()
+
+      assert [%Event{path: "/pricing"}] = Repo.all(Event)
+    end
+
+    test "the first plug decides: a path it leaves out isn't counted by the next" do
+      "/internal/report"
+      |> request()
+      |> through([[exclude_paths: ["/internal*"]], []])
+      |> send_html()
+
+      assert Repo.all(Event) == []
+    end
+
+    test "include_paths narrows what is counted" do
+      for path <- ["/shop/item", "/blog/post"] do
+        path |> request() |> through([[include_paths: ["/shop*"]]]) |> send_html()
+      end
+
+      assert [%Event{path: "/shop/item"}] = Repo.all(Event)
+    end
+
+    test "the endpoint form leaves dashboards and health checks out by default" do
+      for path <- ["/dev/dashboard/home", "/health", "/healthz", "/healthcare"] do
+        path |> request() |> through([[include_paths: ["/*"]]]) |> send_html()
+      end
+
+      assert [%Event{path: "/healthcare"}] = Repo.all(Event)
+
+      Repo.delete_all(Event)
+      "/health" |> request() |> through([[default_excludes: false]]) |> send_html()
+      assert [%Event{path: "/health"}] = Repo.all(Event)
+    end
+
+    test "the pipeline form keeps no default exclusions, as before" do
+      "/health" |> request() |> respond()
+      assert [%Event{path: "/health"}] = Repo.all(Event)
+    end
+
+    test "api: false leaves the settings' API paths to another plug" do
+      enable_tracking(%{"web_analytics_track_api_paths" => "/api/*"})
+
+      post = fn opts ->
+        :post
+        |> conn("/api/orders")
+        |> Plug.Conn.put_req_header("user-agent", @chrome)
+        |> through([opts])
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(201, "{}")
+      end
+
+      post.(api: false)
+      assert Repo.all(Event) == []
+
+      post.(api: :inherit)
+      assert [%Event{event_type: "api"}] = Repo.all(Event)
+    end
+
+    test "an unknown :api value is refused at compile time" do
+      assert_raise ArgumentError, fn -> TrackingPlug.init(api: :yes) end
+    end
+  end
 end

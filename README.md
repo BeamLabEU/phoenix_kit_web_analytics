@@ -21,6 +21,27 @@ live_session :public,
 end
 ```
 
+Pages no router pipeline covers can be counted from the endpoint instead
+(opt-in; `mix phoenix_kit.update` never adds it). Put it **after** whatever
+rewrites `remote_ip`, before the router:
+
+```elixir
+# lib/my_app_web/endpoint.ex
+plug RemoteIp
+plug PhoenixKitWebAnalytics.Plug,
+  include_paths: ["/*"],          # only these patterns (default: every path)
+  exclude_paths: ["/internal*"],  # on top of the settings' exclusions
+  api: :inherit                   # or false: leave the API paths to another plug
+plug MyAppWeb.Router
+```
+
+Used this way it also leaves out LiveDashboard and the mailbox under `/dev`,
+live reload, `/health`, `/healthz`, `/livez`, `/readyz` and `/ping`
+(`default_excludes: false` to count them). The pipeline plug can stay: the
+first copy to see a request decides for it and marks the conn, so a page is
+never counted twice, and the pipeline's copy still writes the session notes
+the LiveView hook reads.
+
 An optional client script (shipped with the module, switched off until you
 enable it) adds only what a server cannot see: outbound and download clicks,
 scroll depth, and exits from pages without a LiveView.
@@ -36,7 +57,7 @@ scroll depth, and exits from pages without a LiveView.
   see [Privacy](#privacy).) Keeping more is a setting, one kind of data at a
   time — see [What is kept about a visitor](#what-is-kept-about-a-visitor).
 - **Ad blockers can't remove it.** The numbers are your server's.
-- **The data is yours.** Five tables in your own database; nothing leaves
+- **The data is yours.** Six tables in your own database; nothing leaves
   your infrastructure.
 
 ## What gets recorded

@@ -110,6 +110,44 @@ defmodule PhoenixKitWebAnalytics.Plug do
       LiveView page to leave out entirely belongs in the
       `web_analytics_exclude_paths` setting, which both honour.
 
+  ## In the endpoint (opt-in)
+
+  To count pages no router pipeline covers (controllers of another scope,
+  pages served before the router), the plug can sit once in the host's
+  `endpoint.ex` instead of — or as well as — the `:browser` pipeline.
+  `mix phoenix_kit.update` never puts it there; it is the host's choice:
+
+      # lib/my_app_web/endpoint.ex — after remote-IP handling, before the router
+      plug RemoteIp
+      plug PhoenixKitWebAnalytics.Plug,
+        include_paths: ["/*"],
+        exclude_paths: ["/internal*"],
+        api: :inherit
+      plug MyAppWeb.Router
+
+    * `:include_paths` — only these patterns are counted (default: every
+      path). Same pattern rules as the exclusions.
+    * `:exclude_paths` — left out on top of the settings' exclusions (the
+      same as `:exclude`).
+    * `:api` — `:inherit` (default) records the settings' API paths here;
+      `false` leaves them out of this plug.
+    * `:default_excludes` — any of the options above turns on a list of
+      paths that are never a visitor's page (`default_excludes/0`:
+      LiveDashboard and the mailbox under `/dev`, live reload, `/health`,
+      `/healthz`, `/livez`, `/readyz`, `/ping`); `false` turns it off.
+
+  **It must come after whatever rewrites `remote_ip`** (`RemoteIp`, a
+  proxy-headers plug): it reads the client address when the response goes
+  out, but the visitor hash and the internal-network check rely on the
+  address being the visitor's by then — see "Client IP" below.
+
+  Both copies may stay: the first to see a request (the endpoint's) decides
+  whether and how it is counted, and marks the conn, so the pipeline's copy
+  never counts it again. The pipeline's copy still writes the session notes
+  (Do Not Track, the consent answer) the LiveView hook reads, since the
+  endpoint runs before the session is fetched. A host that adds nothing to
+  its endpoint behaves exactly as before.
+
   ## Client IP
 
   The client address is visitor-hash input, and stored only when the operator
@@ -159,20 +197,88 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   @country_headers ~w(cf-ipcountry x-vercel-ip-country fastly-geo-country x-country-code)
   @skip_key :phoenix_kit_web_analytics_skip
+  @seen_key :phoenix_kit_web_analytics_seen
+  @endpoint_options [:include_paths, :exclude_paths, :api, :default_excludes]
+  # What the endpoint form leaves out by default: development dashboards and
+  # the usual health and readiness checks — none of them a visitor's page.
+  @default_excludes [
+    "/dev/dashboard",
+    "/dev/dashboard/*",
+    "/dev/mailbox",
+    "/dev/mailbox/*",
+    "/phoenix/live_reload/*",
+    "/health",
+    "/health/*",
+    "/healthz",
+    "/healthz/*",
+    "/livez",
+    "/readyz",
+    "/ping"
+  ]
 
   @impl Plug
   def init(opts) do
-    Keyword.put(opts, :exclude, List.wrap(Keyword.get(opts, :exclude, [])))
+    endpoint_form? = Enum.any?(@endpoint_options, &Keyword.has_key?(opts, &1))
+
+    defaults =
+      if endpoint_form? and Keyword.get(opts, :default_excludes, true),
+        do: @default_excludes,
+        else: []
+
+    opts
+    |> Keyword.put(
+      :exclude,
+      List.wrap(Keyword.get(opts, :exclude, [])) ++
+        List.wrap(Keyword.get(opts, :exclude_paths, [])) ++ defaults
+    )
+    |> Keyword.put(:include_paths, include_paths(Keyword.get(opts, :include_paths)))
+    |> Keyword.put(:api, api_option(Keyword.get(opts, :api, :inherit)))
   end
+
+  defp include_paths(nil), do: nil
+  defp include_paths(patterns), do: List.wrap(patterns)
+
+  defp api_option(value) when value in [:inherit, false], do: value
+
+  defp api_option(value) do
+    raise ArgumentError,
+          "PhoenixKitWebAnalytics.Plug: :api must be :inherit or false, got: #{inspect(value)}"
+  end
+
+  @doc "The paths the endpoint form leaves out unless `default_excludes: false`."
+  @spec default_excludes() :: [String.t()]
+  def default_excludes, do: @default_excludes
 
   @impl Plug
   def call(conn, opts) do
     # Cheapest checks first: no settings read at all for anything already
-    # marked to skip.
+    # marked to skip, or already seen by another copy of this plug (one in
+    # the endpoint and one in a pipeline): the first to see a request
+    # decides for it, so it is never counted twice.
+    #
+    # A later copy still writes the session notes (opt-out, consent), which
+    # need the session an endpoint-level plug runs before.
     cond do
       skipped?(conn) or replay_frame?(conn) or diagnostic?(conn) -> conn
-      conn.method == "GET" -> maybe_register(conn, opts)
-      true -> maybe_register_api(conn, opts)
+      seen?(conn) and conn.method == "GET" -> notes_only(conn, opts)
+      seen?(conn) -> conn
+      conn.method == "GET" -> conn |> mark_seen() |> maybe_register(opts)
+      true -> conn |> mark_seen() |> maybe_register_api(opts)
+    end
+  end
+
+  defp notes_only(conn, opts) do
+    register_tracking(conn, collection_config(opts), Keyword.put(opts, :count?, false))
+  end
+
+  defp seen?(conn), do: conn.private[@seen_key] == true
+  defp mark_seen(conn), do: put_private(conn, @seen_key, true)
+
+  # `api: false` leaves the settings' API paths to another plug (or none).
+  defp collection_config(opts) do
+    case Keyword.get(opts, :api, :inherit) do
+      false -> %{Config.collection_config() | api_paths: []}
+      _inherit -> Config.collection_config()
     end
   end
 
@@ -204,7 +310,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp diagnostic?(conn), do: get_req_header(conn, "x-tidewave-diagnostic") != []
 
   defp maybe_register(conn, opts) do
-    config = Config.collection_config()
+    config = collection_config(opts)
 
     conn
     |> register_tracking(config, opts)
@@ -248,7 +354,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   # A request other than GET is only ever an API hit; nothing is noted in
   # the session for it.
   defp maybe_register_api(conn, opts) do
-    config = Config.collection_config()
+    config = collection_config(opts)
 
     if config.enabled? and api_path?(conn.request_path, config) and
          trackable_path?(conn.request_path, config, opts) and not opted_out?(conn, config) do
@@ -290,7 +396,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
   end
 
   defp register_pageview(conn, config, opts, consent) do
-    if trackable_path?(conn.request_path, config, opts) do
+    if Keyword.get(opts, :count?, true) and trackable_path?(conn.request_path, config, opts) do
       started_at = System.monotonic_time(:microsecond)
       bot_reason = Tracking.prefetch_reason(conn)
       register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
@@ -364,9 +470,14 @@ defmodule PhoenixKitWebAnalytics.Plug do
   defp session_fetched?(conn), do: conn.private[:plug_session_fetch] == :done
 
   defp trackable_path?(path, config, opts) do
-    not Config.excluded?(path, config.exclusions) and
+    included?(path, Keyword.get(opts, :include_paths)) and
+      not Config.excluded?(path, config.exclusions) and
       not Config.excluded?(path, Keyword.get(opts, :exclude, []))
   end
+
+  # `include_paths:` narrows the plug to those patterns; unset, every path.
+  defp included?(_path, nil), do: true
+  defp included?(path, patterns), do: Config.excluded?(path, patterns)
 
   defp opted_out?(conn, %{respect_dnt?: true}) do
     header(conn, "dnt") == "1" or header(conn, "sec-gpc") == "1"
