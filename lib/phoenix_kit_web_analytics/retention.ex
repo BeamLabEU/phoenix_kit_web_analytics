@@ -247,16 +247,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
         |> Enum.map(&dim_row(&1, date, dimension, now))
       end)
 
-    # Bot traffic gets rows of its own, per rule and bot name, so how much
-    # of it came outlives the raw events too.
-    bots =
-      from(e in Event,
-        where: e.inserted_at >= ^from and e.inserted_at < ^to,
-        where: e.traffic_flags == 0
-      )
-      |> Dimensions.bots()
-      |> repo().all()
-      |> Enum.map(&bot_row(&1, date, now))
+    bots = day_bots(from, to, date, now)
 
     # One transaction per day: a day is replaced whole or not at all, so a
     # failure can't leave it looking rolled up while its raw rows become
@@ -271,15 +262,10 @@ defmodule PhoenixKitWebAnalytics.Retention do
         # A pruned site's breakdowns cannot be reconstructed.
         from(d in DailyDim, where: d.date == ^date and d.site in ^sites) |> repo().delete_all()
 
-        dims
-        |> Enum.chunk_every(1_000)
-        |> Enum.each(&repo().insert_all(DailyDim, &1))
+        insert_chunked(DailyDim, dims)
 
         from(b in DailyBot, where: b.date == ^date and b.site in ^sites) |> repo().delete_all()
-
-        bots
-        |> Enum.chunk_every(1_000)
-        |> Enum.each(&repo().insert_all(DailyBot, &1))
+        insert_chunked(DailyBot, bots)
       end)
 
     case result do
@@ -326,6 +312,24 @@ defmodule PhoenixKitWebAnalytics.Retention do
       inserted_at: now
     })
     |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
+  end
+
+  # Bot traffic gets rows of its own, per rule and bot name, so how much of
+  # it came outlives the raw events too.
+  defp day_bots(from, to, date, now) do
+    from(e in Event,
+      where: e.inserted_at >= ^from and e.inserted_at < ^to,
+      where: e.traffic_flags == 0
+    )
+    |> Dimensions.bots()
+    |> repo().all()
+    |> Enum.map(&bot_row(&1, date, now))
+  end
+
+  defp insert_chunked(schema, rows) do
+    rows
+    |> Enum.chunk_every(1_000)
+    |> Enum.each(&repo().insert_all(schema, &1))
   end
 
   defp bot_row(row, date, now) do
