@@ -59,6 +59,11 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     * `10` — `bot_score` and `bot_reasons` on the profile: how much the
       visitor looks like a bot and why (`PhoenixKitWebAnalytics.BotScore`),
       with a partial index over the scored ones
+    * `11` — `phoenix_kit_web_analytics_daily_bots`: one row per day, site,
+      rule and bot name (`PhoenixKitWebAnalytics.Schemas.DailyBot`), so bot
+      volume outlives the raw events like every other rollup. The rollup
+      watermark is reset (as in V4), so the days still in raw events are
+      rolled up again and get their bot rows
 
   ## Large existing tables
 
@@ -99,7 +104,7 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   alias PhoenixKit.Migrations.Postgres.Helpers
 
   @initial_version 1
-  @current_version 10
+  @current_version 11
   @default_prefix "public"
   @version_table "phoenix_kit_web_analytics_events"
 
@@ -686,6 +691,51 @@ defmodule PhoenixKitWebAnalytics.Migrations do
     end
   end
 
+  # V11 — the daily rollup keeps bot traffic, per rule (`metadata["bot"]`,
+  # or "user_agent" for a declared bot) and bot name (`metadata["bot_name"]`).
+  defp up_v11(prefix) do
+    create_if_not_exists table(:phoenix_kit_web_analytics_daily_bots,
+                           primary_key: false,
+                           prefix: prefix
+                         ) do
+      add(:uuid, :uuid,
+        primary_key: true,
+        null: false,
+        default: fragment(Helpers.uuid_v7_call(prefix))
+      )
+
+      add(:date, :date, null: false)
+      add(:site, :string, size: 255, null: false, default: "")
+      # user_agent, no_js, webdriver, rate, prefetch
+      add(:reason, :string, size: 20, null: false)
+      add(:bot_name, :string, size: 64, null: false, default: "")
+      add(:hits, :integer, null: false, default: 0)
+      add(:pageviews, :integer, null: false, default: 0)
+      add(:visits, :integer, null: false, default: 0)
+      add(:visitors, :integer, null: false, default: 0)
+
+      timestamps(type: :utc_datetime_usec, updated_at: false)
+    end
+
+    create_if_not_exists(
+      unique_index(
+        :phoenix_kit_web_analytics_daily_bots,
+        [:date, :site, :reason, :bot_name],
+        prefix: prefix
+      )
+    )
+
+    # Roll every day still in raw events up again, now with its bots.
+    execute("""
+    DELETE FROM #{Helpers.qualify_table("phoenix_kit_settings", prefix)}
+    WHERE key = 'web_analytics_rolled_through'
+    """)
+  end
+
+  defp down_v11(prefix) do
+    drop_if_exists(table(:phoenix_kit_web_analytics_daily_bots, prefix: prefix))
+  end
+
   defp down_v1(prefix) do
     drop_if_exists(table(:phoenix_kit_web_analytics_daily_stats, prefix: prefix))
     drop_if_exists(table(:phoenix_kit_web_analytics_events, prefix: prefix))
@@ -722,6 +772,8 @@ defmodule PhoenixKitWebAnalytics.Migrations do
   defp apply_step(:down, 9, prefix), do: down_v9(prefix)
   defp apply_step(:up, 10, prefix), do: up_v10(prefix)
   defp apply_step(:down, 10, prefix), do: down_v10(prefix)
+  defp apply_step(:up, 11, prefix), do: up_v11(prefix)
+  defp apply_step(:down, 11, prefix), do: down_v11(prefix)
 
   defp apply_step(direction, version, _prefix) do
     raise ArgumentError,

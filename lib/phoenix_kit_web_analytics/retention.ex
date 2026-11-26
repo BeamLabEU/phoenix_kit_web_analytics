@@ -8,7 +8,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   1. **Rolls up** completed days into `PhoenixKitWebAnalytics.Schemas.DailyStat`
      rows — page views, visitors, sessions, bounces, and total session
-     seconds, per site.
+     seconds, per site — with the breakdowns in `DailyDim` and the day's
+     automated traffic, per rule and bot name, in `DailyBot`.
   2. **Prunes** raw events older than `web_analytics_retention_days`
      (365 by default; `0` disables pruning), in batches, and only for days that
      were rolled up first.
@@ -62,6 +63,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Dimensions
+  alias PhoenixKitWebAnalytics.Schemas.DailyBot
   alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -245,6 +247,17 @@ defmodule PhoenixKitWebAnalytics.Retention do
         |> Enum.map(&dim_row(&1, date, dimension, now))
       end)
 
+    # Bot traffic gets rows of its own, per rule and bot name, so how much
+    # of it came outlives the raw events too.
+    bots =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: e.traffic_flags == 0
+      )
+      |> Dimensions.bots()
+      |> repo().all()
+      |> Enum.map(&bot_row(&1, date, now))
+
     # One transaction per day: a day is replaced whole or not at all, so a
     # failure can't leave it looking rolled up while its raw rows become
     # eligible for pruning.
@@ -261,6 +274,12 @@ defmodule PhoenixKitWebAnalytics.Retention do
         dims
         |> Enum.chunk_every(1_000)
         |> Enum.each(&repo().insert_all(DailyDim, &1))
+
+        from(b in DailyBot, where: b.date == ^date and b.site in ^sites) |> repo().delete_all()
+
+        bots
+        |> Enum.chunk_every(1_000)
+        |> Enum.each(&repo().insert_all(DailyBot, &1))
       end)
 
     case result do
@@ -306,6 +325,12 @@ defmodule PhoenixKitWebAnalytics.Retention do
       dimension: dimension,
       inserted_at: now
     })
+    |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
+  end
+
+  defp bot_row(row, date, now) do
+    row
+    |> Map.merge(%{uuid: UUIDv7.generate(), date: date, inserted_at: now})
     |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
   end
 

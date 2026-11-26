@@ -27,6 +27,7 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
   alias PhoenixKitWebAnalytics.ReportCache
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Retention
+  alias PhoenixKitWebAnalytics.Schemas.DailyBot
   alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -236,6 +237,87 @@ defmodule PhoenixKitWebAnalytics.RollupReader do
 
   defp add_totals(part, acc) do
     Map.merge(acc, numbers(part), fn _key, a, b -> (a || 0) + (b || 0) end)
+  end
+
+  # ── bots ──────────────────────────────────────────────────────────────────
+
+  @doc """
+  Automated traffic over the filter's window, per rule and bot name:
+  `%{reason, bot_name, hits, pageviews, visits, visitors}` rows (sums as
+  integers), the busiest first. Finished days come from `DailyBot`, so bot
+  history outlives the raw events; the rest is read raw with the same
+  aggregation (`Dimensions.bots/1`). The filter's `bots` switch doesn't
+  matter here — this is the bot traffic either way.
+
+  Read raw throughout where the rollups can't answer: an hourly period, a
+  single page, or traffic the settings count in that the rollups leave out
+  (any `TrafficFlags` bit).
+  """
+  @spec bots(map()) :: [map()]
+  def bots(filter) do
+    plan = filter |> Map.put(:bots, false) |> plan()
+
+    parts =
+      Enum.reject(
+        [
+          plan.dates && bot_rollup_part(plan.dates, filter.site),
+          plan.raw && bot_raw_part(plan.raw)
+        ],
+        &is_nil/1
+      )
+
+    case parts do
+      [] ->
+        []
+
+      parts ->
+        source = Enum.reduce(tl(parts), hd(parts), fn part, acc -> union_all(acc, ^part) end)
+
+        from(r in subquery(source),
+          group_by: [r.reason, r.bot_name],
+          order_by: [desc: sum(r.visits), desc: sum(r.hits), asc: r.reason, asc: r.bot_name],
+          select: %{
+            reason: r.reason,
+            bot_name: r.bot_name,
+            hits: sum(r.hits),
+            pageviews: sum(r.pageviews),
+            visits: sum(r.visits),
+            visitors: sum(r.visitors)
+          }
+        )
+        |> all([])
+        |> Enum.map(&numbers/1)
+    end
+  end
+
+  defp bot_rollup_part({first, last}, site) do
+    from(b in DailyBot,
+      where: b.date >= ^first and b.date <= ^last,
+      select: %{
+        reason: b.reason,
+        bot_name: b.bot_name,
+        hits: b.hits,
+        pageviews: b.pageviews,
+        visits: b.visits,
+        visitors: b.visitors
+      }
+    )
+    |> where_rollup_site(site)
+  end
+
+  defp bot_raw_part(filter) do
+    aggregated = filter |> Map.put(:bots, true) |> events() |> Dimensions.bots()
+
+    from(r in subquery(aggregated),
+      select: %{
+        reason: r.reason,
+        bot_name: r.bot_name,
+        hits: r.hits,
+        pageviews: r.pageviews,
+        visits: r.visits,
+        visitors: r.visitors
+      }
+    )
   end
 
   # ── trend ─────────────────────────────────────────────────────────────────

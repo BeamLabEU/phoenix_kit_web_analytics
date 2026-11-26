@@ -139,6 +139,37 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
     )
   end
 
+  @doc """
+  Automated traffic per (site, reason, bot name) over `query`: `%{site,
+  reason, bot_name, hits, pageviews, visits, visitors}` — what
+  `DailyBot` stores, so a rolled-up day and the raw remainder count bots
+  alike. Only bot rows, never an `"api"` event. `reason` is the row's
+  `metadata["bot"]`, or `"user_agent"` for a bot that declared itself.
+
+  Literal SQL only inside the fragments: the grouped expressions must read
+  the same in `GROUP BY` and `SELECT`, which bound parameters would not.
+  """
+  @spec bots(Ecto.Queryable.t()) :: Ecto.Query.t()
+  def bots(query) do
+    from(e in query,
+      where: e.is_bot and e.event_type != "api",
+      group_by: [
+        fragment("COALESCE(?, '')", e.site),
+        fragment("LEFT(COALESCE(?->>'bot', 'user_agent'), 20)", e.metadata),
+        fragment("LEFT(COALESCE(?->>'bot_name', ''), 64)", e.metadata)
+      ],
+      select: %{
+        site: fragment("COALESCE(?, '')", e.site),
+        reason: fragment("LEFT(COALESCE(?->>'bot', 'user_agent'), 20)", e.metadata),
+        bot_name: fragment("LEFT(COALESCE(?->>'bot_name', ''), 64)", e.metadata),
+        hits: count(e.uuid),
+        pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
+        visits: fragment("COUNT(DISTINCT (?, ?::date))", e.session_id, e.inserted_at),
+        visitors: fragment("COUNT(DISTINCT (?, ?::date))", e.visitor_id, e.inserted_at)
+      }
+    )
+  end
+
   # Which events a dimension is made of — the same rules the reports always
   # applied (internal navigation is never a referrer or a channel, …).
   defp restrict(query, "page"),
