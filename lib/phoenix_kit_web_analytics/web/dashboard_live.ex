@@ -64,6 +64,7 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
     |> assign(:devices, Reports.devices(filter, limit: 4))
     |> assign(:interactions, Reports.top_interactions(filter, limit: 8))
     |> assign(:exit_pages, Reports.exit_pages(filter, limit: 8))
+    |> assign(:automated, Reports.automated(filter))
   end
 
   # Day buckets read through the rollups, so a trend reaching past the
@@ -202,6 +203,8 @@ defmodule PhoenixKitWebAnalytics.Web.DashboardLive do
           </:info>
         </.stat_tile>
       </div>
+
+      <.automated_note automated={@automated} bots={@filter.bots} />
 
       <div class="rounded-xl border border-base-300 bg-base-100 p-4">
         <div class="mb-3 flex items-center justify-between">

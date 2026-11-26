@@ -939,6 +939,138 @@ defmodule PhoenixKitWebAnalytics.Web.Components do
     """
   end
 
+  @doc """
+  The line under the Overview's numbers: how many visits the bot rules
+  judged automated in the period — left out of the numbers above unless the
+  Bots switch is on — linking to the Bots page, where they are broken down.
+  Nothing when there were none.
+  """
+  attr :automated, :map, required: true
+  attr :bots, :boolean, default: false
+
+  def automated_note(assigns) do
+    ~H"""
+    <p :if={@automated.visits > 0} id="automated-note" class="text-xs text-base-content/60">
+      <.icon name="hero-bug-ant" class="h-3.5 w-3.5 align-text-bottom" />
+      {if @bots,
+        do:
+          ngettext(
+            "Including %{count} visit judged automated.",
+            "Including %{count} visits judged automated.",
+            @automated.visits
+          ),
+        else:
+          ngettext(
+            "%{count} visit judged automated is left out of these numbers.",
+            "%{count} visits judged automated are left out of these numbers.",
+            @automated.visits
+          )}
+      <.link navigate={PhoenixKitWebAnalytics.Paths.bots()} class="link link-primary">
+        {gettext("By rule and by bot")}
+      </.link>
+    </p>
+    """
+  end
+
+  @doc """
+  What the bot rules took out of a period's reports
+  (`PhoenixKitWebAnalytics.Reports.automated/1`): visits per rule, and per
+  bot name for the bots that say who they are — so the judgement can be
+  checked instead of trusted.
+  """
+  attr :id, :string, required: true
+  attr :automated, :map, required: true
+
+  def automated_card(assigns) do
+    ~H"""
+    <div id={@id} class="min-w-0 rounded-xl border border-base-300 bg-base-100">
+      <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-base-300 px-4 py-3">
+        <h2 class="flex items-center gap-2 text-sm font-semibold">
+          <.icon name="hero-funnel" class="h-4 w-4 text-base-content/50" />
+          {gettext("Judged automated")}
+          <.info_tip id={"#{@id}-info"} title={gettext("Judged automated")}>
+            <p>
+              {gettext(
+                "Visits the bot rules took out of every report in this period, by the rule that judged them. Bots that say so in their User-Agent are named."
+              )}
+            </p>
+            <p>
+              {gettext(
+                "“Never ran JavaScript” can be wrong about a person who left before the page connected, or who blocks JavaScript: compare it with your real traffic before trusting it."
+              )}
+            </p>
+          </.info_tip>
+        </h2>
+        <span id={"#{@id}-visits"} class="text-sm tabular-nums">
+          {ngettext("%{count} visit", "%{count} visits", @automated.visits)}
+        </span>
+      </div>
+
+      <p
+        :if={not @automated.track_bots?}
+        id={"#{@id}-dropped"}
+        class="border-b border-base-200 px-4 py-2 text-xs text-base-content/60"
+      >
+        {gettext(
+          "Bots that say so in their User-Agent are dropped before they are stored, so they are not counted here. Switch on “Record bot traffic” in Settings to count and name them."
+        )}
+      </p>
+
+      <.empty_state
+        :if={@automated.rules == []}
+        title={gettext("Nothing was judged automated in this period.")}
+        class="py-8 px-6"
+      />
+
+      <div :if={@automated.rules != []} class="grid gap-4 p-4 md:grid-cols-2">
+        <table id={"#{@id}-rules"} class="table table-sm">
+          <thead>
+            <tr>
+              <th>{gettext("Rule")}</th>
+              <th class="text-right">{gettext("Visits")}</th>
+              <th class="text-right">{gettext("Views")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={rule <- @automated.rules} id={"#{@id}-rule-#{rule.reason}"}>
+              <td>{bot_rule_label(rule.reason)}</td>
+              <td class="text-right tabular-nums">{format_number(rule.visits)}</td>
+              <td class="text-right tabular-nums">{format_number(rule.pageviews)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table :if={@automated.bots != []} id={"#{@id}-names"} class="table table-sm">
+          <thead>
+            <tr>
+              <th>{gettext("Bot")}</th>
+              <th class="text-right">{gettext("Visits")}</th>
+              <th class="text-right">{gettext("Views")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={bot <- @automated.bots}>
+              <td class="font-mono text-xs">{bot.bot_name}</td>
+              <td class="text-right tabular-nums">{format_number(bot.visits)}</td>
+              <td class="text-right tabular-nums">{format_number(bot.pageviews)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Which rule judged traffic automated, in words: `"user_agent"` (the
+  User-Agent says so) and `"prefetch"` (a browser loading a page ahead of a
+  click), and the behavioural reasons `bot_reason_label/1` knows.
+  """
+  @spec bot_rule_label(String.t()) :: String.t()
+  def bot_rule_label("user_agent"), do: gettext("Says it is a bot")
+  def bot_rule_label("prefetch"), do: gettext("Browser prefetch, not yet a visit")
+  def bot_rule_label(reason), do: bot_reason_label(reason)
+
   @doc "What a bot-score level is called."
   @spec bot_level_label(PhoenixKitWebAnalytics.BotScore.level()) :: String.t()
   def bot_level_label(:likely), do: gettext("Likely a bot")
