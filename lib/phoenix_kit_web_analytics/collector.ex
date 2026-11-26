@@ -305,7 +305,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     ua = UserAgent.parse(hit[:user_agent])
 
     if ua.bot? and not config.track_bots? do
-      log_bot_drop(hit, "user_agent:#{UserAgent.bot_marker(hit[:user_agent])}")
+      log_bot_drop(hit, fn -> "user_agent:#{UserAgent.bot_marker(hit[:user_agent])}" end)
       {:error, :bot}
     else
       insert_event(hit, config, ua)
@@ -597,8 +597,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   # Bot traffic is not kept by default, so a dropped hit leaves no row: say
   # why at debug level, or a headless test that records nothing is a mystery.
+  # `rule` may be a function so the user-agent lookup runs only when debug
+  # logging is on.
   defp log_bot_drop(hit, rule) do
     Logger.debug(fn ->
+      rule = if is_function(rule, 0), do: rule.(), else: rule
+
       "[WebAnalytics] dropped #{hit[:event_type] || "pageview"} #{inspect(hit[:path])} " <>
         "as a bot (#{rule}); switch on Record bot traffic to keep it"
     end)
