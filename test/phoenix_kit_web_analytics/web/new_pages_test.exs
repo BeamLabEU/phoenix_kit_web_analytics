@@ -506,6 +506,23 @@ defmodule PhoenixKitWebAnalytics.Web.NewPagesTest do
       assert html =~ ~s(name="ignore_events")
     end
 
+    test "the client script's switch says what its public endpoint lets through", %{conn: conn} do
+      on_exit(fn ->
+        Application.delete_env(:phoenix_kit_web_analytics, :client_hits_per_minute)
+      end)
+
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+      note = view |> element("#client-script-rate-note") |> render()
+      assert note =~ "each visitor may send 60 clicks"
+      assert note =~ "each address 360"
+
+      Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, false)
+      {:ok, view, _html} = live(conn, "#{@base}/settings")
+      note = view |> element("#client-script-rate-note") |> render()
+      assert note =~ "its hits are not limited"
+      refute note =~ "each visitor may send"
+    end
+
     test "an invalid number saves nothing", %{conn: conn} do
       {:ok, view, _html} = live(conn, "#{@base}/settings")
 
