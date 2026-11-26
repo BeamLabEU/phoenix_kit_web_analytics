@@ -175,4 +175,22 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       refute UserAgent.bot?(nil)
     end
   end
+
+  describe "bot_marker/1" do
+    test "names the rule that matched" do
+      assert UserAgent.bot_marker("Googlebot/2.1 (+http://www.google.com/bot.html)") == "bot"
+      assert UserAgent.bot_marker("curl/8.4.0") == "curl"
+      assert UserAgent.bot_marker("k6/0.49.0 (https://k6.io/)") == "k6/"
+      assert UserAgent.bot_marker("Mozilla/5.0") == "bare"
+    end
+
+    test "is nil for a browser or no header" do
+      refute UserAgent.bot_marker(
+               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+             )
+
+      refute UserAgent.bot_marker(nil)
+      refute UserAgent.bot_marker("")
+    end
+  end
 end

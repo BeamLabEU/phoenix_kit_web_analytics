@@ -131,16 +131,30 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   Accepts the raw header; matching is case-insensitive.
   """
   @spec bot?(String.t() | nil) :: boolean()
-  def bot?(nil), do: false
+  def bot?(user_agent), do: bot_marker(user_agent) != nil
 
-  def bot?(user_agent) when is_binary(user_agent) do
+  @doc """
+  Which rule calls the User-Agent automated, or `nil` when none does: the
+  matched marker (`"bot"`, `"headless"`, `"curl"` …), `"k6/"`, or `"bare"`
+  for a header that is only `Mozilla/5.0`. Used to explain a dropped hit in
+  the debug log; never stored.
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_marker("Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0")
+      "headless"
+  """
+  @spec bot_marker(String.t() | nil) :: String.t() | nil
+  def bot_marker(user_agent) when is_binary(user_agent) do
     downcased = user_agent |> String.trim() |> String.downcase()
 
-    Enum.any?(@bot_markers, &String.contains?(downcased, &1)) or
-      String.starts_with?(downcased, "k6/") or bare?(downcased)
+    cond do
+      marker = Enum.find(@bot_markers, &String.contains?(downcased, &1)) -> marker
+      String.starts_with?(downcased, "k6/") -> "k6/"
+      bare?(downcased) -> "bare"
+      true -> nil
+    end
   end
 
-  def bot?(_user_agent), do: false
+  def bot_marker(_user_agent), do: nil
 
   # ── internals ─────────────────────────────────────────────────────────────
 

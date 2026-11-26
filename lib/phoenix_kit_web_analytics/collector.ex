@@ -305,6 +305,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     ua = UserAgent.parse(hit[:user_agent])
 
     if ua.bot? and not config.track_bots? do
+      log_bot_drop(hit, "user_agent:#{UserAgent.bot_marker(hit[:user_agent])}")
       {:error, :bot}
     else
       insert_event(hit, config, ua)
@@ -500,9 +501,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
           note_reason(:add, attrs.visitor_id, "rate")
         end
 
-        if config.track_bots?,
-          do: store(flag_attrs(attrs, reason), stitch),
-          else: :bot
+        if config.track_bots? do
+          store(flag_attrs(attrs, reason), stitch)
+        else
+          log_bot_drop(attrs, reason)
+          :bot
+        end
 
       # A "no JavaScript" verdict can be wrong (a tab idle past the judging,
       # a slow first connection), so its hits are kept, flagged, whatever
@@ -590,6 +594,15 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   defp note_reason(:remove, visitor_id, reason),
     do: run_async(fn -> Profiles.remove_reason([visitor_id], reason) end)
+
+  # Bot traffic is not kept by default, so a dropped hit leaves no row: say
+  # why at debug level, or a headless test that records nothing is a mystery.
+  defp log_bot_drop(hit, rule) do
+    Logger.debug(fn ->
+      "[WebAnalytics] dropped #{hit[:event_type] || "pageview"} #{inspect(hit[:path])} " <>
+        "as a bot (#{rule}); switch on Record bot traffic to keep it"
+    end)
+  end
 
   defp flag_attrs(attrs, reason) do
     attrs
