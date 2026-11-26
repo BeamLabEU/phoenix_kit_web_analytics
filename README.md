@@ -164,6 +164,15 @@ The client script ships through the module's `js_sources/0`, so a host set up
 by `mix phoenix_kit.install` loads it with no change; switch **Accept the
 client script** on in Settings to have its reports stored.
 
+Its endpoint is public. Clicks, scroll reports and exits are held to 60 a
+minute per visitor and 360 per address (`config :phoenix_kit_web_analytics,
+client_hits_per_minute: n`, `0` to turn it off); custom events are not
+limited, so put a rate limit in front of the endpoint if you accept them.
+The script asks the server once per page whether to record it or measure the
+device — unless the page's own response carries the plug's
+`Server-Timing: pk-analytics;desc="quiet"` entry (neither is switched on),
+when it asks nothing.
+
 ## Alerts
 
 The module registers a **Website activity** notification type with PhoenixKit,
@@ -423,7 +432,15 @@ measurements**: what isn't collected can't count.
 their reasons, and groups them by what several share — network, subnet,
 address, device, User-Agent. A group opens its visitors; the address-shaped
 groupings offer their likely bots as a plain list to paste into a firewall
-or a CDN rule. Declared bots only appear with **Record bot traffic** on —
+or a CDN rule.
+
+On top, **Judged automated** counts the visits each rule took out of the
+reports in the period — says it is a bot, no JavaScript, automation, speed,
+prefetch — and names the bots that say who they are (`Googlebot`, `GPTBot`:
+one token of the User-Agent, never the header itself). The Overview says how
+many visits that was; Technology, with the **Bots** switch on, lists the
+names. These numbers come from a daily rollup of their own, so they outlive
+the raw events. Declared bots only appear with **Record bot traffic** on —
 otherwise they are dropped before anything is kept. Each dropped hit logs one
 `debug`-level line naming the rule (`user_agent:<marker>`, `rate`,
 `webdriver`) and the path, so a headless-browser test that leaves no rows
