@@ -202,7 +202,9 @@ when it asks nothing. The entry is left off a response a shared cache may keep
 `CDN-Cache-Control` header), so a cached page never stops recording that was
 switched on after it was stored. A CDN told to cache HTML whatever its headers
 say can still serve a stale "quiet" until the copy expires: purge it after
-switching recording or device measurements on.
+switching recording or device measurements on. The script reads the entry once
+per page load, so a visitor already on the site when recording is switched on
+is recorded from their next full page load.
 
 ## Alerts
 

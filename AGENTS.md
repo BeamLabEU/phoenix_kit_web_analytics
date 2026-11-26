@@ -67,7 +67,11 @@ can't, stays optional, and never writes a cookie or storage.
   The plug marks a page whose client script has nothing to ask (no
   recording, no device measurements) with a `Server-Timing:
   pk-analytics;desc="quiet"` entry, and the script then skips
-  `GET …/recording`.
+  `GET …/recording`. The script reads it once per document, so recording
+  switched on mid-visit starts after a full reload; the entry is left off
+  responses a shared cache may keep, and a CDN that caches HTML whatever
+  its headers say needs a purge after recording or device measurements are
+  switched on.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
 - `bot_signals.ex` — behavioural bot detection (automation flag, speed, no
   JavaScript) and the per-visitor-per-minute counters (page views, recording
@@ -131,7 +135,13 @@ can't, stays optional, and never writes a cookie or storage.
   is rolled up on its own into `daily_bots` (per rule and bot name,
   `Dimensions.bots/1`), read back by `RollupReader.bots/1` /
   `Reports.automated/1` — the "judged automated" numbers on Overview, Bots
-  and Technology.
+  and Technology (a `reason: "*"` row per day and site holds the total over
+  every rule, so a visit two rules judged counts once).
+  When the watermark is reset (a schema step that adds a rollup), a day
+  already rolled up is kept as it is if it lies past the retention horizon
+  or its raw events now count fewer than its stored totals, and a day past
+  the horizon gets no `daily_bots` rows: **bot history starts at V11** for
+  days that were already rolled up past the horizon then.
 
 ## Rules that are load-bearing
 
