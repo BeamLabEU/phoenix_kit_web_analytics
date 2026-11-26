@@ -193,3 +193,49 @@ defmodule PhoenixKitWebAnalytics.ConfigSettingsTest do
     end
   end
 end
+
+defmodule PhoenixKitWebAnalytics.ConfigClientHitsTest do
+  # Changes app env, so not async.
+  use ExUnit.Case, async: false
+
+  import ExUnit.CaptureLog
+
+  alias PhoenixKitWebAnalytics.Config
+
+  setup do
+    on_exit(fn ->
+      Application.delete_env(:phoenix_kit_web_analytics, :client_hits_per_minute)
+      :persistent_term.erase({Config, :client_hits_warned})
+    end)
+
+    :persistent_term.erase({Config, :client_hits_warned})
+    :ok
+  end
+
+  defp limit_for(value) do
+    Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, value)
+    Config.client_hits_per_minute()
+  end
+
+  test "client_hits_per_minute: 60 by default, only 0 or false turn it off" do
+    Application.delete_env(:phoenix_kit_web_analytics, :client_hits_per_minute)
+    assert Config.client_hits_per_minute() == 60
+
+    for value <- [0, false, "0", 0.0], do: assert(limit_for(value) == false, inspect(value))
+
+    for {value, limit} <- [{25, 25}, {"25", 25}, {" 25 ", 25}, {25.0, 25}],
+        do: assert(limit_for(value) == limit)
+  end
+
+  test "client_hits_per_minute: anything else is the default, with one warning" do
+    log =
+      capture_log(fn ->
+        for value <- ["sixty", -5, nil, 60.5, :on, "25x"] do
+          assert limit_for(value) == 60, inspect(value)
+        end
+      end)
+
+    assert log =~ "client_hits_per_minute"
+    assert length(String.split(log, "is not a whole number")) == 2
+  end
+end
