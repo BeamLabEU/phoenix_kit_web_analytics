@@ -24,6 +24,18 @@ defmodule PhoenixKitWebAnalytics.Web.ComponentsDeltaTest do
       assert Components.delta(42.5, 0.0) == nil
       assert Components.delta(0.0, 0.0) == nil
     end
+
+    # A float zero can carry a sign; a `0.0` pattern would miss `-0.0`.
+    test "no comparison when the previous rate was a signed float zero" do
+      assert Components.delta(5.0, +0.0) == nil
+      assert Components.delta(5.0, -0.0) == nil
+      assert Components.delta(5, -0.0) == nil
+    end
+
+    test "no comparison when both sides are missing" do
+      assert Components.delta(nil, nil) == nil
+      assert Components.delta(nil, 0.0) == nil
+    end
   end
 
   describe "delta_pp/2" do
