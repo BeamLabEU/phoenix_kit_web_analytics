@@ -5,6 +5,7 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Retention
+  alias PhoenixKitWebAnalytics.Schemas.DailyBot
   alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -175,6 +176,39 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert Repo.get_by!(DailyStat, date: date_ago(3)).pageviews == 1
       assert {:ok, through} = Retention.rolled_through()
       assert through == Date.add(Date.utc_today(), -1)
+    end
+
+    test "a reset watermark keeps a rolled-up day whose raw events count fewer than its totals" do
+      # Retention was 10 days when this day was half pruned; it is 365 now,
+      # so the day is inside the horizon again but its raw events aren't whole.
+      enable_tracking(%{"web_analytics_retention_days" => "365"})
+      half = date_ago(20)
+
+      Repo.insert!(%DailyStat{date: half, site: "example.com", pageviews: 100, visitors: 40})
+      insert_event(%{inserted_at: days_ago(20)})
+
+      # A rolled-up day whose raw events are all there is rolled up again.
+      whole = date_ago(5)
+      Repo.insert!(%DailyStat{date: whole, site: "example.com", pageviews: 1, visitors: 1})
+      insert_event(%{inserted_at: days_ago(5)})
+      insert_event(%{inserted_at: days_ago(5)})
+
+      Retention.rollup_pending_days()
+
+      assert Repo.get_by!(DailyStat, date: half).pageviews == 100
+      assert Repo.get_by!(DailyStat, date: whole).pageviews == 2
+    end
+
+    test "a reset watermark writes no bot rows for a day past the retention horizon" do
+      enable_tracking(%{"web_analytics_retention_days" => "10"})
+
+      # Only bot traffic that day, so no DailyStat says how much there was.
+      insert_event(%{inserted_at: days_ago(20), is_bot: true})
+      insert_event(%{inserted_at: days_ago(3), is_bot: true})
+
+      Retention.rollup_pending_days()
+
+      assert DailyBot |> Repo.all() |> Enum.map(& &1.date) == [date_ago(3)]
     end
 
     test "a day already rolled up is not processed twice" do

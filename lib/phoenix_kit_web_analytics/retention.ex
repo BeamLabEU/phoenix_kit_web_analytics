@@ -199,9 +199,15 @@ defmodule PhoenixKitWebAnalytics.Retention do
       :error
   end
 
-  @doc "Aggregates one day into `DailyStat` rows, one per site."
-  @spec rollup_day(Date.t()) :: :ok | :error
-  def rollup_day(%Date{} = date) do
+  @doc """
+  Aggregates one day into `DailyStat` rows, one per site, with its
+  breakdowns (`DailyDim`) and bot traffic (`DailyBot`). `bots: false` leaves
+  the day's `DailyBot` rows as they are.
+  """
+  @spec rollup_day(Date.t(), keyword()) :: :ok | :error
+  def rollup_day(%Date{} = date, opts \\ []) do
+    bots? = Keyword.get(opts, :bots, true)
+
     from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
     to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
 
@@ -247,7 +253,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
         |> Enum.map(&dim_row(&1, date, dimension, now))
       end)
 
-    bots = day_bots(from, to, date, now)
+    bots = if bots?, do: day_bots(from, to, date, now), else: []
 
     # One transaction per day: a day is replaced whole or not at all, so a
     # failure can't leave it looking rolled up while its raw rows become
@@ -264,8 +270,12 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
         insert_chunked(DailyDim, dims)
 
-        from(b in DailyBot, where: b.date == ^date and b.site in ^sites) |> repo().delete_all()
-        insert_chunked(DailyBot, bots)
+        if bots? do
+          from(b in DailyBot, where: b.date == ^date and b.site in ^sites)
+          |> repo().delete_all()
+
+          insert_chunked(DailyBot, bots)
+        end
       end)
 
     case result do
@@ -512,14 +522,58 @@ defmodule PhoenixKitWebAnalytics.Retention do
     if last_rolled && advance_watermark(last_rolled) != :ok, do: 0, else: count
   end
 
-  # A day past the retention horizon that is already rolled up is kept as it
-  # is: its raw events are being pruned (a pass deletes at most so many rows,
-  # so the day can be half gone), and rolling it again from what is left
-  # would replace its totals with a fraction of them. This happens when the
+  # A day already rolled up is kept as it is when its raw events can't be
+  # trusted to be whole: past the retention horizon they are being pruned (a
+  # pass deletes at most so many rows, so the day can be half gone), and a
+  # day whose raw events now count fewer page views, events or exits than its
+  # stored totals has lost some (pruned under a shorter retention since
+  # raised, or a visitor forgotten). Rolling it again from what is left would
+  # replace its totals with a fraction of them. This happens when the
   # watermark is reset — a schema step that adds a rollup does, so that the
   # days still in raw events get the new rows.
+  #
+  # A day past the horizon gets no bot rows either: its bot events may be
+  # half gone too, and no stored total says so. Bot history for such a day
+  # starts with the rollup that first wrote it (schema V11).
   defp roll_unless_pruning(date) do
-    if pruning?(date) and day_has_rows?(date), do: :kept, else: rollup_day(date)
+    rolled? = day_has_rows?(date)
+
+    cond do
+      rolled? and pruning?(date) -> :kept
+      rolled? and raw_below_rollup?(date) -> :kept
+      pruning?(date) -> rollup_day(date, bots: false)
+      true -> rollup_day(date)
+    end
+  end
+
+  @compared [:pageviews, :events, :exits]
+
+  defp raw_below_rollup?(date) do
+    from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
+
+    raw =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: not e.is_bot and e.traffic_flags == 0
+      )
+      |> Dimensions.totals()
+      |> repo().all()
+      |> sum_fields()
+
+    stored =
+      from(s in DailyStat, where: s.date == ^date)
+      |> repo().all()
+      |> Enum.map(&Map.from_struct/1)
+      |> sum_fields()
+
+    Enum.any?(@compared, &(raw[&1] < stored[&1]))
+  end
+
+  defp sum_fields(rows) do
+    Map.new(@compared, fn field ->
+      {field, rows |> Enum.map(&to_integer_if_decimal(Map.get(&1, field) || 0)) |> Enum.sum()}
+    end)
   end
 
   defp pruning?(date) do
