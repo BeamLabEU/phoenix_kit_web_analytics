@@ -257,6 +257,13 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       assert Retention.run() == %{rolled_up: 0, pruned: 0}
       assert Repo.aggregate(Event, :count) == 1
 
+      # Released explicitly before the connection closes: behind a
+      # connection pooler, closing the client leaves the server session —
+      # and the lock — alive for every later test.
+      Postgrex.query!(other, "SELECT pg_advisory_unlock(hashtext($1))", [
+        "phoenix_kit_web_analytics:retention"
+      ])
+
       GenServer.stop(other)
       assert %{rolled_up: 1, pruned: 1} = Retention.run()
     end
