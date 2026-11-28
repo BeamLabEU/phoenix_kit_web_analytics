@@ -383,7 +383,10 @@ defmodule PhoenixKitWebAnalytics.Plug do
     cache_control =
       conn |> get_resp_header("cache-control") |> Enum.join(",") |> String.downcase()
 
-    String.contains?(cache_control, ["public", "s-maxage"]) or
+    directives = cache_control |> String.split(",") |> Enum.map(&String.trim/1)
+
+    not Enum.any?(directives, &(&1 in ["private", "no-store"])) or
+      String.contains?(cache_control, ["public", "s-maxage"]) or
       Enum.any?(@surrogate_headers, &(get_resp_header(conn, &1) != []))
   end
 
@@ -395,9 +398,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
     if config.enabled? and api_path?(conn.request_path, config) and
          trackable_path?(conn.request_path, config, opts) and not opted_out?(conn, config) do
       started_at = System.monotonic_time(:microsecond)
-      consent = Consent.for_conn(conn, config)
       bot_reason = Tracking.prefetch_reason(conn)
-      register_before_send(conn, &track(&1, started_at, {bot_reason, consent}, config))
+
+      register_before_send(conn, fn ready ->
+        track(ready, started_at, {bot_reason, Consent.for_conn(ready, config)}, config)
+      end)
     else
       conn
     end
@@ -418,6 +423,11 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
       # Before the path check, like the opt-out: the hook reads the note on
       # whichever page the visitor live-navigates to next.
+      Consent.needed?(config) and not session_fetched?(conn) ->
+        # The endpoint runs before the router. A host consent source may
+        # depend on assigns or the session that the pipeline loads.
+        register_pageview(conn, config, opts, :deferred)
+
       Consent.needed?(config) ->
         answer = Consent.answer(conn, config)
 
@@ -437,7 +447,7 @@ defmodule PhoenixKitWebAnalytics.Plug do
       bot_reason = Tracking.prefetch_reason(conn)
 
       register_before_send(conn, fn conn ->
-        conn |> track(started_at, {bot_reason, consent}, config) |> note_quiet_client(config)
+        track(conn, started_at, {bot_reason, consent}, config)
       end)
     else
       conn
@@ -526,15 +536,25 @@ defmodule PhoenixKitWebAnalytics.Plug do
 
   # Runs in the request process, so it must stay allocation-light and must
   # return the conn untouched.
+  defp track(conn, started_at, {bot_reason, :deferred}, config),
+    do: track(conn, started_at, {bot_reason, Consent.for_conn(conn, config)}, config)
+
   defp track(conn, started_at, {bot_reason, consent}, config) do
     cond do
-      skipped?(conn) -> :ok
-      api_path?(conn.request_path, config) -> track_api(conn, started_at, bot_reason, consent)
-      html_pageview?(conn) -> track_pageview(conn, started_at, {bot_reason, consent}, config)
-      true -> :ok
-    end
+      skipped?(conn) ->
+        conn
 
-    conn
+      api_path?(conn.request_path, config) ->
+        track_api(conn, started_at, bot_reason, consent)
+        conn
+
+      html_pageview?(conn) ->
+        track_pageview(conn, started_at, {bot_reason, consent}, config)
+        note_quiet_client(conn, config)
+
+      true ->
+        conn
+    end
   rescue
     # Nothing in the analytics path may break a response that was otherwise
     # about to be sent successfully.

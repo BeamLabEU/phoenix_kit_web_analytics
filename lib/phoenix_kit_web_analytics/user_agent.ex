@@ -156,18 +156,17 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   def bot_marker(_user_agent), do: nil
 
-  @doc """
-  A short name for the bot behind an automated User-Agent — the product
-  token that carries the matched marker, without its version (`"Googlebot"`,
-  `"GPTBot"`, `"AhrefsBot"`, `"curl"`, `"HeadlessChrome"`) — or `nil` when
-  the User-Agent doesn't look automated.
+  @products ~w(Googlebot Googlebot-Image Googlebot-Video Googlebot-News GPTBot ChatGPT-User
+    OAI-SearchBot ClaudeBot AhrefsBot bingbot DuckDuckBot YandexBot Baiduspider Applebot
+    PetalBot Bytespider MJ12bot Mail.RU_Bot 360Spider SemrushBot HeadlessChrome Java)
+  @product_names Map.new(@bot_markers ++ @products, &{String.downcase(&1), &1})
+  @bot_labels Enum.uniq(["bare", "k6" | @bot_markers ++ Map.values(@product_names)])
+  @doc false
+  def bot_labels, do: @bot_labels
 
-  Never the raw header: only one token of it, at most #{40} characters of
-  `[A-Za-z0-9._-]`, and never a URL, an address or a number (`+http://…`,
-  `contact@…`, `crawler.example.com`, `10.0.0.7`), which some crawlers put
-  beside their name. When no token
-  carries the marker, the marker itself (`"bare"` for a header that is only
-  `Mozilla/5.0`).
+  @doc """
+  Returns a canonical product name for a recognized bot, or the classifier's
+  marker for other automated User-Agents. Every label is a fixed string.
 
       iex> PhoenixKitWebAnalytics.UserAgent.bot_name("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
       "Googlebot"
@@ -189,48 +188,14 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
 
   # ── internals ─────────────────────────────────────────────────────────────
 
-  @max_bot_name 40
-
-  # The first product token that carries `marker`, minus its version and
-  # anything outside a name's characters. URLs and e-mail addresses are
-  # skipped: "+http://www.google.com/bot.html" carries "bot" too.
   defp named_token(user_agent, marker) do
     user_agent
-    |> String.split(~r/[\s;(),\[\]{}"'<>]+/, trim: true)
-    |> Enum.reject(&link_or_address?/1)
+    |> String.downcase()
+    |> String.split(~r/[\s;()]+/, trim: true)
     |> Enum.find_value(fn token ->
-      if String.contains?(String.downcase(token), marker), do: clean_name(token)
+      product = token |> String.split("/", parts: 2) |> hd()
+      if String.contains?(token, marker), do: Map.get(@product_names, product)
     end)
-  end
-
-  defp link_or_address?(token) do
-    downcased = String.downcase(token)
-
-    String.contains?(downcased, ["://", "@", "www."]) or
-      String.starts_with?(downcased, ["+", "http", "mailto:"])
-  end
-
-  defp clean_name(token) do
-    name =
-      token
-      # "Googlebot/2.1" → "Googlebot"; "java/1.8" → "java". A marker that
-      # ends in "/" ("java/") keeps the part before it.
-      |> String.split("/", parts: 2)
-      |> hd()
-      |> String.replace(~r/[^A-Za-z0-9._-]/, "")
-      |> String.slice(0, @max_bot_name)
-
-    if name == "" or identifying?(name), do: nil, else: name
-  end
-
-  # A crawler's name has no host, address or long number in it; a token that
-  # does is left out (the marker names the bot instead): "ads.example.com",
-  # "192.168.7.42bot", a phone number. Two dots make a host ("Mail.RU_Bot"
-  # has one), digits around a dot an address, five digits a number.
-  defp identifying?(name) do
-    String.length(name) - String.length(String.replace(name, ".", "")) >= 2 or
-      Regex.match?(~r/\d\.\d/, name) or
-      Regex.match?(~r/(?:\d\D?){5}/, name)
   end
 
   # A User-Agent that is only the product token — "Mozilla/5.0", no platform

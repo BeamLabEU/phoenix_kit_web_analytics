@@ -184,8 +184,12 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
       enable_tracking(%{"web_analytics_retention_days" => "365"})
       half = date_ago(20)
 
-      Repo.insert!(%DailyStat{date: half, site: "example.com", pageviews: 100, visitors: 40})
+      Repo.insert!(%DailyStat{date: half, site: "example.com", pageviews: 2, visitors: 1})
       insert_event(%{inserted_at: days_ago(20)})
+
+      # New rows at another site cannot compensate for the missing views.
+      Repo.insert!(%DailyStat{date: half, site: "another.example", pageviews: 1})
+      for _ <- 1..2, do: insert_event(%{site: "another.example", inserted_at: days_ago(20)})
 
       # A rolled-up day whose raw events are all there is rolled up again.
       whole = date_ago(5)
@@ -195,7 +199,7 @@ defmodule PhoenixKitWebAnalytics.RetentionTest do
 
       Retention.rollup_pending_days()
 
-      assert Repo.get_by!(DailyStat, date: half).pageviews == 100
+      assert Repo.get_by!(DailyStat, date: half, site: "example.com").pageviews == 2
       assert Repo.get_by!(DailyStat, date: whole).pageviews == 2
     end
 

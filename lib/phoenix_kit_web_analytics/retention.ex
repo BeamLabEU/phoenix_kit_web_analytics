@@ -542,11 +542,12 @@ defmodule PhoenixKitWebAnalytics.Retention do
   # starts with the rollup that first wrote it (schema V11).
   defp roll_unless_pruning(date) do
     rolled? = day_has_rows?(date)
+    pruning? = pruning?(date)
 
     cond do
-      rolled? and pruning?(date) -> :kept
+      rolled? and pruning? -> :kept
       rolled? and raw_below_rollup?(date) -> :kept
-      pruning?(date) -> rollup_day(date, bots: false)
+      pruning? -> rollup_day(date, bots: false)
       true -> rollup_day(date)
     end
   end
@@ -564,20 +565,13 @@ defmodule PhoenixKitWebAnalytics.Retention do
       )
       |> Dimensions.totals()
       |> repo().all()
-      |> sum_fields()
+      |> Map.new(&{&1.site, &1})
 
-    stored =
-      from(s in DailyStat, where: s.date == ^date)
-      |> repo().all()
-      |> Enum.map(&Map.from_struct/1)
-      |> sum_fields()
-
-    Enum.any?(@compared, &(raw[&1] < stored[&1]))
-  end
-
-  defp sum_fields(rows) do
-    Map.new(@compared, fn field ->
-      {field, rows |> Enum.map(&to_integer_if_decimal(Map.get(&1, field) || 0)) |> Enum.sum()}
+    from(s in DailyStat, where: s.date == ^date)
+    |> repo().all()
+    |> Enum.any?(fn stored ->
+      remaining = Map.get(raw, stored.site, %{})
+      Enum.any?(@compared, &(Map.get(remaining, &1, 0) < Map.fetch!(stored, &1)))
     end)
   end
 

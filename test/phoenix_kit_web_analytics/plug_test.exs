@@ -435,6 +435,19 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       assert "/pricing" |> request() |> respond() |> quiet?()
     end
 
+    test "redirects and non-page responses carry no hint" do
+      for {status, content_type} <- [{302, "text/html"}, {200, "application/json"}] do
+        conn =
+          "/pricing"
+          |> request()
+          |> TrackingPlug.call(TrackingPlug.init([]))
+          |> Plug.Conn.put_resp_content_type(content_type)
+          |> Plug.Conn.send_resp(status, "")
+
+        refute quiet?(conn)
+      end
+    end
+
     test "is left off while recording or device measurements can be on" do
       enable_tracking(%{"web_analytics_recording" => "true"})
       refute "/pricing" |> request() |> respond() |> quiet?()
@@ -476,6 +489,7 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
 
     test "is left off a page a shared cache may keep" do
       for {header, value} <- [
+            {"cache-control", "max-age=300"},
             {"cache-control", "public, max-age=300"},
             {"cache-control", "max-age=0, s-maxage=600"},
             {"surrogate-control", "max-age=600"},

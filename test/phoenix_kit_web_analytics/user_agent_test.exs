@@ -223,7 +223,7 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
     test "never a URL or an address" do
       # The only token carrying the marker is a link: the marker stands in.
       assert UserAgent.bot_name("Mozilla/5.0 (+https://example.com/bot.html)") == "bot"
-      assert UserAgent.bot_name("MyCrawler (admin@crawl.example)") == "MyCrawler"
+      assert UserAgent.bot_name("MyCrawler (admin@crawl.example)") == "crawl"
     end
 
     test "never a host, an IP address or a long number" do
@@ -231,6 +231,8 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       assert UserAgent.bot_name("192.168.7.42bot/2.1") == "bot"
       assert UserAgent.bot_name("call 555-867-5309x12bot/1") == "bot"
       assert UserAgent.bot_name("Bot12345678/1.0") == "bot"
+      assert UserAgent.bot_name("Customer-AliceBot/1") == "bot"
+      assert UserAgent.bot_name("private.example/bot") == "bot"
       # Real crawler names with a dot or a few digits are kept.
       assert UserAgent.bot_name("Mozilla/5.0 (compatible; Mail.RU_Bot/2.0)") == "Mail.RU_Bot"
       assert UserAgent.bot_name("Mozilla/5.0 (compatible; MJ12bot/v1.4.8)") == "MJ12bot"

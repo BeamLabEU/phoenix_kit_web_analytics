@@ -202,6 +202,8 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
 
   defmodule Source do
     @moduledoc false
+    def status(%{assigns: %{consent_answer: answer}}, "analytics"), do: answer
+
     def status(conn, "analytics") do
       case Plug.Conn.get_req_header(conn, "x-test-consent") do
         ["yes"] -> :granted
@@ -331,6 +333,21 @@ defmodule PhoenixKitWebAnalytics.ConsentCollectionTest do
     setup do
       enable_tracking(%{"web_analytics_consent_measurement" => "consent"})
       :ok
+    end
+
+    test "an endpoint plug honors the answer loaded later by the router" do
+      enable_tracking(%{"web_analytics_consent_measurement" => "unless_objected"})
+
+      Plug.Test.conn(:get, "/pricing")
+      |> Plug.Conn.put_req_header("user-agent", @chrome)
+      |> TrackingPlug.call(TrackingPlug.init(include_paths: ["/*"]))
+      |> Plug.Test.init_test_session(%{})
+      |> Plug.Conn.assign(:consent_answer, :denied)
+      |> TrackingPlug.call(TrackingPlug.init([]))
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "")
+
+      assert events() == []
     end
 
     test "a visitor who has not answered leaves nothing" do

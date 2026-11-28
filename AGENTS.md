@@ -206,7 +206,7 @@ can't, stays optional, and never writes a cookie or storage.
   is refused (`check_cidr/1`) because a row marked as internal stays marked
   after the setting is fixed.
 - **A declared bot keeps its name, never its User-Agent.**
-  `UserAgent.bot_name/1` reduces the header to one product token
+  `UserAgent.bot_name/1` maps the header to a known product or classifier marker
   (`"Googlebot"`, at most 40 `[A-Za-z0-9._-]`, never a URL or an address),
   stored as `metadata["bot_name"]` on the bot's rows only; the collector
   strips the key from any other hit (custom-event props can't set it).

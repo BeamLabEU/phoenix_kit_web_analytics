@@ -262,7 +262,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
         :ok
 
       {:error, reason} ->
-        Logger.debug("[WebAnalytics] dropped hit (#{inspect(reason)}): #{inspect(hit[:path])}")
+        Logger.debug(
+          "[WebAnalytics] dropped hit (#{inspect(reason)}): #{inspect(clean_path(hit[:path]))}"
+        )
+
         :ok
     end
   end
@@ -322,7 +325,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
   defp name_bot(hit, ua) do
     case hit[:metadata] do
       metadata when is_map(metadata) ->
-        put_bot_name(%{hit | metadata: Map.drop(metadata, ["bot", "bot_name"])}, ua)
+        put_bot_name(
+          %{hit | metadata: Map.drop(metadata, ["bot", "bot_name", :bot, :bot_name])},
+          ua
+        )
 
       _ ->
         put_bot_name(hit, ua)
@@ -629,7 +635,7 @@ defmodule PhoenixKitWebAnalytics.Collector do
     Logger.debug(fn ->
       rule = if is_function(rule, 0), do: rule.(), else: rule
 
-      "[WebAnalytics] dropped #{hit[:event_type] || "pageview"} #{inspect(hit[:path])} " <>
+      "[WebAnalytics] dropped #{hit[:event_type] || "pageview"} #{inspect(clean_path(hit[:path]))} " <>
         "as a bot (#{rule}); switch on Record bot traffic to keep it"
     end)
   end

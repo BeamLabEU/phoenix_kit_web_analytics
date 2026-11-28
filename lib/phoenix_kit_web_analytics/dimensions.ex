@@ -146,22 +146,46 @@ defmodule PhoenixKitWebAnalytics.Dimensions do
   alike. Only bot rows, never an `"api"` event. `reason` is the row's
   `metadata["bot"]`, or `"user_agent"` for a bot that declared itself.
 
-  Literal SQL only inside the fragments: the grouped expressions must read
-  the same in `GROUP BY` and `SELECT`, which bound parameters would not.
+  Legacy event metadata is restricted to recognized labels before aggregation.
   """
   @spec bots(Ecto.Queryable.t()) :: Ecto.Query.t()
   def bots(query) do
-    from(e in query,
-      where: e.is_bot and e.event_type != "api",
-      group_by: [
-        fragment("COALESCE(?, '')", e.site),
-        fragment("LEFT(COALESCE(?->>'bot', 'user_agent'), 20)", e.metadata),
-        fragment("LEFT(COALESCE(?->>'bot_name', ''), 64)", e.metadata)
-      ],
+    # Older custom-event metadata could contain arbitrary values for both
+    # keys. Classify it before grouping so it cannot enter permanent rollups.
+    labels = PhoenixKitWebAnalytics.UserAgent.bot_labels()
+
+    classified =
+      from(e in query,
+        where: e.is_bot and e.event_type != "api",
+        select: %{
+          site: fragment("COALESCE(?, '')", e.site),
+          reason:
+            fragment(
+              "CASE WHEN ?->>'bot' IN ('no_js', 'rate', 'webdriver', 'prefetch') THEN ?->>'bot' ELSE 'user_agent' END",
+              e.metadata,
+              e.metadata
+            ),
+          bot_name:
+            fragment(
+              "CASE WHEN ?->>'bot_name' = ANY(?) THEN ?->>'bot_name' ELSE '' END",
+              e.metadata,
+              type(^labels, {:array, :string}),
+              e.metadata
+            ),
+          uuid: e.uuid,
+          event_type: e.event_type,
+          session_id: e.session_id,
+          visitor_id: e.visitor_id,
+          inserted_at: e.inserted_at
+        }
+      )
+
+    from(e in subquery(classified),
+      group_by: [e.site, e.reason, e.bot_name],
       select: %{
-        site: fragment("COALESCE(?, '')", e.site),
-        reason: fragment("LEFT(COALESCE(?->>'bot', 'user_agent'), 20)", e.metadata),
-        bot_name: fragment("LEFT(COALESCE(?->>'bot_name', ''), 64)", e.metadata),
+        site: e.site,
+        reason: e.reason,
+        bot_name: e.bot_name,
         hits: count(e.uuid),
         pageviews: fragment("COUNT(*) FILTER (WHERE ? = 'pageview')", e.event_type),
         visits: fragment("COUNT(DISTINCT (?, ?::date))", e.session_id, e.inserted_at),

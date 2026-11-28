@@ -197,9 +197,8 @@ limited, so put a rate limit in front of the endpoint if you accept them.
 The script asks the server once per page whether to record it or measure the
 device — unless the page's own response carries the plug's
 `Server-Timing: pk-analytics;desc="quiet"` entry (neither is switched on),
-when it asks nothing. The entry is left off a response a shared cache may keep
-(`Cache-Control: public` or `s-maxage`, a `Surrogate-Control` /
-`CDN-Cache-Control` header), so a cached page never stops recording that was
+when it asks nothing. The entry requires an explicit `private` or `no-store` cache directive
+and is omitted when shared-cache directives or CDN headers are present, so a cached page never stops recording that was
 switched on after it was stored. A CDN told to cache HTML whatever its headers
 say can still serve a stale "quiet" until the copy expires: purge it after
 switching recording or device measurements on. The script reads the entry once
@@ -470,7 +469,7 @@ or a CDN rule.
 On top, **Judged automated** counts the visits each rule took out of the
 reports in the period — says it is a bot, no JavaScript, automation, speed,
 prefetch — and names the bots that say who they are (`Googlebot`, `GPTBot`:
-one token of the User-Agent, never the header itself). The Overview says how
+a fixed product label, with a classifier marker for unknown products). The Overview says how
 many visits that was; Technology, with the **Bots** switch on, lists the
 names. These numbers come from a daily rollup of their own, so they outlive
 the raw events. Declared bots only appear with **Record bot traffic** on —

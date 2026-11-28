@@ -84,6 +84,25 @@ defmodule PhoenixKitWebAnalytics.BotTrafficTest do
   end
 
   describe "the daily rollup keeps bots" do
+    test "legacy custom metadata cannot impersonate the total or persist an arbitrary name" do
+      date = Date.add(Date.utc_today(), -2)
+
+      bot_event(%{
+        metadata: %{"bot" => "*", "bot_name" => "private.example"},
+        inserted_at: day_at(2)
+      })
+
+      assert :ok = Retention.rollup_day(date)
+
+      assert [{"*", "", 1}, {"user_agent", "", 1}] ==
+               Repo.all(
+                 from b in DailyBot,
+                   where: b.date == ^date,
+                   order_by: b.reason,
+                   select: {b.reason, b.bot_name, b.visits}
+               )
+    end
+
     test "one row per day, site, rule and bot name" do
       date = Date.add(Date.utc_today(), -2)
       at = day_at(2)

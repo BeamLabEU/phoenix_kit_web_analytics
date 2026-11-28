@@ -81,10 +81,14 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
         with_debug_log(fn ->
           assert {:error, :bot} =
                    Collector.track(
-                     hit(%{user_agent: "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0"})
+                     hit(%{
+                       user_agent: "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0",
+                       path: "/pricing?token=private-value"
+                     })
                    )
         end)
 
+      refute log =~ "private-value"
       assert log =~ "dropped pageview \"/pricing\" as a bot (user_agent:headless)"
     end
 
