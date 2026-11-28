@@ -1,6 +1,8 @@
 defmodule PhoenixKitWebAnalytics.CollectorTest do
   use PhoenixKitWebAnalytics.DataCase, async: false
 
+  require Logger
+
   alias PhoenixKitWebAnalytics.Collector
   alias PhoenixKitWebAnalytics.Reports
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -17,6 +19,17 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
       },
       attrs
     )
+  end
+
+  defp with_debug_log(fun) do
+    level = Logger.level()
+    Logger.configure(level: :debug)
+
+    try do
+      ExUnit.CaptureLog.capture_log([level: :debug], fun)
+    after
+      Logger.configure(level: level)
+    end
   end
 
   describe "track/1 when tracking is off" do
@@ -61,6 +74,22 @@ defmodule PhoenixKitWebAnalytics.CollectorTest do
     test "drops bot traffic by default" do
       assert {:error, :bot} = Collector.track(hit(%{user_agent: "Googlebot/2.1"}))
       assert Repo.aggregate(Event, :count) == 0
+    end
+
+    test "says at debug level which rule dropped a bot's hit" do
+      log =
+        with_debug_log(fn ->
+          assert {:error, :bot} =
+                   Collector.track(
+                     hit(%{
+                       user_agent: "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0",
+                       path: "/pricing?token=private-value"
+                     })
+                   )
+        end)
+
+      refute log =~ "private-value"
+      assert log =~ "dropped pageview \"/pricing\" as a bot (user_agent:headless)"
     end
 
     test "records bots when the setting is on" do

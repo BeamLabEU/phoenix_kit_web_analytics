@@ -131,18 +131,72 @@ defmodule PhoenixKitWebAnalytics.UserAgent do
   Accepts the raw header; matching is case-insensitive.
   """
   @spec bot?(String.t() | nil) :: boolean()
-  def bot?(nil), do: false
+  def bot?(user_agent), do: bot_marker(user_agent) != nil
 
-  def bot?(user_agent) when is_binary(user_agent) do
+  @doc """
+  Which rule calls the User-Agent automated, or `nil` when none does: the
+  matched marker (`"bot"`, `"headless"`, `"curl"` …), `"k6/"`, or `"bare"`
+  for a header that is only `Mozilla/5.0`. Used to explain a dropped hit in
+  the debug log; never stored.
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_marker("Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/120.0")
+      "headless"
+  """
+  @spec bot_marker(String.t() | nil) :: String.t() | nil
+  def bot_marker(user_agent) when is_binary(user_agent) do
     downcased = user_agent |> String.trim() |> String.downcase()
 
-    Enum.any?(@bot_markers, &String.contains?(downcased, &1)) or
-      String.starts_with?(downcased, "k6/") or bare?(downcased)
+    cond do
+      marker = Enum.find(@bot_markers, &String.contains?(downcased, &1)) -> marker
+      String.starts_with?(downcased, "k6/") -> "k6/"
+      bare?(downcased) -> "bare"
+      true -> nil
+    end
   end
 
-  def bot?(_user_agent), do: false
+  def bot_marker(_user_agent), do: nil
+
+  @products ~w(Googlebot Googlebot-Image Googlebot-Video Googlebot-News GPTBot ChatGPT-User
+    OAI-SearchBot ClaudeBot AhrefsBot bingbot DuckDuckBot YandexBot Baiduspider Applebot
+    PetalBot Bytespider MJ12bot Mail.RU_Bot 360Spider SemrushBot HeadlessChrome Java)
+  @product_names Map.new(@bot_markers ++ @products, &{String.downcase(&1), &1})
+  @bot_labels Enum.uniq(["bare", "k6" | @bot_markers ++ Map.values(@product_names)])
+  @doc false
+  def bot_labels, do: @bot_labels
+
+  @doc """
+  Returns a canonical product name for a recognized bot, or the classifier's
+  marker for other automated User-Agents. Every label is a fixed string.
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_name("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
+      "Googlebot"
+
+      iex> PhoenixKitWebAnalytics.UserAgent.bot_name("curl/8.4.0")
+      "curl"
+  """
+  @spec bot_name(String.t() | nil) :: String.t() | nil
+  def bot_name(user_agent) when is_binary(user_agent) do
+    case bot_marker(user_agent) do
+      nil -> nil
+      "k6/" -> "k6"
+      "bare" -> "bare"
+      marker -> named_token(user_agent, marker) || marker
+    end
+  end
+
+  def bot_name(_user_agent), do: nil
 
   # ── internals ─────────────────────────────────────────────────────────────
+
+  defp named_token(user_agent, marker) do
+    user_agent
+    |> String.downcase()
+    |> String.split(~r/[\s;()]+/, trim: true)
+    |> Enum.find_value(fn token ->
+      product = token |> String.split("/", parts: 2) |> hd()
+      if String.contains?(token, marker), do: Map.get(@product_names, product)
+    end)
+  end
 
   # A User-Agent that is only the product token — "Mozilla/5.0", no platform
   # in brackets — is a script's default, never a browser's. A binary match,

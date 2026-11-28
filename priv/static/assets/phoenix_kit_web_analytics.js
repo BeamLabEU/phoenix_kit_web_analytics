@@ -21,6 +21,11 @@
  *     fonts, and how it draws a canvas and renders a sound. Once per page
  *     load, and only when the server asks.
  *
+ * Whether to record and whether to measure is asked once per page
+ * (GET …/recording) — unless the page's own response already said that
+ * neither is switched on (a "pk-analytics" Server-Timing entry), when
+ * nothing is asked at all.
+ *
  * Nothing is sent while the page loads, nothing is stored in the browser, no
  * cookie is written. A page Chrome prerenders runs before anyone opens it:
  * nothing is sent until it is shown, and nothing at all if it never is.
@@ -508,13 +513,28 @@ window.PhoenixKitWebAnalyticsHooks = window.PhoenixKitWebAnalyticsHooks || {};
     } catch (_e) {}
   }
 
+  // The server says on the page's own response (a Server-Timing entry the
+  // plug adds) when it has nothing to ask for: no recording, no device
+  // measurements. Then there is no question to send. A page without the
+  // entry asks, as before.
+  var quiet = (function () {
+    try {
+      var nav = performance.getEntriesByType("navigation")[0];
+      var timings = (nav && nav.serverTiming) || [];
+      for (var i = 0; i < timings.length; i++) {
+        if (timings[i].name === "pk-analytics" && timings[i].description === "quiet") return true;
+      }
+    } catch (_e) {}
+    return false;
+  })();
+
   // `fresh` skips the browser's cached answer: the visitor has just answered
   // the consent banner, and the answer the server gave a minute ago is stale.
   function startRecording(path, fresh) {
     if (rec) flush();
     rec = { key: pageKey(), seq: 0, path: path, t0: performance.now(), frames: [], on: false, w: window.innerWidth, h: window.innerHeight, x: -1, y: -1, lastMove: 0 };
     var mine = rec;
-    if (typeof fetch !== "function") return;
+    if (quiet || typeof fetch !== "function") return;
     fetch(base + "?p=" + encodeURIComponent(path) + (fresh ? "&t=" + Date.now() : ""), { credentials: "same-origin" })
       .then(function (r) {
         return r.ok ? r.json() : { record: false };

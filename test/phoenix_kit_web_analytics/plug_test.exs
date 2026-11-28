@@ -426,4 +426,196 @@ defmodule PhoenixKitWebAnalytics.PlugIntegrationTest do
       refute event.is_bot
     end
   end
+
+  describe "the client script's quiet flag" do
+    defp quiet?(conn),
+      do: conn |> Plug.Conn.get_resp_header("server-timing") |> Enum.join() =~ "pk-analytics"
+
+    test "a page says the script has nothing to ask while recording and measurements are off" do
+      assert "/pricing" |> request() |> respond() |> quiet?()
+    end
+
+    test "redirects and non-page responses carry no hint" do
+      for {status, content_type} <- [{302, "text/html"}, {200, "application/json"}] do
+        conn =
+          "/pricing"
+          |> request()
+          |> TrackingPlug.call(TrackingPlug.init([]))
+          |> Plug.Conn.put_resp_content_type(content_type)
+          |> Plug.Conn.send_resp(status, "")
+
+        refute quiet?(conn)
+      end
+    end
+
+    test "is left off while recording or device measurements can be on" do
+      enable_tracking(%{"web_analytics_recording" => "true"})
+      refute "/pricing" |> request() |> respond() |> quiet?()
+
+      enable_tracking(%{
+        "web_analytics_recording" => "false",
+        "web_analytics_client_script" => "true",
+        "web_analytics_store_signals" => "true"
+      })
+
+      refute "/pricing" |> request() |> respond() |> quiet?()
+    end
+
+    test "joins a Server-Timing header already set" do
+      conn =
+        "/pricing"
+        |> request()
+        |> Plug.Conn.put_resp_header("server-timing", "db;dur=12")
+        |> respond()
+
+      assert Plug.Conn.get_resp_header(conn, "server-timing") == [
+               ~s(db;dur=12, pk-analytics;desc="quiet")
+             ]
+    end
+
+    test "joins one the controller sets after the plug, too" do
+      conn =
+        "/pricing"
+        |> request()
+        |> TrackingPlug.call(TrackingPlug.init([]))
+        |> Plug.Conn.put_resp_header("server-timing", "app;dur=3")
+        |> Plug.Conn.put_resp_content_type("text/html")
+        |> Plug.Conn.send_resp(200, "<html></html>")
+
+      assert Plug.Conn.get_resp_header(conn, "server-timing") == [
+               ~s(app;dur=3, pk-analytics;desc="quiet")
+             ]
+    end
+
+    test "is left off a page a shared cache may keep" do
+      for {header, value} <- [
+            {"cache-control", "max-age=300"},
+            {"cache-control", "public, max-age=300"},
+            {"cache-control", "max-age=0, s-maxage=600"},
+            {"surrogate-control", "max-age=600"},
+            {"cdn-cache-control", "max-age=600"}
+          ] do
+        conn =
+          "/pricing"
+          |> request()
+          |> TrackingPlug.call(TrackingPlug.init([]))
+          |> Plug.Conn.put_resp_header(header, value)
+          |> Plug.Conn.put_resp_content_type("text/html")
+          |> Plug.Conn.send_resp(200, "<html></html>")
+
+        refute quiet?(conn), "#{header}: #{value}"
+      end
+
+      conn =
+        "/pricing"
+        |> request()
+        |> TrackingPlug.call(TrackingPlug.init([]))
+        |> Plug.Conn.put_resp_header("cache-control", "max-age=0, private, must-revalidate")
+        |> Plug.Conn.put_resp_content_type("text/html")
+        |> Plug.Conn.send_resp(200, "<html></html>")
+
+      assert quiet?(conn)
+    end
+  end
+
+  describe "in the endpoint" do
+    defp through(conn, plugs) do
+      Enum.reduce(plugs, conn, fn opts, conn ->
+        TrackingPlug.call(conn, TrackingPlug.init(opts))
+      end)
+    end
+
+    defp send_html(conn) do
+      conn
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "<html></html>")
+    end
+
+    test "an endpoint plug and a pipeline plug count a page once" do
+      "/pricing"
+      |> request()
+      |> through([[include_paths: ["/*"]], []])
+      |> send_html()
+
+      assert [%Event{path: "/pricing"}] = Repo.all(Event)
+    end
+
+    test "the first plug decides: a path it leaves out isn't counted by the next" do
+      "/internal/report"
+      |> request()
+      |> through([[exclude_paths: ["/internal*"]], []])
+      |> send_html()
+
+      assert Repo.all(Event) == []
+    end
+
+    test "include_paths narrows what is counted" do
+      for path <- ["/shop/item", "/blog/post"] do
+        path |> request() |> through([[include_paths: ["/shop*"]]]) |> send_html()
+      end
+
+      assert [%Event{path: "/shop/item"}] = Repo.all(Event)
+    end
+
+    test "the endpoint form leaves dashboards and health checks out by default" do
+      for path <- ["/dev/dashboard/home", "/health", "/healthz", "/healthcare"] do
+        path |> request() |> through([[include_paths: ["/*"]]]) |> send_html()
+      end
+
+      assert [%Event{path: "/healthcare"}] = Repo.all(Event)
+
+      Repo.delete_all(Event)
+      "/health" |> request() |> through([[default_excludes: false]]) |> send_html()
+      assert [%Event{path: "/health"}] = Repo.all(Event)
+    end
+
+    test "the pipeline form keeps no default exclusions, as before" do
+      "/health" |> request() |> respond()
+      assert [%Event{path: "/health"}] = Repo.all(Event)
+    end
+
+    test "api: false leaves the settings' API paths to another plug" do
+      enable_tracking(%{"web_analytics_track_api_paths" => "/api/*"})
+
+      post = fn opts ->
+        :post
+        |> conn("/api/orders")
+        |> Plug.Conn.put_req_header("user-agent", @chrome)
+        |> through([opts])
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(201, "{}")
+      end
+
+      post.(api: false)
+      assert Repo.all(Event) == []
+
+      post.(api: :inherit)
+      assert [%Event{event_type: "api"}] = Repo.all(Event)
+    end
+
+    test "api: false in the endpoint leaves the API paths to the pipeline's copy" do
+      enable_tracking(%{"web_analytics_track_api_paths" => "/api/*"})
+
+      :post
+      |> conn("/api/orders")
+      |> Plug.Conn.put_req_header("user-agent", @chrome)
+      |> through([[api: false], []])
+      |> Plug.Conn.put_resp_content_type("application/json")
+      |> Plug.Conn.send_resp(201, "{}")
+
+      assert [%Event{event_type: "api"}] = Repo.all(Event)
+    end
+
+    test "a path outside the endpoint's include_paths is the pipeline's copy to count" do
+      for path <- ["/", "/blog/post"] do
+        path |> request() |> through([[include_paths: ["/blog/*"]], []]) |> send_html()
+      end
+
+      assert ["/", "/blog/post"] = Event |> Repo.all() |> Enum.map(& &1.path) |> Enum.sort()
+    end
+
+    test "an unknown :api value is refused at compile time" do
+      assert_raise ArgumentError, fn -> TrackingPlug.init(api: :yes) end
+    end
+  end
 end

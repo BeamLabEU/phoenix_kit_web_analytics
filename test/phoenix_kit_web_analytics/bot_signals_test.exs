@@ -3,6 +3,8 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
 
   import Ecto.Query
 
+  require Logger
+
   alias PhoenixKit.PubSub.Manager
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
@@ -46,6 +48,25 @@ defmodule PhoenixKitWebAnalytics.BotSignalsTest do
       assert {:error, :bot} = Collector.track(hit())
 
       assert reasons() == List.duplicate({true, "rate"}, 3)
+    end
+
+    test "a fast hit dropped as a bot says so at debug level" do
+      enable_tracking()
+      for _ <- 1..3, do: assert({:ok, _} = Collector.track(hit()))
+
+      level = Logger.level()
+      Logger.configure(level: :debug)
+
+      log =
+        try do
+          ExUnit.CaptureLog.capture_log([level: :debug], fn ->
+            assert {:error, :bot} = Collector.track(hit())
+          end)
+        after
+          Logger.configure(level: level)
+        end
+
+      assert log =~ ~s|dropped pageview "/" as a bot (rate)|
     end
 
     test "with bot traffic kept, the fast hits are stored flagged" do

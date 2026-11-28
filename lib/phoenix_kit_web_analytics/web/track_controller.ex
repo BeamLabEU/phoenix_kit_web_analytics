@@ -30,8 +30,11 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   influence is enforced in `PhoenixKitWebAnalytics.Web.BeaconPayload`.
 
   Beyond that: anyone can POST here and inflate counts, exactly as with every
-  client-side analytics product. Leave the beacon off unless you need custom
-  events, and put per-IP rate limiting in front of it if you do.
+  client-side analytics product. The client script's clicks, scroll reports
+  and exits are held to 60 a minute per visitor and 360 per address by
+  default (`PhoenixKitWebAnalytics.Config.client_hits_per_minute/0`); page views and custom events are not. Leave
+  the beacon off unless you need custom events, and put per-IP rate limiting
+  in front of it if you do.
 
   Both actions answer the same way whether or not the beacon is enabled — a
   disabled beacon is not an error the page should surface, and the response
@@ -39,6 +42,8 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
   """
 
   use PhoenixKitWeb, :controller
+
+  require Logger
 
   alias PhoenixKitWebAnalytics.BotSignals
   alias PhoenixKitWebAnalytics.Collector
@@ -191,11 +196,48 @@ defmodule PhoenixKitWebAnalytics.Web.TrackController do
       hit =
         conn |> BeaconPayload.to_hit(params) |> Map.put(:consent, Consent.for_conn(conn, config))
 
-      unless Config.excluded?(hit.path, config.exclusions), do: Collector.track_async(hit)
+      if not Config.excluded?(hit.path, config.exclusions) and within_rate?(conn, params, config),
+        do: Collector.track_async(hit)
     end
 
     :ok
   end
+
+  # The client script's clicks, scroll reports and exits are held to a
+  # per-visitor ceiling a minute, and — since the visitor ID includes the
+  # User-Agent, which a sender can change at will — to a wider one per
+  # address. A page sends a handful; far more is someone filling the table.
+  # Page views and custom events aren't limited here (the beacon's page
+  # views go through the collector's speed rule).
+  defp within_rate?(conn, params, config) do
+    if BeaconPayload.client_script_hit?(params),
+      do: client_hit_room?(Tracking.client_ip(conn), user_agent(conn), config),
+      else: true
+  end
+
+  defp client_hit_room?(ip, user_agent, config) do
+    case Config.client_hits_per_minute() do
+      limit when is_integer(limit) ->
+        salt = Config.hash_salt() || ""
+        visitor = Visitor.visitor_id(ip, user_agent, salt, nil, config.visitor_rotation)
+        address = Visitor.visitor_id(ip, nil, salt, nil, config.visitor_rotation)
+
+        room? =
+          BotSignals.count(:client_hit, visitor) <= limit and
+            BotSignals.count(:client_hit_address, address) <=
+              limit * Config.client_hits_address_factor()
+
+        unless room?,
+          do: Logger.debug("[WebAnalytics] dropped a client-script hit: over the per-minute rate")
+
+        room?
+
+      _off ->
+        true
+    end
+  end
+
+  defp user_agent(conn), do: conn |> get_req_header("user-agent") |> List.first()
 
   # A payload must say what it reports in a shape we know. An empty or
   # undecodable body, an unknown type, or an event without a name is dropped —

@@ -162,7 +162,7 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
     end
 
     test "a later visit refreshes last_seen_at and never blanks what is stored" do
-      start = DateTime.add(DateTime.utc_now(), -3, :hour)
+      start = DateTime.new!(Date.add(Date.utc_today(), -1), ~T[09:00:00.000000], "Etc/UTC")
       assert {:ok, event} = Collector.track(hit(%{inserted_at: start}))
       before = Profiles.get(event.visitor_id)
 
@@ -172,7 +172,7 @@ defmodule PhoenixKitWebAnalytics.ProfilesTest do
         "web_analytics_store_user_agent" => "false"
       })
 
-      assert {:ok, later} = Collector.track(hit())
+      assert {:ok, later} = Collector.track(hit(%{inserted_at: DateTime.add(start, 3, :hour)}))
       profile = Profiles.get(event.visitor_id)
 
       assert later.visitor_id == event.visitor_id

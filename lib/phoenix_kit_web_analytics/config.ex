@@ -432,6 +432,65 @@ defmodule PhoenixKitWebAnalytics.Config do
   @spec session_timeout_minutes() :: pos_integer()
   def session_timeout_minutes, do: collection_config().session_timeout_minutes
 
+  @default_client_hits_per_minute 60
+
+  @doc """
+  The client script's ceiling a minute per visitor for clicks, scroll
+  reports and exits sent to the public event endpoint — `config
+  :phoenix_kit_web_analytics, client_hits_per_minute: n`, #{@default_client_hits_per_minute} by default;
+  only `0` or `false` turn it off. Each address may send
+  `client_hits_address_factor/0` times as many.
+
+  A whole number given another way (`"60"`, `60.0`) is taken as that
+  number; anything else (`"sixty"`, `-5`, `nil`, `60.5`) is the default,
+  with one warning in the log — a typo never switches the ceiling off.
+  """
+  @spec client_hits_per_minute() :: pos_integer() | false
+  def client_hits_per_minute do
+    case :phoenix_kit_web_analytics
+         |> Application.get_env(:client_hits_per_minute, @default_client_hits_per_minute)
+         |> whole_number() do
+      limit when is_integer(limit) and limit > 0 ->
+        limit
+
+      off when off in [0, false] ->
+        false
+
+      _invalid ->
+        warn_client_hits_once()
+        @default_client_hits_per_minute
+    end
+  end
+
+  defp whole_number(value) when is_float(value) and value == trunc(value), do: trunc(value)
+
+  defp whole_number(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {number, ""} -> number
+      _ -> value
+    end
+  end
+
+  defp whole_number(value), do: value
+
+  defp warn_client_hits_once do
+    key = {__MODULE__, :client_hits_warned}
+
+    unless :persistent_term.get(key, false) do
+      :persistent_term.put(key, true)
+
+      Logger.warning(
+        "[WebAnalytics] config :phoenix_kit_web_analytics, client_hits_per_minute: " <>
+          "#{inspect(Application.get_env(:phoenix_kit_web_analytics, :client_hits_per_minute))} " <>
+          "is not a whole number, 0 or false; using #{@default_client_hits_per_minute}"
+      )
+    end
+  end
+
+  @doc "How many visitors' worth of client-script hits one address may send a minute."
+  @spec client_hits_address_factor() :: pos_integer()
+  def client_hits_address_factor, do: 6
+
   @doc """
   Days of raw events to keep. `0` disables pruning entirely (rollups are still
   written).

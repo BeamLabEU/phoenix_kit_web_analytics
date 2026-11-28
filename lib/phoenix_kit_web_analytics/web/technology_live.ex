@@ -8,6 +8,9 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
   there is no screen-size or hardware data: collecting that would need the
   script tag this module exists to avoid.
 
+  With the Bots switch on, a Bots card names the bots that say who they are
+  (`PhoenixKitWebAnalytics.UserAgent.bot_name/1`).
+
   The countries card stays empty until a geo resolver is configured or the app
   sits behind a CDN that sets a country header — see `PhoenixKitWebAnalytics.Geo`.
   """
@@ -55,7 +58,19 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
     |> assign(:devices, Reports.devices(filter, limit: 5))
     |> assign(:countries, Reports.countries(filter, limit: 25))
     |> assign(:languages, Reports.languages(filter, limit: 15))
+    |> assign(:bot_names, bot_names(filter))
   end
+
+  # Which bots, by the name they give, when the Bots switch counts them in.
+  defp bot_names(%{bots: true} = filter) do
+    filter
+    |> Reports.automated()
+    |> Map.fetch!(:bots)
+    |> Enum.take(15)
+    |> Enum.map(&%{label: &1.bot_name, pageviews: &1.pageviews, visitors: &1.visitors})
+  end
+
+  defp bot_names(_filter), do: []
 
   @impl true
   def render(assigns) do
@@ -137,6 +152,28 @@ defmodule PhoenixKitWebAnalytics.Web.TechnologyLive do
             <p>
               {gettext(
                 "The language the visitor's browser asks for first (et-EE is Estonian as used in Estonia) — usually the language of their device."
+              )}
+            </p>
+            <.columns_explained />
+          </:info>
+        </.breakdown_card>
+        <.breakdown_card
+          :if={@filter.bots}
+          id="card-bots"
+          title={gettext("Bots")}
+          icon="hero-bug-ant"
+          rows={@bot_names}
+          label_header={gettext("Bot")}
+          empty_message={
+            gettext(
+              "No bot named itself in this period. Bots are stored only while “Record bot traffic” is on in Settings."
+            )
+          }
+        >
+          <:info>
+            <p>
+              {gettext(
+                "The name a bot gives in its User-Agent (Googlebot, GPTBot…). The User-Agent itself is never stored, only this name."
               )}
             </p>
             <.columns_explained />

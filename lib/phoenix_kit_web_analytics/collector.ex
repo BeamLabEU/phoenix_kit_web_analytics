@@ -262,7 +262,10 @@ defmodule PhoenixKitWebAnalytics.Collector do
         :ok
 
       {:error, reason} ->
-        Logger.debug("[WebAnalytics] dropped hit (#{inspect(reason)}): #{inspect(hit[:path])}")
+        Logger.debug(
+          "[WebAnalytics] dropped hit (#{inspect(reason)}): #{inspect(clean_path(hit[:path]))}"
+        )
+
         :ok
     end
   end
@@ -305,11 +308,41 @@ defmodule PhoenixKitWebAnalytics.Collector do
     ua = UserAgent.parse(hit[:user_agent])
 
     if ua.bot? and not config.track_bots? do
+      log_bot_drop(hit, fn -> "user_agent:#{UserAgent.bot_marker(hit[:user_agent])}" end)
       {:error, :bot}
     else
-      insert_event(hit, config, ua)
+      hit |> name_bot(ua) |> insert_event(config, ua)
     end
   end
+
+  # Which bot a declared one is — a short product token (`"Googlebot"`),
+  # never the header — so the Bots page and the rollup can say who crawled.
+  #
+  # Only the server says which rule judged a hit and which bot it is: a
+  # custom event's props (or a host's metadata) can't put a `"bot"` reason or
+  # a `"bot_name"` on a row — `flag_attrs/2` sets the reason later, from the
+  # verdict.
+  defp name_bot(hit, ua) do
+    case hit[:metadata] do
+      metadata when is_map(metadata) ->
+        put_bot_name(
+          %{hit | metadata: Map.drop(metadata, ["bot", "bot_name", :bot, :bot_name])},
+          ua
+        )
+
+      _ ->
+        put_bot_name(hit, ua)
+    end
+  end
+
+  defp put_bot_name(hit, %{bot?: true}) do
+    case UserAgent.bot_name(hit[:user_agent]) do
+      nil -> hit
+      name -> Map.put(hit, :metadata, Map.put(hit[:metadata] || %{}, "bot_name", name))
+    end
+  end
+
+  defp put_bot_name(hit, _ua), do: hit
 
   # What `hit[:consent]` (see `PhoenixKitWebAnalytics.Consent`) leaves of a
   # hit: itself, when visits may be counted; nothing, when they may not —
@@ -500,9 +533,12 @@ defmodule PhoenixKitWebAnalytics.Collector do
           note_reason(:add, attrs.visitor_id, "rate")
         end
 
-        if config.track_bots?,
-          do: store(flag_attrs(attrs, reason), stitch),
-          else: :bot
+        if config.track_bots? do
+          store(flag_attrs(attrs, reason), stitch)
+        else
+          log_bot_drop(attrs, reason)
+          :bot
+        end
 
       # A "no JavaScript" verdict can be wrong (a tab idle past the judging,
       # a slow first connection), so its hits are kept, flagged, whatever
@@ -590,6 +626,19 @@ defmodule PhoenixKitWebAnalytics.Collector do
 
   defp note_reason(:remove, visitor_id, reason),
     do: run_async(fn -> Profiles.remove_reason([visitor_id], reason) end)
+
+  # Bot traffic is not kept by default, so a dropped hit leaves no row: say
+  # why at debug level, or a headless test that records nothing is a mystery.
+  # `rule` may be a function so the user-agent lookup runs only when debug
+  # logging is on.
+  defp log_bot_drop(hit, rule) do
+    Logger.debug(fn ->
+      rule = if is_function(rule, 0), do: rule.(), else: rule
+
+      "[WebAnalytics] dropped #{hit[:event_type] || "pageview"} #{inspect(clean_path(hit[:path]))} " <>
+        "as a bot (#{rule}); switch on Record bot traffic to keep it"
+    end)
+  end
 
   defp flag_attrs(attrs, reason) do
     attrs

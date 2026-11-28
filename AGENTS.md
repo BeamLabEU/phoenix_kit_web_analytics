@@ -23,6 +23,11 @@ can't, stays optional, and never writes a cookie or storage.
 - `plug.ex` — page views. In the request process: a method/path check, one
   cached settings read, `register_before_send/2`. Notes DNT/GPC in the session
   for the hook.
+  Opt-in endpoint form (`include_paths:` / `exclude_paths:` / `api:`, plus
+  default excludes for dashboards and health checks); a conn private flag
+  makes the first copy to see a request it covers the only one that counts
+  it (a later copy still writes the session notes); a request outside a
+  copy's `include_paths:` or `api: false` scope passes to the next copy.
   A Chrome Speculation-Rules prefetch/prerender (`Sec-Purpose`/`Purpose`) is
   handed to the collector with `bot: "prefetch"`.
 - `live_hook.ex` — LiveView: page views for live navigation (`_live_referer` +
@@ -57,6 +62,16 @@ can't, stays optional, and never writes a cookie or storage.
   denials only in `Ring` + telemetry, never the DB. Never uses a bot score.
 - `web/{track_controller,beacon_payload,beacon}.ex` — the public endpoint for
   the client script, beacon and pixel. `BeaconPayload` is the trust boundary.
+  The client script's clicks, scroll and exits are capped per visitor and per
+  address a minute (`Config.client_hits_per_minute/0`, `BotSignals.count/2`).
+  The plug marks a page whose client script has nothing to ask (no
+  recording, no device measurements) with a `Server-Timing:
+  pk-analytics;desc="quiet"` entry, and the script then skips
+  `GET …/recording`. The script reads it once per document, so recording
+  switched on mid-visit starts after a full reload; the entry is left off
+  responses a shared cache may keep, and a CDN that caches HTML whatever
+  its headers say needs a purge after recording or device measurements are
+  switched on.
 - `priv/static/assets/phoenix_kit_web_analytics.js` — the client script.
 - `bot_signals.ex` — behavioural bot detection (automation flag, speed, no
   JavaScript) and the per-visitor-per-minute counters (page views, recording
@@ -116,7 +131,17 @@ can't, stays optional, and never writes a cookie or storage.
   advisory lock): session-start backfill, the no-JavaScript bot judgement,
   recording prune, rollup into `daily_stats` + `daily_dims` (watermark
   `web_analytics_rolled_through`; a day is re-rolled for 3 hours after it
-  ends), event prune (never past the watermark; fails closed).
+  ends), event prune (never past the watermark; fails closed). Bot traffic
+  is rolled up on its own into `daily_bots` (per rule and bot name,
+  `Dimensions.bots/1`), read back by `RollupReader.bots/1` /
+  `Reports.automated/1` — the "judged automated" numbers on Overview, Bots
+  and Technology (a `reason: "*"` row per day and site holds the total over
+  every rule, so a visit two rules judged counts once).
+  When the watermark is reset (a schema step that adds a rollup), a day
+  already rolled up is kept as it is if it lies past the retention horizon
+  or its raw events now count fewer than its stored totals, and a day past
+  the horizon gets no `daily_bots` rows: **bot history starts at V11** for
+  days that were already rolled up past the horizon then.
 
 ## Rules that are load-bearing
 
@@ -180,6 +205,11 @@ can't, stays optional, and never writes a cookie or storage.
   settings read of its own. A network wider than `/8` (IPv4) or `/16` (IPv6)
   is refused (`check_cidr/1`) because a row marked as internal stays marked
   after the setting is fixed.
+- **A declared bot keeps its name, never its User-Agent.**
+  `UserAgent.bot_name/1` maps the header to a known product or classifier marker
+  (`"Googlebot"`, at most 40 `[A-Za-z0-9._-]`, never a URL or an address),
+  stored as `metadata["bot_name"]` on the bot's rows only; the collector
+  strips the key from any other hit (custom-event props can't set it).
 - **A bot score is evidence, never a verdict.** `BotScore` reasons and
   their sum live on the profile and are only shown (the Bots page, a visit's
   page). Nothing drops, flags `is_bot` or blocks because of a score. A new
@@ -274,7 +304,9 @@ the retention pass, never in the migration); V04 rollup columns + `daily_dims`;
 V05 `(path, inserted_at)` and `(user_uuid, inserted_at)` indexes; V06
 `recordings`; V07 `click_id`, `click_param` + their partial indexes; V08
 `traffic_flags smallint NOT NULL DEFAULT 0` (no index, no backfill); V09
-`visitor_profiles`; V10 `bot_score` + `bot_reasons` on it. Adding a
+`visitor_profiles`; V10 `bot_score` + `bot_reasons` on it; V11
+`daily_bots` (bot traffic per day, site, rule and bot name; resets the
+rollup watermark so the days still in raw events get their bot rows). Adding a
 version means: bump `@current_version`, add `up_vN/1` + `down_vN/1`, add the
 `apply_step/3` clauses, and keep every statement prefix-safe (pass `prefix:`
 through, bare index names, schema-anchored existence checks).

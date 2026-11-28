@@ -5,11 +5,20 @@ import Config
 #   mix test.setup
 config :phoenix_kit_web_analytics, ecto_repos: [PhoenixKitWebAnalytics.Test.Repo]
 
+# `PGDATABASE` points this suite at another database (a shared instance, or
+# one the test role cannot create). Unset, it is the name CI provisions, so
+# publishing and CI are unaffected.
+pg_test_db =
+  case System.get_env("PGDATABASE") do
+    value when is_binary(value) and value != "" -> String.trim(value)
+    _ -> "phoenix_kit_web_analytics_test#{System.get_env("MIX_TEST_PARTITION")}"
+  end
+
 config :phoenix_kit_web_analytics, PhoenixKitWebAnalytics.Test.Repo,
   username: System.get_env("PGUSER", "postgres"),
   password: System.get_env("PGPASSWORD", "postgres"),
   hostname: System.get_env("PGHOST", "localhost"),
-  database: "phoenix_kit_web_analytics_test#{System.get_env("MIX_TEST_PARTITION")}",
+  database: pg_test_db,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2,
   priv: "test/support/postgres"

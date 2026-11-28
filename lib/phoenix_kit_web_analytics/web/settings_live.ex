@@ -459,6 +459,24 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
     """
   end
 
+  # What the client script's public endpoint lets through, next to its
+  # switch: the ceiling from app config, or that there is none.
+  defp client_rate_note do
+    case Config.client_hits_per_minute() do
+      limit when is_integer(limit) ->
+        gettext(
+          "Its endpoint is public: each visitor may send %{limit} clicks, scroll reports and exits a minute, each address %{address}; more are dropped. Custom events are not limited — put a rate limit in front of the endpoint if you need one.",
+          limit: limit,
+          address: limit * Config.client_hits_address_factor()
+        )
+
+      _off ->
+        gettext(
+          "Its endpoint is public and its hits are not limited (client_hits_per_minute is off in app config): put a rate limit in front of it."
+        )
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -1055,6 +1073,9 @@ defmodule PhoenixKitWebAnalytics.Web.SettingsLive do
               {gettext(
                 "Outbound links, downloads, plain buttons, scroll depth, and exits from pages without a LiveView. The script ships with the module; this switch decides whether its reports are stored."
               )}
+              <span id="client-script-rate-note" class="mt-1 block">
+                {client_rate_note()}
+              </span>
             </:description>
           </.checkbox>
 

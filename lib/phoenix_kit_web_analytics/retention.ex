@@ -8,7 +8,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
   1. **Rolls up** completed days into `PhoenixKitWebAnalytics.Schemas.DailyStat`
      rows — page views, visitors, sessions, bounces, and total session
-     seconds, per site.
+     seconds, per site — with the breakdowns in `DailyDim` and the day's
+     automated traffic, per rule and bot name, in `DailyBot`.
   2. **Prunes** raw events older than `web_analytics_retention_days`
      (365 by default; `0` disables pruning), in batches, and only for days that
      were rolled up first.
@@ -62,6 +63,7 @@ defmodule PhoenixKitWebAnalytics.Retention do
   alias PhoenixKit.Settings
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Dimensions
+  alias PhoenixKitWebAnalytics.Schemas.DailyBot
   alias PhoenixKitWebAnalytics.Schemas.DailyDim
   alias PhoenixKitWebAnalytics.Schemas.DailyStat
   alias PhoenixKitWebAnalytics.Schemas.Event
@@ -197,9 +199,15 @@ defmodule PhoenixKitWebAnalytics.Retention do
       :error
   end
 
-  @doc "Aggregates one day into `DailyStat` rows, one per site."
-  @spec rollup_day(Date.t()) :: :ok | :error
-  def rollup_day(%Date{} = date) do
+  @doc """
+  Aggregates one day into `DailyStat` rows, one per site, with its
+  breakdowns (`DailyDim`) and bot traffic (`DailyBot`). `bots: false` leaves
+  the day's `DailyBot` rows as they are.
+  """
+  @spec rollup_day(Date.t(), keyword()) :: :ok | :error
+  def rollup_day(%Date{} = date, opts \\ []) do
+    bots? = Keyword.get(opts, :bots, true)
+
     from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
     to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
 
@@ -245,6 +253,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
         |> Enum.map(&dim_row(&1, date, dimension, now))
       end)
 
+    bots = if bots?, do: day_bots(from, to, date, now), else: :keep
+
     # One transaction per day: a day is replaced whole or not at all, so a
     # failure can't leave it looking rolled up while its raw rows become
     # eligible for pruning.
@@ -258,9 +268,9 @@ defmodule PhoenixKitWebAnalytics.Retention do
         # A pruned site's breakdowns cannot be reconstructed.
         from(d in DailyDim, where: d.date == ^date and d.site in ^sites) |> repo().delete_all()
 
-        dims
-        |> Enum.chunk_every(1_000)
-        |> Enum.each(&repo().insert_all(DailyDim, &1))
+        insert_chunked(DailyDim, dims)
+
+        replace_bots(date, sites, bots)
       end)
 
     case result do
@@ -306,6 +316,40 @@ defmodule PhoenixKitWebAnalytics.Retention do
       dimension: dimension,
       inserted_at: now
     })
+    |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
+  end
+
+  # Bot traffic gets rows of its own, per rule and bot name, so how much of
+  # it came outlives the raw events too.
+  # The `"*"` row per site counts the day's automated visits over every rule
+  # at once, so a visit two rules judged is one visit in the totals.
+  defp day_bots(from, to, date, now) do
+    day =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: e.traffic_flags == 0
+      )
+
+    (repo().all(Dimensions.bots(day)) ++ repo().all(Dimensions.bots_total(day)))
+    |> Enum.map(&bot_row(&1, date, now))
+  end
+
+  defp replace_bots(_date, _sites, :keep), do: :ok
+
+  defp replace_bots(date, sites, rows) do
+    from(b in DailyBot, where: b.date == ^date and b.site in ^sites) |> repo().delete_all()
+    insert_chunked(DailyBot, rows)
+  end
+
+  defp insert_chunked(schema, rows) do
+    rows
+    |> Enum.chunk_every(1_000)
+    |> Enum.each(&repo().insert_all(schema, &1))
+  end
+
+  defp bot_row(row, date, now) do
+    row
+    |> Map.merge(%{uuid: UUIDv7.generate(), date: date, inserted_at: now})
     |> Map.new(fn {key, value} -> {key, to_integer_if_decimal(value)} end)
   end
 
@@ -472,7 +516,8 @@ defmodule PhoenixKitWebAnalytics.Retention do
   defp roll_forward(dates) do
     {count, last_rolled} =
       Enum.reduce_while(dates, {0, nil}, fn date, {count, _last} = acc ->
-        case rollup_day(date) do
+        case roll_unless_pruning(date) do
+          :kept -> {:cont, {count, date}}
           :ok -> {:cont, {if(day_has_rows?(date), do: count + 1, else: count), date}}
           _ -> {:halt, acc}
         end
@@ -480,6 +525,64 @@ defmodule PhoenixKitWebAnalytics.Retention do
 
     # The tuple's last date is the one before a failure when it halted.
     if last_rolled && advance_watermark(last_rolled) != :ok, do: 0, else: count
+  end
+
+  # A day already rolled up is kept as it is when its raw events can't be
+  # trusted to be whole: past the retention horizon they are being pruned (a
+  # pass deletes at most so many rows, so the day can be half gone), and a
+  # day whose raw events now count fewer page views, events or exits than its
+  # stored totals has lost some (pruned under a shorter retention since
+  # raised). Rolling it again from what is left would
+  # replace its totals with a fraction of them. This happens when the
+  # watermark is reset — a schema step that adds a rollup does, so that the
+  # days still in raw events get the new rows.
+  #
+  # A day past the horizon gets no bot rows either: its bot events may be
+  # half gone too, and no stored total says so. Bot history for such a day
+  # starts with the rollup that first wrote it (schema V11).
+  defp roll_unless_pruning(date) do
+    rolled? = day_has_rows?(date)
+    pruning? = pruning?(date)
+
+    cond do
+      rolled? and pruning? -> :kept
+      rolled? and raw_below_rollup?(date) -> :kept
+      pruning? -> rollup_day(date, bots: false)
+      true -> rollup_day(date)
+    end
+  end
+
+  @compared [:pageviews, :events, :exits]
+
+  defp raw_below_rollup?(date) do
+    from = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    to = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
+
+    raw =
+      from(e in Event,
+        where: e.inserted_at >= ^from and e.inserted_at < ^to,
+        where: not e.is_bot and e.traffic_flags == 0
+      )
+      |> Dimensions.totals()
+      |> repo().all()
+      |> Map.new(&{&1.site, &1})
+
+    from(s in DailyStat, where: s.date == ^date)
+    |> repo().all()
+    |> Enum.any?(fn stored ->
+      remaining = Map.get(raw, stored.site, %{})
+      Enum.any?(@compared, &(Map.get(remaining, &1, 0) < Map.fetch!(stored, &1)))
+    end)
+  end
+
+  defp pruning?(date) do
+    case Config.retention_days() do
+      days when is_integer(days) and days > 0 ->
+        Date.compare(date, Date.add(Date.utc_today(), -days)) == :lt
+
+      _ ->
+        false
+    end
   end
 
   # Re-roll the recent completed days this pass didn't just roll, while

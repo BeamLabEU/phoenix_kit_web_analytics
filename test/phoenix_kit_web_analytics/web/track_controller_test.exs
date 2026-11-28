@@ -428,4 +428,51 @@ defmodule PhoenixKitWebAnalytics.Web.TrackControllerTest do
       assert events() == []
     end
   end
+
+  describe "the client script's per-visitor ceiling" do
+    setup do
+      start_supervised!(PhoenixKitWebAnalytics.BotSignals)
+      enable_tracking(%{"web_analytics_client_script" => "true"})
+
+      on_exit(fn ->
+        Application.delete_env(:phoenix_kit_web_analytics, :client_hits_per_minute)
+      end)
+
+      :ok
+    end
+
+    @rated_click %{"e" => "click", "k" => "outbound", "x" => "example.org/x", "p" => "/pricing"}
+
+    test "drops clicks, scroll and exits over the limit a minute", %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, 3)
+
+      for _ <- 1..5, do: assert(post(conn, @beacon_path, @rated_click).status == 204)
+
+      assert length(events()) == 3
+    end
+
+    test "a new User-Agent from the same address meets the address's ceiling", %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, 1)
+
+      # 1 per visitor, 6 per address: seven User-Agents, six stored.
+      for n <- 1..7 do
+        conn
+        |> put_req_header("user-agent", "Mozilla/5.0 (X11; Linux x86_64) Firefox/#{100 + n}.0")
+        |> post(@beacon_path, @rated_click)
+      end
+
+      assert length(events()) == 6
+    end
+
+    test "custom events are not limited, and 0 turns the ceiling off", %{conn: conn} do
+      Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, 1)
+
+      for _ <- 1..3, do: post(conn, @beacon_path, %{"n" => "signup", "p" => "/pricing"})
+      assert length(events()) == 3
+
+      Application.put_env(:phoenix_kit_web_analytics, :client_hits_per_minute, 0)
+      for _ <- 1..3, do: post(conn, @beacon_path, @rated_click)
+      assert length(events()) == 6
+    end
+  end
 end

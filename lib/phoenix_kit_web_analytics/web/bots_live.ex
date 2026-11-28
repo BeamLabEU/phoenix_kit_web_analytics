@@ -9,6 +9,10 @@ defmodule PhoenixKitWebAnalytics.Web.BotsLive do
   offer their likely bots as a plain list, to paste into whatever does the
   blocking.
 
+  On top, what the bot rules took out of the reports in the period, per rule
+  and per bot name (`PhoenixKitWebAnalytics.Reports.automated/1`) — read from
+  the events and the daily rollup, so it needs no profile.
+
   Everything is a link carrying the whole filter in the URL, so the page
   works without JavaScript and any view of it can be bookmarked.
   """
@@ -25,6 +29,7 @@ defmodule PhoenixKitWebAnalytics.Web.BotsLive do
   alias PhoenixKitWebAnalytics.Config
   alias PhoenixKitWebAnalytics.Paths
   alias PhoenixKitWebAnalytics.Profiles
+  alias PhoenixKitWebAnalytics.Reports
 
   @periods [1, 7, 30, 0]
   @views [:visitors | Bots.groups()]
@@ -46,6 +51,7 @@ defmodule PhoenixKitWebAnalytics.Web.BotsLive do
      |> assign(:filter, filter)
      |> assign(:view, view)
      |> assign(:summary, Bots.summary(filter))
+     |> assign(:automated, Reports.automated(report_filter(filter.days)))
      |> assign(:kept, kept(Config.collection_config()))
      |> assign(:total, Profiles.count())
      |> load(view, filter)}
@@ -86,6 +92,20 @@ defmodule PhoenixKitWebAnalytics.Web.BotsLive do
       agent: matching(params["agent"], ~r/\A[0-9a-f]{32}\z/)
     }
   end
+
+  # The report window for the page's period: the last 24 hours, the last 7
+  # or 30 days, or all time.
+  defp report_filter(1) do
+    # To the minute, so a reload within it is the same (cached) report.
+    now = DateTime.utc_now() |> DateTime.truncate(:second) |> Map.put(:second, 0)
+
+    Reports.filter(period: "today", now: now)
+    |> Map.merge(%{from: DateTime.add(now, -86_400, :second), to: now, period: "24h"})
+  end
+
+  defp report_filter(7), do: Reports.filter(period: "7d")
+  defp report_filter(30), do: Reports.filter(period: "30d")
+  defp report_filter(_all), do: Reports.filter(period: "all")
 
   defp days(value) do
     case positive(value) do
@@ -253,6 +273,8 @@ defmodule PhoenixKitWebAnalytics.Web.BotsLive do
           </div>
         </div>
       </div>
+
+      <.automated_card id="bots-automated" automated={@automated} />
 
       <.empty_state
         :if={@total == 0}

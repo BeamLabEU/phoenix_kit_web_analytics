@@ -21,6 +21,32 @@ live_session :public,
 end
 ```
 
+Pages no router pipeline covers can be counted from the endpoint too
+(opt-in; `mix phoenix_kit.update` never adds it). Put it **after** whatever
+rewrites `remote_ip`, before the router:
+
+```elixir
+# lib/my_app_web/endpoint.ex
+plug RemoteIp
+plug PhoenixKitWebAnalytics.Plug,
+  include_paths: ["/*"],          # only these patterns (default: every path)
+  exclude_paths: ["/internal*"],  # on top of the settings' exclusions
+  api: :inherit                   # or false: leave the API paths to another plug
+plug MyAppWeb.Router
+```
+
+Used this way it also leaves out LiveDashboard and the mailbox under `/dev`,
+live reload, `/health`, `/healthz`, `/livez`, `/readyz` and `/ping`
+(`default_excludes: false` to count them). The pipeline plug can stay: the
+first copy to see a request it covers decides for it and marks the conn, so a
+page is never counted twice, and the pipeline's copy still writes the session
+notes the LiveView hook reads. A path outside the endpoint's `include_paths`,
+or an API path under `api: false`, is left to the pipeline's copy; a path the
+endpoint excludes is counted by neither. **Keep the pipeline plug on a site
+with LiveView pages**: the endpoint runs before the session is fetched, so
+without the pipeline's copy nothing notes Do Not Track or the consent answer
+for the LiveView hook, which would then count those visitors' navigations.
+
 An optional client script (shipped with the module, switched off until you
 enable it) adds only what a server cannot see: outbound and download clicks,
 scroll depth, and exits from pages without a LiveView.
@@ -36,7 +62,7 @@ scroll depth, and exits from pages without a LiveView.
   see [Privacy](#privacy).) Keeping more is a setting, one kind of data at a
   time — see [What is kept about a visitor](#what-is-kept-about-a-visitor).
 - **Ad blockers can't remove it.** The numbers are your server's.
-- **The data is yours.** Five tables in your own database; nothing leaves
+- **The data is yours.** Six tables in your own database; nothing leaves
   your infrastructure.
 
 ## What gets recorded
@@ -81,7 +107,7 @@ JavaScript in the admin either.
 
 ```elixir
 # mix.exs
-{:phoenix_kit_web_analytics, "~> 0.2"}
+{:phoenix_kit_web_analytics, "~> 0.10"}
 ```
 
 ```bash
@@ -163,6 +189,21 @@ Then enable **Web Analytics** on the admin Modules page, and:
 The client script ships through the module's `js_sources/0`, so a host set up
 by `mix phoenix_kit.install` loads it with no change; switch **Accept the
 client script** on in Settings to have its reports stored.
+
+Its endpoint is public. Clicks, scroll reports and exits are held to 60 a
+minute per visitor and 360 per address (`config :phoenix_kit_web_analytics,
+client_hits_per_minute: n`, `0` to turn it off); custom events are not
+limited, so put a rate limit in front of the endpoint if you accept them.
+The script asks the server once per page whether to record it or measure the
+device — unless the page's own response carries the plug's
+`Server-Timing: pk-analytics;desc="quiet"` entry (neither is switched on),
+when it asks nothing. The entry requires an explicit `private` or `no-store` cache directive
+and is omitted when shared-cache directives or CDN headers are present, so a cached page never stops recording that was
+switched on after it was stored. A CDN told to cache HTML whatever its headers
+say can still serve a stale "quiet" until the copy expires: purge it after
+switching recording or device measurements on. The script reads the entry once
+per page load, so a visitor already on the site when recording is switched on
+is recorded from their next full page load.
 
 ## Alerts
 
@@ -362,6 +403,11 @@ included), and bots. All configurable in Settings. Tidewave's development
 re-fetch of a page (an `x-tidewave-diagnostic` header) is never a page view.
 A browser's speculative prefetch is stored, but as a bot's (see [Bots](#bots)).
 
+Because only 2xx HTML responses are recorded, a scanner probing paths your
+app doesn't have (`/wp-login.php`, `/.env`) leaves nothing here, even with
+**Record bot traffic** on: those 404s show only in your proxy's or
+endpoint's access log. An empty report is not evidence you aren't probed.
+
 ### Bots
 
 A bot that names itself (Googlebot, link previews, uptime monitors, `curl`,
@@ -418,8 +464,19 @@ measurements**: what isn't collected can't count.
 their reasons, and groups them by what several share — network, subnet,
 address, device, User-Agent. A group opens its visitors; the address-shaped
 groupings offer their likely bots as a plain list to paste into a firewall
-or a CDN rule. Declared bots only appear with **Record bot traffic** on —
-otherwise they are dropped before anything is kept.
+or a CDN rule.
+
+On top, **Judged automated** counts the visits each rule took out of the
+reports in the period — says it is a bot, no JavaScript, automation, speed,
+prefetch — and names the bots that say who they are (`Googlebot`, `GPTBot`:
+a fixed product label, with a classifier marker for unknown products). The Overview says how
+many visits that was; Technology, with the **Bots** switch on, lists the
+names. These numbers come from a daily rollup of their own, so they outlive
+the raw events. Declared bots only appear with **Record bot traffic** on —
+otherwise they are dropped before anything is kept. Each dropped hit logs one
+`debug`-level line naming the rule (`user_agent:<marker>`, `rate`,
+`webdriver`) and the path, so a headless-browser test that leaves no rows
+can be explained with `config :logger, level: :debug`.
 
 ### Your own traffic
 

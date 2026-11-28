@@ -175,4 +175,80 @@ defmodule PhoenixKitWebAnalytics.UserAgentTest do
       refute UserAgent.bot?(nil)
     end
   end
+
+  describe "bot_marker/1" do
+    test "names the rule that matched" do
+      assert UserAgent.bot_marker("Googlebot/2.1 (+http://www.google.com/bot.html)") == "bot"
+      assert UserAgent.bot_marker("curl/8.4.0") == "curl"
+      assert UserAgent.bot_marker("k6/0.49.0 (https://k6.io/)") == "k6/"
+      assert UserAgent.bot_marker("Mozilla/5.0") == "bare"
+    end
+
+    test "is nil for a browser or no header" do
+      refute UserAgent.bot_marker(
+               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+             )
+
+      refute UserAgent.bot_marker(nil)
+      refute UserAgent.bot_marker("")
+    end
+  end
+
+  describe "bot_name/1" do
+    test "is the product token carrying the marker, without its version" do
+      for {ua, name} <- [
+            {"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+             "Googlebot"},
+            {"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+             "Googlebot"},
+            {"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+             "GPTBot"},
+            {"Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)", "AhrefsBot"},
+            {"Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+             "bingbot"},
+            {"curl/8.4.0", "curl"},
+            {"python-requests/2.31.0", "python-requests"},
+            {"Java/17.0.2", "Java"},
+            {"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 HeadlessChrome/120.0.0.0 Safari/537.36",
+             "HeadlessChrome"},
+            {"facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+             "facebookexternalhit"},
+            {"k6/0.49.0 (https://k6.io/)", "k6"},
+            {"Mozilla/5.0", "bare"}
+          ] do
+        assert UserAgent.bot_name(ua) == name, "#{ua} → #{inspect(UserAgent.bot_name(ua))}"
+      end
+    end
+
+    test "never a URL or an address" do
+      # The only token carrying the marker is a link: the marker stands in.
+      assert UserAgent.bot_name("Mozilla/5.0 (+https://example.com/bot.html)") == "bot"
+      assert UserAgent.bot_name("MyCrawler (admin@crawl.example)") == "crawl"
+    end
+
+    test "never a host, an IP address or a long number" do
+      assert UserAgent.bot_name("ads.example.com/bot") == "bot"
+      assert UserAgent.bot_name("192.168.7.42bot/2.1") == "bot"
+      assert UserAgent.bot_name("call 555-867-5309x12bot/1") == "bot"
+      assert UserAgent.bot_name("Bot12345678/1.0") == "bot"
+      assert UserAgent.bot_name("Customer-AliceBot/1") == "bot"
+      assert UserAgent.bot_name("private.example/bot") == "bot"
+      # Real crawler names with a dot or a few digits are kept.
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; Mail.RU_Bot/2.0)") == "Mail.RU_Bot"
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; MJ12bot/v1.4.8)") == "MJ12bot"
+      assert UserAgent.bot_name("Mozilla/5.0 (compatible; 360Spider)") == "360Spider"
+    end
+
+    test "is short and plain" do
+      name = UserAgent.bot_name("Super<script>" <> String.duplicate("x", 100) <> "bot/1.0")
+      assert String.length(name) <= 40
+      assert name =~ ~r/\A[A-Za-z0-9._-]+\z/
+    end
+
+    test "is nil for a browser or no header" do
+      refute UserAgent.bot_name(@chrome)
+      refute UserAgent.bot_name(nil)
+      refute UserAgent.bot_name("")
+    end
+  end
 end

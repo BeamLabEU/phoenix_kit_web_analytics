@@ -256,6 +256,57 @@ defmodule PhoenixKitWebAnalytics.Reports do
   end
 
   @doc """
+  What the bot rules took out of the window's reports — so the judgement can
+  be checked instead of trusted.
+
+  Returns `%{visits: n, pageviews: n, rules: [...], bots: [...]}`, where
+  `visits` counts each automated visit once (per UTC day) even when two
+  rules judged it:
+
+    * `rules` — per rule (`"user_agent"`, `"no_js"`, `"webdriver"`,
+      `"rate"`, `"prefetch"`), the visits, page views and hits it judged
+      automated, most visits first — a visit two rules judged is under
+      both, so the rules can add up to more than `visits`;
+    * `bots` — per bot name a declared bot gave (`"Googlebot"`), the same
+      numbers; behavioural verdicts on a browser's User-Agent have no name
+      and are not in this list.
+
+  Counts what is stored: a declared bot's hits are stored only with
+  `web_analytics_track_bots` on (`track_bots?: false` in the result says
+  they were dropped unseen), while the behavioural rules always keep the
+  visit's first hits. Reads finished days from the `DailyBot` rollup (see
+  `RollupReader.bots/1`), so the numbers outlive the raw events.
+  """
+  @spec automated(filter()) :: map()
+  def automated(filter) do
+    cached({:automated, filter}, fn ->
+      {totals, rows} = filter |> RollupReader.bots() |> Enum.split_with(&(&1.reason == "*"))
+
+      %{
+        visits: totals |> Enum.map(& &1.visits) |> Enum.sum(),
+        pageviews: totals |> Enum.map(& &1.pageviews) |> Enum.sum(),
+        rules: sum_by(rows, & &1.reason, :reason),
+        bots: rows |> Enum.reject(&(&1.bot_name == "")) |> sum_by(& &1.bot_name, :bot_name),
+        track_bots?: Config.collection_config().track_bots?
+      }
+    end)
+  end
+
+  defp sum_by(rows, key_fun, key) do
+    rows
+    |> Enum.group_by(key_fun)
+    |> Enum.map(fn {value, group} ->
+      Map.merge(
+        %{key => value},
+        Map.new([:hits, :pageviews, :visits, :visitors], fn metric ->
+          {metric, group |> Enum.map(&Map.fetch!(&1, metric)) |> Enum.sum()}
+        end)
+      )
+    end)
+    |> Enum.sort_by(&{-&1.visits, -&1.hits, &1[key]})
+  end
+
+  @doc """
   Totals for the window immediately before this one, for period-over-period
   comparison. `nil` for the `"all"` period, which has no "before".
   """
